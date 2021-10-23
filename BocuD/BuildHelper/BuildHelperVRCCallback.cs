@@ -1,32 +1,32 @@
 ﻿#if UNITY_EDITOR
 
 using System;
-using System.Collections.Generic;
-using HarmonyLib;
 using UnityEditor;
 using UnityEngine;
 using VRC.SDKBase.Editor.BuildPipeline;
 
-public class BuildHelperVRCCallback : IVRCSDKBuildRequestedCallback
+namespace BocuD.BuildHelper
 {
-    public int callbackOrder => 10;
-
-    public bool OnBuildRequested(VRCSDKRequestedBuildType requestedBuildType)
+    public class BuildHelperVRCCallback : IVRCSDKBuildRequestedCallback
     {
-        if (requestedBuildType == VRCSDKRequestedBuildType.Avatar) return true;
+        public int callbackOrder => 10;
 
-        BuildHelperData buildHelperData = UnityEngine.Object.FindObjectOfType<BuildHelperData>();
-        Branch branch = buildHelperData.branches[buildHelperData.currentBranch];
-        BuildData buildData = branch.buildData;
-
-        if (buildHelperData == null)
+        public bool OnBuildRequested(VRCSDKRequestedBuildType requestedBuildType)
         {
-            Debug.Log($"Build Helper was not found in this scene");
-            return true;
-        }
+            if (requestedBuildType == VRCSDKRequestedBuildType.Avatar) return true;
 
-        buildHelperData.PrepareExcludedGameObjects();
-        buildHelperData.overrideContainers[buildHelperData.currentBranch].ApplyStateChanges();
+            BuildHelperData buildHelperData = UnityEngine.Object.FindObjectOfType<BuildHelperData>();
+            Branch branch = buildHelperData.branches[buildHelperData.currentBranch];
+            BuildData buildData = branch.buildData;
+
+            if (buildHelperData == null)
+            {
+                Debug.Log($"Build Helper was not found in this scene");
+                return true;
+            }
+
+            buildHelperData.PrepareExcludedGameObjects();
+            buildHelperData.overrideContainers[buildHelperData.currentBranch].ApplyStateChanges();
 
 #if UNITY_ANDROID
         //HACK this is retarded like wth
@@ -68,46 +68,47 @@ public class BuildHelperVRCCallback : IVRCSDKBuildRequestedCallback
 
         else buildData.androidBuildVersion++;
 #else
-        //HACK this is retarded like wth
-        buildData.pcBuildTime = $"{DateTime.Now}";
+            //HACK this is retarded like wth
+            buildData.pcBuildTime = $"{DateTime.Now}";
 
-        if (buildData.androidBuildVersion > buildData.pcBuildVersion && buildData.androidBuildVersion != -1)
-        {
-            if (buildData.pcBuildVersion == -1)
+            if (buildData.androidBuildVersion > buildData.pcBuildVersion && buildData.androidBuildVersion != -1)
             {
-                buildData.pcBuildVersion = buildData.androidBuildVersion;
-            }
-            else
-            {
-                DateTime androidBuildTime = DateTime.Parse(buildData.androidBuildTime);
-                if ((DateTime.Now - androidBuildTime).TotalMinutes > 5)
+                if (buildData.pcBuildVersion == -1)
                 {
-                    bool newBuild = EditorUtility.DisplayDialog("Build Helper",
-                        $"Your last build for Android (build {buildData.androidBuildVersion}, {buildData.androidBuildTime}) is significantly older than the PC build you are about to do. Should Build Helper mark your current PC build as a newer build, or as equivalent to your last Android build?",
-                        "New build",
-                        "Equivalent build");
-
-                    if (newBuild)
+                    buildData.pcBuildVersion = buildData.androidBuildVersion;
+                }
+                else
+                {
+                    DateTime androidBuildTime = DateTime.Parse(buildData.androidBuildTime);
+                    if ((DateTime.Now - androidBuildTime).TotalMinutes > 5)
                     {
-                        buildData.pcBuildVersion = buildData.androidBuildVersion + 2;
+                        bool newBuild = EditorUtility.DisplayDialog("Build Helper",
+                            $"Your last build for Android (build {buildData.androidBuildVersion}, {buildData.androidBuildTime}) is significantly older than the PC build you are about to do. Should Build Helper mark your current PC build as a newer build, or as equivalent to your last Android build?",
+                            "New build",
+                            "Equivalent build");
+
+                        if (newBuild)
+                        {
+                            buildData.pcBuildVersion = buildData.androidBuildVersion + 2;
+                        }
+                        else
+                        {
+                            buildData.pcBuildVersion = buildData.androidBuildVersion;
+                        }
                     }
                     else
                     {
                         buildData.pcBuildVersion = buildData.androidBuildVersion;
                     }
                 }
-                else
-                {
-                    buildData.pcBuildVersion = buildData.androidBuildVersion;
-                }
             }
-        }
 
-        else buildData.pcBuildVersion++;
+            else buildData.pcBuildVersion++;
 #endif
-        buildHelperData.SaveToJSON();
+            buildHelperData.SaveToJSON();
 
-        return true;
+            return true;
+        }
     }
 }
 #endif
