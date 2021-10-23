@@ -30,4 +30,4 @@ You can access information about the branch and build at runtime. Since the buil
 ### Upload tools
 When uploading your world, VR Build Helper lets you save the camera position so you don't have to move it every time. You can specify if the camera position should be unique to this branch or applied to all branches.
 VR Build Helper can also upload custom images instead of using the camera.
-[Build Tools](https://i.imgur.com/hvfFq93.png)
+![Build Tools](https://i.imgur.com/hvfFq93.png)
