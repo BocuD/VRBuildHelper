@@ -35,6 +35,7 @@ VR Build Helper tracks every build and upload you do for a branch, for both PC a
 You can access information about the branch and build at runtime. Since the build number is accessible, this can be used to detect version errors between two different builds - for example when a Quest user joins a PC world that has not been updated for their platform yet, or right after an update was published to notify users that are still on the old build that they should rejoin. Branch information is also available.
 ### Autonomous builder
 You can upload your world for both platforms with the press of a single button. The autonomous builder will then build your world for the first platform, upload it, switch platform, build for the second platform, upload it, and then switch back to the platform you were originally on. It can of course also be used to upload to a single platform autonomously. (no more pressing upload buttons!)
+![Autonomous Builder](https://i.imgur.com/SfrhwNi.gif)
 ### Upload tools
 When uploading your world, VR Build Helper lets you save the camera position so you don't have to move it every time. You can specify if the camera position should be unique to this branch or applied to all branches.
 VR Build Helper can also upload custom images instead of using the camera.
