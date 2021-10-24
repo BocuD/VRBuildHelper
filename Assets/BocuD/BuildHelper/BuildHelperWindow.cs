@@ -544,6 +544,11 @@ namespace BocuD.BuildHelper
     
         private void OnDestroy()
         {
+            Save();
+        }
+
+        private void Save()
+        {
             if (buildHelperData != null)
                 buildHelperData.SaveToJSON();
         }

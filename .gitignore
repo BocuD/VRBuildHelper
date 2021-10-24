@@ -1,0 +1,13 @@
+*
+!.git
+!.github
+!.gitignore
+!.LICENCE
+!.README.md
+
+!Assets
+Assets/*
+!Assets/BocuD
+!Assets/BocuD/**
+!Assets/Plugins
+!Assets/Plugins/**

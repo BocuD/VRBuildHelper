@@ -124,22 +124,27 @@ namespace BocuD.BuildHelper
             if (logString.Contains("Starting upload"))
             {
                 AutonomousBuildInformation autonomousBuild = buildHelperData.autonomousBuild;
-                switch (autonomousBuild.progress)
+
+                if (autonomousBuild.activeBuild)
                 {
-                    case Progress.PreInitialBuild:
+                    switch (autonomousBuild.progress)
                     {
-                        AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
-                        statusWindow.currentPlatform = autonomousBuild.initialTarget;
-                        statusWindow.currentState = AutonomousBuildState.uploading;
+                        case Progress.PreInitialBuild:
+                        {
+                            AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                            statusWindow.currentPlatform = autonomousBuild.initialTarget;
+                            statusWindow.currentState = AutonomousBuildState.uploading;
+                        }
+                            break;
+
+                        case Progress.PreSecondaryBuild:
+                        {
+                            AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                            statusWindow.currentPlatform = autonomousBuild.secondaryTarget;
+                            statusWindow.currentState = AutonomousBuildState.uploading;
+                        }
+                            break;
                     }
-                        break;
-                    case Progress.PreSecondaryBuild:
-                    {
-                        AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
-                        statusWindow.currentPlatform = autonomousBuild.secondaryTarget;
-                        statusWindow.currentState = AutonomousBuildState.uploading;
-                    }
-                        break;
                 }
 
                 branch.saveCamPos = buildHelperToolsMenu.saveCamPosition.isOn;
