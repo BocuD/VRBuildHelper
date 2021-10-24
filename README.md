@@ -5,8 +5,9 @@ An integrated editor toolset that adds a number of quality of life features to a
  - Manage multiple branches of a world that upload to seperate pipeline ids
  - Keep track of any builds and uploads you do for each branch and manage build numbers across PC and mobile platforms
  - Streamlined build interface
- - Automatically upload your world for PC and mobile
+ - Automatically upload your world with a single button press - and even upload for two platforms in one go autonomously
  - Upload custom images for your world
+ - Edit your world name, description, tags, image etc from the editor (on a per branch basis)
  - Save camera position before uploading
  - much more, read the documentation!
 
@@ -26,6 +27,8 @@ A branch contains information about a specific version of your world. You can se
  - Dev branch, using a different pipeline id from the main branch so it gets uploaded as a different world, which includes a number of GameObjects to assist in testing that are not present on the main branch
 ### GameObject overrides
 You can specify a list of GameObjects that should be excluded from a given branch by enabling GameObject overrides for that branch. Exclusive GameObjects will only be included in builds for a branch that has them in the Exclusive GameObject list. Excluded GameObjects will not be included in builds for that branch.
+### Editor world changes
+You can change you world name, decription, tags, playercount and image right from the editor window, on a per branch basis. Any changes you make will be applied to the upload window automatically on the next build - or be applied autonomously if using the Autonomous builder.
 ### Build tracking
 VR Build Helper tracks every build and upload you do for a branch, for both PC and mobile platforms. It automatically keeps a build number which is updated every time you create a new build. If you switch platforms and do a new build, VR Build Helper will attempt to detect if any changes were made after switching. If not, the build numbers for the new platform will automatically be updated to match the other one.
 ### Runtime Udon features
