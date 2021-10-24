@@ -493,15 +493,14 @@ namespace BocuD.BuildHelper
 
         private bool InitAutonomousBuild(bool singleTarget)
         {
-            if (!singleTarget)
+            string platform = EditorUserBuildSettings.activeBuildTarget == BuildTarget.Android ? "Android" : "PC";
+            
+            string message = singleTarget ? $"Build Helper will initiate a build and publish cycle for {platform}"
+                : "Build Helper will initiate a build and publish cycle for both PC and mobile in succesion";
+            
+            if (!EditorUtility.DisplayDialog("Build Helper", message, "Proceed", "Cancel"))
             {
-                if (!EditorUtility.DisplayDialog("Build Helper",
-                    "Build Helper will initiate a build and publish cycle for both PC and mobile in succesion",
-                    "Proceed",
-                    "Cancel"))
-                {
-                    return false;
-                }
+                return false;
             }
 
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
