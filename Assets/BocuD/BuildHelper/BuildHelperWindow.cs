@@ -116,6 +116,8 @@ namespace BocuD.BuildHelper
                     buildHelperData.currentBranch = branchList.index;
                     InitGameObjectContainerLists();
                     buildHelperData.PrepareExcludedGameObjects();
+                    
+                    Save();
                 
                     if(buildHelperData.branches[buildHelperData.currentBranch].hasOverrides) _overrideContainer.ApplyStateChanges();
 
@@ -150,6 +152,8 @@ namespace BocuD.BuildHelper
 
             GUILayout.Label($"<b>Branch Editor</b>", styleRichTextLabel);
         
+            EditorGUI.BeginChangeCheck();
+            
             selectedBranch.name = EditorGUILayout.TextField("Branch name:", selectedBranch.name);
 
             EditorGUILayout.BeginHorizontal();
@@ -167,7 +171,9 @@ namespace BocuD.BuildHelper
                 }
             }
             EditorGUILayout.EndHorizontal();
+            
             selectedBranch.hasOverrides = EditorGUILayout.Toggle("GameObject Overrides", selectedBranch.hasOverrides);
+            if(EditorGUI.EndChangeCheck()) Save();
 
             if (selectedBranch.hasOverrides)
             {
@@ -432,11 +438,15 @@ namespace BocuD.BuildHelper
             
             EditorGUILayout.HelpBox("Autonomous build can be used to publish your world for both PC and Android automatically with one button press.", MessageType.Info);
             
+            EditorGUILayout.BeginHorizontal();
+            
             GUIStyle autoButtonStyle = new GUIStyle(GUI.skin.button) {fixedHeight = 40};
             
-            if (GUILayout.Button("Build and publish for PC and Android", autoButtonStyle))
+            string platform = EditorUserBuildSettings.activeBuildTarget == BuildTarget.Android ? "Android" : "PC";
+
+            if (GUILayout.Button($"Build and publish for {platform}", autoButtonStyle))
             {
-                if (InitAutonomousBuild())
+                if (InitAutonomousBuild(true))
                 {
                     buildHelperData.SaveToJSON();
                     
@@ -447,6 +457,21 @@ namespace BocuD.BuildHelper
                     BuildHelperBuilder.PublishNewBuild();
                 }
             }
+            
+            if (GUILayout.Button("Build and publish for PC and Android", autoButtonStyle))
+            {
+                if (InitAutonomousBuild(false))
+                {
+                    buildHelperData.SaveToJSON();
+                    
+                    AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                    statusWindow.currentPlatform = buildHelperData.autonomousBuild.initialTarget;
+                    statusWindow.currentState = AutonomousBuildState.building;
+                    
+                    BuildHelperBuilder.PublishNewBuild();
+                }
+            }
+            EditorGUILayout.EndHorizontal();
         }
 
         private bool CheckLastBuild()
@@ -466,7 +491,7 @@ namespace BocuD.BuildHelper
             return true;
         }
 
-        private bool InitAutonomousBuild()
+        private bool InitAutonomousBuild(bool singleTarget)
         {
             if (!EditorUtility.DisplayDialog("Build Helper",
                 "Build Helper will initiate a build and publish cycle for both PC and mobile in succesion","Proceed", "Cancel"))
@@ -474,7 +499,7 @@ namespace BocuD.BuildHelper
                 return false;
             }
 
-            UnityEditor.BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
+            BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
             switch (target)
             {
                 case BuildTarget.Android:
@@ -491,6 +516,7 @@ namespace BocuD.BuildHelper
             }
 
             buildHelperData.autonomousBuild.activeBuild = true;
+            buildHelperData.autonomousBuild.singleTarget = singleTarget;
             buildHelperData.autonomousBuild.progress = AutonomousBuildInformation.Progress.PreInitialBuild;
             return true;
         }
@@ -776,7 +802,7 @@ namespace BocuD.BuildHelper
         
             if (GUILayout.Button(buttonGitHub, styleGitHub, GUILayout.Width(iconSize), GUILayout.Height(iconSize)))
             {
-                Application.OpenURL("https://github.com/BocuD?tab=repositories");
+                Application.OpenURL("https://github.com/BocuD/VRBuildHelper");
             }
 
             GUILayout.EndHorizontal();

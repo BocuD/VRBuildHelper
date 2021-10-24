@@ -98,10 +98,10 @@ namespace BocuD.BuildHelper
     }
 
     [InitializeOnLoadAttribute]
-    public static class BuildHelperAutonomousHelper
+    public static class BuildHelperPlaymodeStateWatcher
     {
         // register an event handler when the class is initialized
-        static BuildHelperAutonomousHelper()
+        static BuildHelperPlaymodeStateWatcher()
         {
             EditorApplication.playModeStateChanged += LogPlayModeState;
         }
@@ -112,24 +112,44 @@ namespace BocuD.BuildHelper
 
             if (state == PlayModeStateChange.EnteredEditMode)
             {
-                BuildHelperData buildHelperData = UnityEngine.Object.FindObjectOfType<BuildHelperData>();
+                BuildHelperData buildHelperData = Object.FindObjectOfType<BuildHelperData>();
+
+                if (buildHelperData == null) return;
+                
                 buildHelperData.LoadFromJSON();
 
                 AutonomousBuildInformation autonomousBuild = buildHelperData.autonomousBuild;
 
                 if (autonomousBuild.activeBuild)
                 {
-                    switch (autonomousBuild.progress)
+                    if (autonomousBuild.singleTarget)
                     {
-                        case Progress.PostInitialBuild:
-                            if (autonomousBuild.secondaryTarget == Platform.mobile) SetPlatformAndroid();
-                            else SetPlatformWindows();
-                            break;
+                        if (autonomousBuild.progress == Progress.PostInitialBuild)
+                        {
+                            autonomousBuild.activeBuild = false;
+                            autonomousBuild.progress = Progress.Finished;
+                            Debug.Log("<color=green>Autonomous publish succeeded</color>");
+                            
+                            AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                            statusWindow.currentState = AutonomousBuildState.finished;
+                            
+                            buildHelperData.SaveToJSON();
+                        }
+                    }
+                    else
+                    {
+                        switch (autonomousBuild.progress)
+                        {
+                            case Progress.PostInitialBuild:
+                                if (autonomousBuild.secondaryTarget == Platform.mobile) SetPlatformAndroid();
+                                else SetPlatformWindows();
+                                break;
 
-                        case Progress.PostSecondaryBuild:
-                            if (autonomousBuild.initialTarget == Platform.mobile) SetPlatformAndroid();
-                            else SetPlatformWindows();
-                            break;
+                            case Progress.PostSecondaryBuild:
+                                if (autonomousBuild.initialTarget == Platform.mobile) SetPlatformAndroid();
+                                else SetPlatformWindows();
+                                break;
+                        }
                     }
                 }
             }

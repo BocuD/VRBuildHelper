@@ -192,9 +192,12 @@ namespace BocuD.BuildHelper
                             Debug.Log($"Succesfully autonomously uploaded {autonomousBuild.initialTarget} build");
                             autonomousBuild.progress = Progress.PostInitialBuild;
 
-                            AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
-                            statusWindow.currentPlatform = autonomousBuild.secondaryTarget;
-                            statusWindow.currentState = AutonomousBuildState.switchingPlatform;
+                            if (!autonomousBuild.singleTarget)
+                            {
+                                AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                                statusWindow.currentPlatform = autonomousBuild.secondaryTarget;
+                                statusWindow.currentState = AutonomousBuildState.switchingPlatform;
+                            }
                         }
                             break;
 
@@ -209,6 +212,9 @@ namespace BocuD.BuildHelper
                         }
                             break;
                     }
+
+                    buildHelperData.autonomousBuild = autonomousBuild;
+                    buildHelperData.SaveToJSON();
                 }
                 
                 ExtractWorldImage();

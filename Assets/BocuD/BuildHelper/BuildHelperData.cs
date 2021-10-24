@@ -297,6 +297,7 @@ namespace BocuD.BuildHelper
     public class AutonomousBuildInformation
     {
         public bool activeBuild;
+        public bool singleTarget;
         public Platform initialTarget;
         public Platform secondaryTarget;
         public Progress progress;
@@ -304,6 +305,7 @@ namespace BocuD.BuildHelper
         public AutonomousBuildInformation()
         {
             activeBuild = false;
+            singleTarget = false;
         }
         
         public enum Platform
