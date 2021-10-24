@@ -193,9 +193,18 @@ namespace BocuD.BuildHelper
         public bool VRCDataInitialised;
         public string VRCName;
         public string VRCDesc;
-        public int VRCPlayerCount;
+        public int VRCCap;
         public bool vrcReleaseState;
         public string vrcTags;
+        
+        public string VRCNameLocal;
+        public string VRCDescLocal;
+        public int VRCCapLocal;
+        public bool vrcReleaseStateLocal;
+        public string vrcTagsLocal;
+        public bool vrcDataHasChanges = false;
+        public bool vrcImageHasChanges = false;
+        public string vrcImageWarning;
     
         //VRCCam state
         public bool saveCamPos = true;

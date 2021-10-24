@@ -1,6 +1,7 @@
 ﻿#if UNITY_EDITOR
 
 using System;
+using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -26,6 +27,7 @@ namespace BocuD.BuildHelper
         private Texture2D _iconCloud;
         private Texture2D _iconBuild;
         private Texture2D[] worldImages;
+        private Texture2D[] modifiedWorldImages;
 
         private Vector2 scrollPosition;
     
@@ -41,7 +43,10 @@ namespace BocuD.BuildHelper
         private void OnEnable()
         {
             buildHelperData = FindObjectOfType<BuildHelperData>();
+            
             worldImages = new Texture2D[20];
+            modifiedWorldImages = new Texture2D[20];
+            
             if (buildHelperData)
             {
                 buildHelperData.LoadFromJSON();
@@ -193,10 +198,7 @@ namespace BocuD.BuildHelper
                 buildHelperDataSO.ApplyModifiedProperties();
             }
 
-            EditorGUILayout.Space();
-            EditorGUILayout.Space();
-            EditorGUILayout.Space();
-
+            DrawVRCWorldEditor(selectedBranch);
             DisplayBuildInformation(selectedBranch);
 
             BuildData buildData = selectedBranch.buildData;
@@ -234,56 +236,250 @@ namespace BocuD.BuildHelper
         
             EditorGUILayout.Space();
         }
-    
-        private void DisplayBuildInformation(Branch branch)
+
+        private bool editMode;
+        
+        private void DrawVRCWorldEditor(Branch branch)
         {
-            BuildData buildData = branch.buildData;
+            GUILayout.Label($"<b>{branch.VRCName}</b>", styleRichTextLabelBig);
+
+            float imgStartPos = GUILayoutUtility.GetLastRect().y + 25;
+            float imgWidth = position.width / 2 - 80;
+            float maxHeight = 220;
+            if (imgWidth > maxHeight / 3 * 4)
+                imgWidth = maxHeight / 3 * 4;
+            float x = position.width / 2 + 40;
+                
+            float width = position.width - imgWidth - 20;
             
-            if (branch.VRCDataInitialised)
-            {
-                styleRichTextLabelBig.fixedWidth = position.width - 15;
-            
-                GUILayout.Label(branch.VRCName, styleRichTextLabelBig);
+            if(editMode) {
+                GUIStyle areaStyle = new GUIStyle(GUI.skin.textArea) {wordWrap = true, fixedWidth = width - 100};
+                GUIStyle textFieldStyle = new GUIStyle(GUI.skin.textField) {fixedWidth = width - 100};
+                GUIStyle labelStyle = new GUIStyle(GUI.skin.label) {fixedWidth = 100};
+                
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("Name:", labelStyle);
+                Rect nameRect = EditorGUILayout.GetControlRect();
+                nameRect.x = width - textFieldStyle.fixedWidth;
+                branch.VRCNameLocal = EditorGUI.TextArea(nameRect, branch.VRCNameLocal, textFieldStyle);
+                EditorGUILayout.EndHorizontal();
+                
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("Description:", labelStyle);
+                Rect descRect = EditorGUILayout.GetControlRect();
+                descRect.x = width - areaStyle.fixedWidth;
+                int linecount = branch.VRCDescLocal.Split('\n').Length;
+                if(linecount > 1) descRect.height = linecount * EditorGUIUtility.singleLineHeight - linecount * 3;
+                branch.VRCDescLocal = EditorGUI.TextArea(descRect, branch.VRCDescLocal, areaStyle);
+                EditorGUILayout.EndHorizontal();
+                if(linecount > 1) EditorGUILayout.Space(linecount * EditorGUIUtility.singleLineHeight - EditorGUIUtility.singleLineHeight - linecount * 3);
+                
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("Capacity:", labelStyle);
+                Rect capFieldRect = EditorGUILayout.GetControlRect();
+                capFieldRect.x = width - textFieldStyle.fixedWidth;
+                branch.VRCCapLocal =
+                    EditorGUI.IntField(capFieldRect, branch.VRCCapLocal, textFieldStyle);
+                EditorGUILayout.EndHorizontal();
+                
+                //branch.VRCNameLocal = EditorGUILayout.TextField($"Release: {(branch.vrcReleaseState ? "Public" : "Private")}");
+                
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("Tags:", labelStyle);
+                Rect tagsRect = EditorGUILayout.GetControlRect();
+                tagsRect.x = width - textFieldStyle.fixedWidth;
+                branch.vrcTagsLocal = EditorGUI.TextArea(tagsRect, branch.vrcTagsLocal, textFieldStyle);
+                EditorGUILayout.EndHorizontal();
 
-                float imgStartPos = EditorGUILayout.GetControlRect().y;
+                GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 100};
 
-                GUIStyle worldInfoStyle = new GUIStyle(GUI.skin.label) {wordWrap = true, fixedWidth = position.width / 2 - 40};
-
-                EditorGUILayout.LabelField("Name: " + branch.VRCName, worldInfoStyle);
-                EditorGUILayout.LabelField("Description: " + branch.VRCDesc, worldInfoStyle);
-                EditorGUILayout.LabelField($"Capacity: {branch.VRCPlayerCount}");
-                EditorGUILayout.LabelField($"Release: {(branch.vrcReleaseState ? "Public" : "Private")}");
-                EditorGUILayout.LabelField($"Tags: {branch.vrcTags}");
-
-                float maxHeight = EditorGUILayout.GetControlRect().y + 130 - imgStartPos;
-                float width = position.width / 2 - 40;
-                float x = position.width / 2 + 20;
-
-                if (width > maxHeight / 3 * 4)
-                    width = maxHeight / 3 * 4;
-
-                Rect imageRect = new Rect( position.width - width - 10, imgStartPos + 10, width, width / 4 * 3);
-            
-                if (worldImages[branchList.index] == null)
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("Save", buttonStyle))
                 {
-                    worldImages[branchList.index] = Resources.Load<Texture2D>($"BuildHelper/{buildHelperData.branches[branchList.index].name}");
+                    editMode = false;
+                    bool changesDetected = true;
+                    if (branch.VRCNameLocal == branch.VRCName)
+                    {
+                        if (branch.VRCDescLocal == branch.VRCDesc)
+                        {
+                            if (branch.VRCCapLocal == branch.VRCCap)
+                            {
+                                if (branch.vrcTagsLocal == branch.vrcTags)
+                                {
+                                    changesDetected = false;
+                                }
+                            }
+                        }
+                    }
+
+                    if (changesDetected)
+                        branch.vrcDataHasChanges = true;
+                    Save();
                 }
-                if(worldImages[branchList.index] != null) GUI.DrawTexture(imageRect, worldImages[branchList.index]);
+                
+                if (GUILayout.Button("Revert", buttonStyle))
+                {
+                    branch.VRCNameLocal = branch.VRCName;
+                    branch.VRCDescLocal = branch.VRCDesc;
+                    branch.VRCCapLocal = branch.VRCCap;
+                    branch.vrcTagsLocal = branch.vrcTags;
+                    branch.vrcDataHasChanges = false;
+                    editMode = false;
+                }
+                EditorGUILayout.EndHorizontal();
             }
             else
             {
-                GUILayout.Label("<b>Unpublished VRChat World</b>", styleRichTextLabelBig);
-                EditorGUILayout.LabelField($"Upload this branch at least once to populate these fields");
-                EditorGUILayout.LabelField("Name: ");
-                EditorGUILayout.LabelField("Description: ");
-                EditorGUILayout.LabelField($"Capacity: ");
-                EditorGUILayout.LabelField($"Release: ");
-                EditorGUILayout.LabelField($"Tags: ");
+                // GUILayout.Label("<b>Unpublished VRChat World</b>", styleRichTextLabelBig);
+                // EditorGUILayout.LabelField($"Upload this branch at least once to populate these fields");
+                // EditorGUILayout.LabelField("Name: ");
+                // EditorGUILayout.LabelField("Description: ");
+                // EditorGUILayout.LabelField($"Capacity: ");
+                // EditorGUILayout.LabelField($"Release: ");
+                // EditorGUILayout.LabelField($"Tags: ");
+                
+                GUIStyle worldInfoStyle = new GUIStyle(GUI.skin.label) {wordWrap = true, fixedWidth = width, richText = true};
+
+                string displayName = branch.VRCName != branch.VRCNameLocal ? $"<color=yellow>{branch.VRCNameLocal}</color>" : branch.VRCName;
+                string displayDesc = branch.VRCDesc != branch.VRCDescLocal ? $"<color=yellow>{branch.VRCDescLocal}</color>" : branch.VRCDesc;
+                string displayCap = branch.VRCCap != branch.VRCCapLocal ? $"<color=yellow>{branch.VRCCapLocal}</color>" : branch.VRCCap.ToString();
+                string displayTags = branch.vrcTags != branch.vrcTagsLocal ? $"<color=yellow>{branch.vrcTagsLocal}</color>" : branch.vrcTags;
+
+                EditorGUILayout.LabelField("Name: " + displayName, worldInfoStyle);
+                EditorGUILayout.LabelField("Description: " + displayDesc, worldInfoStyle);
+                EditorGUILayout.LabelField($"Capacity: " + displayCap, worldInfoStyle);
+                EditorGUILayout.LabelField($"Tags: " + displayTags, worldInfoStyle);
+                EditorGUILayout.LabelField($"Release: {(branch.vrcReleaseState ? "Public" : "Private")}");
+
+                if (branch.vrcDataHasChanges || branch.vrcImageHasChanges)
+                {
+                    GUIStyle infoStyle = new GUIStyle(EditorStyles.helpBox) {fixedWidth = width, richText = true};
+                    string changesWarning = branch.vrcImageWarning +
+                                            "<color=yellow>Your changes will be applied with the next upload.</color>";
+                    EditorGUILayout.LabelField(changesWarning, infoStyle);
+                }
+
+                GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 100};
+                
+                if (GUILayout.Button("Edit", buttonStyle))
+                {
+                    editMode = true;
+                }
             }
-        
+            
+            Rect imageRect = new Rect(position.width - imgWidth - 10, imgStartPos + 10, imgWidth, imgWidth / 4 * 3);
+
+            if (branch.vrcImageHasChanges)
+            {
+                if (modifiedWorldImages[branchList.index] == null)
+                {
+                    modifiedWorldImages[branchList.index] =
+                        Resources.Load<Texture2D>($"BuildHelper/{buildHelperData.branches[branchList.index].name}-edit");
+                }
+
+                if (modifiedWorldImages[branchList.index] != null) GUI.DrawTexture(imageRect, modifiedWorldImages[branchList.index]);
+            }
+            else
+            {
+                if (worldImages[branchList.index] == null)
+                {
+                    worldImages[branchList.index] =
+                        Resources.Load<Texture2D>($"BuildHelper/{buildHelperData.branches[branchList.index].name}");
+                }
+
+                if (worldImages[branchList.index] != null) GUI.DrawTexture(imageRect, worldImages[branchList.index]);
+            }
+
+            Rect editImageButton = imageRect;
+            editImageButton.y += editImageButton.height + 5;
+            editImageButton.height = 20;
+            if (editMode)
+            {
+                if (GUI.Button(editImageButton, "Replace image"))
+                {
+                    string[] allowedFileTypes = {"png"};
+                    imageBranch = branch;
+                    NativeFilePicker.PickFile(OnImageSelected, allowedFileTypes);
+                }
+
+                if (branch.vrcImageHasChanges)
+                {
+                    editImageButton.y += 25;
+                    if (GUI.Button(editImageButton, "Revert image"))
+                    {
+                        branch.vrcImageHasChanges = false;
+                        branch.vrcImageWarning = "";
+                        modifiedWorldImages[branchList.index] = null;
+                        AssetDatabase.DeleteAsset("Assets/Resources/BuildHelper/" + imageBranch.name + "-edit.png");
+                    }
+                }
+            }
+
             EditorGUILayout.Space();
             EditorGUILayout.Space();
+        }
+
+        private Branch imageBranch;
         
+        public void OnImageSelected(string filePath)
+        {
+            Texture2D overrideImage = null;
+            byte[] fileData;
+
+            if (File.Exists(filePath))
+            {
+                fileData = File.ReadAllBytes(filePath);
+                overrideImage = new Texture2D(2, 2);
+                overrideImage.LoadImage(fileData); //..this will auto-resize the texture dimensions.
+
+                //check aspectRatio and resolution
+                if (overrideImage.width * 3 != overrideImage.height * 4)
+                {
+                    if (overrideImage.width < 1200)
+                    {
+                        imageBranch.vrcImageWarning = "<color=yellow>" + "For best results, use a 4:3 image that is at least 1200x900.\n" + "</color>";
+                    }
+                    else
+                    {
+                        imageBranch.vrcImageWarning = "<color=yellow>" + "For best results, use a 4:3 image.\n" + "</color>";
+                    }
+                }
+                else
+                {
+                    if (overrideImage.width < 1200)
+                    {
+                        imageBranch.vrcImageWarning = "<color=yellow>" + "For best results, use an image that is at least 1200x900.\n" + "</color>";
+                    }
+                    else
+                    {
+                        imageBranch.vrcImageWarning = "<color=green>" + "Your new image has the correct aspect ratio and is high resolution. Nice!\n" + "</color>";
+                    }
+                }
+                
+                byte[] worldImagePNG = overrideImage.EncodeToPNG();
+
+                string dirPath = Application.dataPath + "/Resources/BuildHelper/";
+                if (!Directory.Exists(dirPath))
+                {
+                    Directory.CreateDirectory(dirPath);
+                }
+
+                string savePath = dirPath + imageBranch.name + "-edit.png";
+                File.WriteAllBytes(savePath, worldImagePNG);
+
+                savePath = "Assets/Resources/BuildHelper/" + imageBranch.name + "-edit.png";
+                
+                AssetDatabase.WriteImportSettingsIfDirty(savePath);
+                AssetDatabase.ImportAsset(savePath);
+                
+                imageBranch.vrcImageHasChanges = true;
+            }
+        }
+        
+        private void DisplayBuildInformation(Branch branch)
+        {
+            BuildData buildData = branch.buildData;
+
             GUILayout.Label("<b>Branch build information</b>", styleRichTextLabel);
         
             Rect buildRectBase = EditorGUILayout.GetControlRect();

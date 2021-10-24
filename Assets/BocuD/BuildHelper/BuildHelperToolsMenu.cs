@@ -56,6 +56,7 @@ namespace BocuD.BuildHelper
 
         public void OnFileSelected(string filePath)
         {
+            Debug.Log($"Loading override image from {filePath}");
             overrideImage = null;
             byte[] fileData;
 

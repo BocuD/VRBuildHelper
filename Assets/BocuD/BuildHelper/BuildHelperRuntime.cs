@@ -25,7 +25,7 @@ namespace BocuD.BuildHelper
         [SerializeField]private BuildHelperData buildHelperData;
         [SerializeField]private Branch branch;
 
-        private BuildHelperToolsMenu buildHelperToolsMenu;
+        [SerializeField]private BuildHelperToolsMenu buildHelperToolsMenu;
         private bool autoUpload;
 
         private void Start()
@@ -35,7 +35,9 @@ namespace BocuD.BuildHelper
         }
 
         private int timeout = 10;
-    
+        private bool appliedChanges = false;
+        private bool appliedImageChanges = false;
+        
         private void Update()
         {
             if (!vrcSceneReady)
@@ -69,7 +71,7 @@ namespace BocuD.BuildHelper
                         {
                             autoUpload = true;
                         }
-                        
+
                         vrcSceneReady = true;
                     }
 
@@ -94,9 +96,30 @@ namespace BocuD.BuildHelper
                     ? runtimeWorldCreation.liveBpImage.mainTexture
                     : runtimeWorldCreation.bpImage.mainTexture;
 
-                if (autoUpload)
+
+                if (runtimeWorldCreation.titleText.text == "Configure World")
                 {
-                    if (runtimeWorldCreation.titleText.text == "Configure World")
+                    if (!appliedChanges && branch.vrcDataHasChanges)
+                    {
+                        runtimeWorldCreation.blueprintName.text = branch.VRCNameLocal;
+                        runtimeWorldCreation.blueprintDescription.text = branch.VRCDescLocal;
+                        runtimeWorldCreation.worldCapacity.text = branch.VRCCapLocal.ToString();
+                        runtimeWorldCreation.userTags.text = branch.vrcTagsLocal;
+                        appliedChanges = true;
+                        return;
+                    }
+
+                    if (!appliedImageChanges && branch.vrcImageHasChanges)
+                    {
+                        runtimeWorldCreation.shouldUpdateImageToggle.isOn = true;
+                        buildHelperToolsMenu.imageSourceDropdown.value = 1;
+                        buildHelperToolsMenu.imageSourceDropdown.onValueChanged.Invoke(1);
+                        buildHelperToolsMenu.OnFileSelected(Application.dataPath + "/Resources/BuildHelper/" + branch.name + "-edit.png");
+                        appliedImageChanges = true;
+                        return;
+                    }
+                    
+                    if (autoUpload)
                     {
                         Upload();
                         autoUpload = false;
@@ -169,6 +192,9 @@ namespace BocuD.BuildHelper
                                 b.camPos = vrcCam.transform.position;
                                 b.camRot = vrcCam.transform.rotation;
                             }
+                            
+                            branch.camPos = vrcCam.transform.position;
+                            branch.camRot = vrcCam.transform.rotation;
                         }
                     }
                 }
@@ -220,13 +246,20 @@ namespace BocuD.BuildHelper
                 ExtractWorldImage();
                 ExtractBuildInfo();
             }
+
+            if (logString.Contains("Image upload succeeded"))
+            {
+                branch.vrcImageHasChanges = false;
+                buildHelperData.branches[buildHelperData.currentBranch] = branch;
+                buildHelperData.SaveToJSON();
+            }
         }
 
         private void ExtractBuildInfo()
         {
             branch.VRCName = VRCName;
             branch.VRCDesc = VRCDesc;
-            branch.VRCPlayerCount = vrcPlayerCount;
+            branch.VRCCap = vrcPlayerCount;
             branch.vrcReleaseState = vrcReleaseState;
             branch.vrcTags = vrcTags;
             branch.VRCDataInitialised = true;
@@ -240,6 +273,8 @@ namespace BocuD.BuildHelper
             branch.buildData.pcUploadTime = $"{DateTime.Now}";
             branch.buildData.pcUploadedBuildVersion = branch.buildData.pcBuildVersion;
 #endif
+            branch.vrcDataHasChanges = false;
+            
             buildHelperData.branches[buildHelperData.currentBranch] = branch;
             buildHelperData.SaveToJSON();
         }
