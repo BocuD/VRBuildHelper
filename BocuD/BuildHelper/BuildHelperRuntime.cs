@@ -7,6 +7,8 @@ using UnityEditor;
 using UnityEngine;
 using VRCSDK2;
 
+using static BocuD.BuildHelper.AutonomousBuildInformation;
+
 namespace BocuD.BuildHelper
 {
     public class BuildHelperRuntime : MonoBehaviour
@@ -24,6 +26,7 @@ namespace BocuD.BuildHelper
         [SerializeField]private Branch branch;
 
         private BuildHelperToolsMenu buildHelperToolsMenu;
+        private bool autoUpload;
 
         private void Start()
         {
@@ -62,6 +65,11 @@ namespace BocuD.BuildHelper
                         buildHelperToolsMenu.saveCamPosition.isOn = branch.saveCamPos;
                         buildHelperToolsMenu.uniqueCamPosition.isOn = branch.uniqueCamPos;
                     
+                        if (buildHelperData.autonomousBuild.activeBuild)
+                        {
+                            autoUpload = true;
+                        }
+                        
                         vrcSceneReady = true;
                     }
 
@@ -85,13 +93,55 @@ namespace BocuD.BuildHelper
                 vrcImage = runtimeWorldCreation.shouldUpdateImageToggle.isOn
                     ? runtimeWorldCreation.liveBpImage.mainTexture
                     : runtimeWorldCreation.bpImage.mainTexture;
+
+                if (autoUpload)
+                {
+                    if (runtimeWorldCreation.titleText.text == "Configure World")
+                    {
+                        Upload();
+                        autoUpload = false;
+                    }
+                }
             }
         }
 
-        public void Log(string logString, string stackTrace, LogType type)
+        private void Upload()
+        {
+            AutonomousBuildInformation autonomousBuild = buildHelperData.autonomousBuild;
+            switch (autonomousBuild.progress)
+            {
+                case Progress.PreInitialBuild:
+                    runtimeWorldCreation.uploadButton.onClick.Invoke();
+                    break;
+                case Progress.PreSecondaryBuild:
+                    runtimeWorldCreation.uploadButton.onClick.Invoke();
+                    break;
+            }
+        }
+
+        private void Log(string logString, string stackTrace, LogType type)
         {
             if (logString.Contains("Starting upload"))
             {
+                AutonomousBuildInformation autonomousBuild = buildHelperData.autonomousBuild;
+                switch (autonomousBuild.progress)
+                {
+                    case Progress.PreInitialBuild:
+                    {
+                        AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                        statusWindow.currentPlatform = autonomousBuild.initialTarget;
+                        statusWindow.currentState = AutonomousBuildState.uploading;
+                    }
+                        break;
+                    case Progress.PreSecondaryBuild:
+                    {
+                        AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                        statusWindow.currentPlatform = autonomousBuild.secondaryTarget;
+                        statusWindow.currentState = AutonomousBuildState.uploading;
+                    }
+                        break;
+                }
+
                 branch.saveCamPos = buildHelperToolsMenu.saveCamPosition.isOn;
                 branch.uniqueCamPos = buildHelperToolsMenu.uniqueCamPosition.isOn;
             
@@ -127,6 +177,35 @@ namespace BocuD.BuildHelper
                     return;
                 }
 
+                if (buildHelperData.autonomousBuild.activeBuild)
+                {
+                    AutonomousBuildInformation autonomousBuild = buildHelperData.autonomousBuild;
+                    switch (autonomousBuild.progress)
+                    {
+                        case Progress.PreInitialBuild:
+                        {
+                            Debug.Log($"Succesfully autonomously uploaded {autonomousBuild.initialTarget} build");
+                            autonomousBuild.progress = Progress.PostInitialBuild;
+
+                            AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                            statusWindow.currentPlatform = autonomousBuild.secondaryTarget;
+                            statusWindow.currentState = AutonomousBuildState.switchingPlatform;
+                        }
+                            break;
+
+                        case Progress.PreSecondaryBuild:
+                        {
+                            Debug.Log($"Succesfully autonomously uploaded {autonomousBuild.secondaryTarget} build");
+                            autonomousBuild.progress = Progress.PostSecondaryBuild;
+
+                            AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                            statusWindow.currentPlatform = autonomousBuild.initialTarget;
+                            statusWindow.currentState = AutonomousBuildState.switchingPlatform;
+                        }
+                            break;
+                    }
+                }
+                
                 ExtractWorldImage();
                 ExtractBuildInfo();
             }
@@ -142,16 +221,15 @@ namespace BocuD.BuildHelper
             branch.VRCDataInitialised = true;
 
 #if UNITY_ANDROID
-        Debug.Log("Detected succesful upload for Android");
-        branch.buildData.androidUploadTime = $"{DateTime.Now}";
-        branch.buildData.androidUploadedBuildVersion = buildData.androidBuildVersion;
+            Debug.Log("Detected succesful upload for Android");
+            branch.buildData.androidUploadTime = $"{DateTime.Now}";
+            branch.buildData.androidUploadedBuildVersion = branch.buildData.androidBuildVersion;
 #else
             Debug.Log("Detected succesful upload for PC");
             branch.buildData.pcUploadTime = $"{DateTime.Now}";
             branch.buildData.pcUploadedBuildVersion = branch.buildData.pcBuildVersion;
 #endif
             buildHelperData.branches[buildHelperData.currentBranch] = branch;
-            buildHelperData.lastBuiltBranch = buildHelperData.currentBranch;
             buildHelperData.SaveToJSON();
         }
 

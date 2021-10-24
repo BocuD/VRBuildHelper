@@ -1,6 +1,7 @@
 ﻿#if UNITY_EDITOR
 
 using System;
+using System.Globalization;
 using UnityEditor;
 using UnityEngine;
 using VRC.SDKBase.Editor.BuildPipeline;
@@ -27,49 +28,48 @@ namespace BocuD.BuildHelper
 
             buildHelperData.PrepareExcludedGameObjects();
             buildHelperData.overrideContainers[buildHelperData.currentBranch].ApplyStateChanges();
-
 #if UNITY_ANDROID
-        //HACK this is retarded like wth
-        buildData.androidBuildTime = $"{DateTime.Now}";
+            //HACK this is retarded like wth
+            buildData.androidBuildTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
 
-        //we are building for android. if the *last* pc version is newer then this android version, we need to ask the user if the android version is going to be equivalent or newer
-        if (buildData.pcBuildVersion > buildData.androidBuildVersion && buildData.pcBuildVersion != -1)
-        {
-            //if we have never uploaded for android before we should just make these versions match, they will probably be equivalent
-            if (buildData.androidBuildVersion == -1)
+            //we are building for android. if the *last* pc version is newer then this android version, we need to ask the user if the android version is going to be equivalent or newer
+            if (buildData.pcBuildVersion > buildData.androidBuildVersion && buildData.pcBuildVersion != -1)
             {
-                buildData.androidBuildVersion = buildData.pcBuildVersion;
-            }
-            else
-            {
-                //if the time between the two builds is short, that probably means the user is uploading for both at the same time right now
-                DateTime pcBuildTime = DateTime.Parse(buildData.pcBuildTime);
-                if ((DateTime.Now - pcBuildTime).TotalMinutes > 5)
+                //if we have never uploaded for android before we should just make these versions match, they will probably be equivalent
+                if (buildData.androidBuildVersion == -1)
                 {
-                    bool newBuild = EditorUtility.DisplayDialog("Build Helper",
-                        $"Your last build for PC (build {buildData.pcBuildVersion}, {buildData.pcBuildTime}) is significantly older than the Android build you are about to do. Should Build Helper mark your current Android build as a newer build, or as equivalent to your last PC build?",
-                        "New build", "Equivalent build");
-
-                    if (newBuild)
+                    buildData.androidBuildVersion = buildData.pcBuildVersion;
+                }
+                else
+                {
+                    //if the time between the two builds is short, that probably means the user is uploading for both at the same time right now
+                    DateTime pcBuildTime = DateTime.Parse(buildData.pcBuildTime, CultureInfo.InvariantCulture);
+                    if ((DateTime.Now - pcBuildTime).TotalMinutes > 5 && !buildHelperData.autonomousBuild.activeBuild)
                     {
-                        buildData.androidBuildVersion = buildData.pcBuildVersion + 2;
+                        bool newBuild = EditorUtility.DisplayDialog("Build Helper",
+                            $"Your last build for PC (build {buildData.pcBuildVersion}, {buildData.pcBuildTime}) is significantly older than the Android build you are about to do. Should Build Helper mark your current Android build as a newer build, or as equivalent to your last PC build?",
+                            "New build", "Equivalent build");
+
+                        if (newBuild)
+                        {
+                            buildData.androidBuildVersion = buildData.pcBuildVersion + 2;
+                        }
+                        else
+                        {
+                            buildData.androidBuildVersion = buildData.pcBuildVersion;
+                        }
                     }
                     else
                     {
                         buildData.androidBuildVersion = buildData.pcBuildVersion;
                     }
                 }
-                else
-                {
-                    buildData.androidBuildVersion = buildData.pcBuildVersion;
-                }
             }
-        }
 
-        else buildData.androidBuildVersion++;
+            else buildData.androidBuildVersion++;
 #else
             //HACK this is retarded like wth
-            buildData.pcBuildTime = $"{DateTime.Now}";
+            buildData.pcBuildTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
 
             if (buildData.androidBuildVersion > buildData.pcBuildVersion && buildData.androidBuildVersion != -1)
             {
@@ -79,8 +79,8 @@ namespace BocuD.BuildHelper
                 }
                 else
                 {
-                    DateTime androidBuildTime = DateTime.Parse(buildData.androidBuildTime);
-                    if ((DateTime.Now - androidBuildTime).TotalMinutes > 5)
+                    DateTime androidBuildTime = DateTime.Parse(buildData.androidBuildTime, CultureInfo.InvariantCulture);
+                    if ((DateTime.Now - androidBuildTime).TotalMinutes > 5 && !buildHelperData.autonomousBuild.activeBuild)
                     {
                         bool newBuild = EditorUtility.DisplayDialog("Build Helper",
                             $"Your last build for Android (build {buildData.androidBuildVersion}, {buildData.androidBuildTime}) is significantly older than the PC build you are about to do. Should Build Helper mark your current PC build as a newer build, or as equivalent to your last Android build?",
@@ -105,6 +105,7 @@ namespace BocuD.BuildHelper
 
             else buildData.pcBuildVersion++;
 #endif
+            buildHelperData.lastBuiltBranch = buildHelperData.currentBranch;
             buildHelperData.SaveToJSON();
 
             return true;

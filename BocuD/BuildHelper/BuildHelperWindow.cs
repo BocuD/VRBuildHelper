@@ -1,7 +1,6 @@
 ﻿#if UNITY_EDITOR
 
 using System;
-using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -10,7 +9,6 @@ using UnityEngine;
 using VRC.Core;
 using VRC.SDK3.Components;
 using VRC.SDKBase.Editor;
-using VRC.SDKBase.Editor.BuildPipeline;
 
 namespace BocuD.BuildHelper
 {
@@ -187,15 +185,6 @@ namespace BocuD.BuildHelper
                 excludedGameObjectsList.DoLayoutList();
             
                 buildHelperDataSO.ApplyModifiedProperties();
-
-                if (GUILayout.Button("Clear GameObject lists"))
-                {
-                    foreach (GameObject obj in _overrideContainer.ExclusiveGameObjects) { obj.tag = ""; obj.SetActive(true); }
-                    foreach (GameObject obj in _overrideContainer.ExcludedGameObjects) { obj.tag = ""; obj.SetActive(true); }
-                
-                    _overrideContainer.ExclusiveGameObjects = new GameObject[0];
-                    _overrideContainer.ExcludedGameObjects = new GameObject[0];
-                }
             }
 
             EditorGUILayout.Space();
@@ -297,7 +286,7 @@ namespace BocuD.BuildHelper
             GUI.DrawTexture(buildRect, _iconBuild);
             buildRect.y += 48;
             GUI.DrawTexture(buildRect, _iconCloud);
-
+            
             Rect BuildStatusTextRect = new Rect(buildRect.x + 37, buildRect.y - 51, position.width,
                 EditorGUIUtility.singleLineHeight);
 
@@ -349,6 +338,10 @@ namespace BocuD.BuildHelper
 
             if (!APIUser.IsLoggedIn) {
                 EditorGUILayout.HelpBox("You need to be logged in to build. Try opening and closing the VRChat SDK menu.", MessageType.Error);
+                if (GUILayout.Button("Open VRCSDK Control Panel"))
+                {
+                    EditorApplication.ExecuteMenuItem("VRChat SDK/Show Control Panel");
+                }
                 return;
             }
 
@@ -385,22 +378,13 @@ namespace BocuD.BuildHelper
             if (GUILayout.Button("Last Build", buttonStyle))
             {
                 if(CheckLastBuild()) {
-                    VRC_SdkBuilder.shouldBuildUnityPackage = false;
-                    VRC_SdkBuilder.RunLastExportedSceneResource();
+                    BuildHelperBuilder.TestLastBuild();
                 }
             }
         
             if (GUILayout.Button("New Build", buttonStyle))
             {
-                bool buildTestBlocked = !VRCBuildPipelineCallbacks.OnVRCSDKBuildRequested(VRCSDKRequestedBuildType.Scene);
-                if (!buildTestBlocked)
-                {
-                    VRC_SdkBuilder.shouldBuildUnityPackage = false;
-                    AssetExporter.CleanupUnityPackageExport(); // force unity package rebuild on next publish
-                    VRC_SdkBuilder.PreBuildBehaviourPackaging();
-
-                    VRC_SdkBuilder.ExportSceneResourceAndRun();
-                }
+                BuildHelperBuilder.TestNewBuild();
             }
         
             EditorGUILayout.EndHorizontal();
@@ -413,30 +397,13 @@ namespace BocuD.BuildHelper
             {
                 if (CheckLastBuild())
                 {
-                    // Todo: get this from settings or make key a const
-                    string path = EditorPrefs.GetString("lastVRCPath");
-                    if (File.Exists(path))
-                    {
-                        File.SetLastWriteTimeUtc(path, DateTime.Now);
-                    }
-                    else
-                    {
-                        Debug.LogWarning($"Cannot find last built scene, please Rebuild.");
-                    }
+                    BuildHelperBuilder.ReloadLastBuild();
                 }
             }
         
             if (GUILayout.Button("New Build", buttonStyle))
             {
-                bool buildTestBlocked = !VRCBuildPipelineCallbacks.OnVRCSDKBuildRequested(VRCSDKRequestedBuildType.Scene);
-                if (!buildTestBlocked)
-                {
-                    VRC_SdkBuilder.shouldBuildUnityPackage = false;
-                    AssetExporter.CleanupUnityPackageExport(); // force unity package rebuild on next publish
-                    VRC_SdkBuilder.PreBuildBehaviourPackaging();
-
-                    VRC_SdkBuilder.ExportSceneResource();
-                }
+                BuildHelperBuilder.ReloadNewBuild();
             }
         
             EditorGUILayout.EndHorizontal();
@@ -449,41 +416,37 @@ namespace BocuD.BuildHelper
             {
                 if (CheckLastBuild())
                 {
-                    if (APIUser.CurrentUser.canPublishWorlds)
-                    {
-                        EditorPrefs.SetBool("VRC.SDKBase_StripAllShaders", false);
-                        VRC_SdkBuilder.shouldBuildUnityPackage = false;
-                        VRC_SdkBuilder.UploadLastExportedSceneBlueprint();
-                    }
-                    else
-                    {
-                        Debug.LogError("You need to be logged in to publish a world");
-                    }
+                    BuildHelperBuilder.PublishLastBuild();
                 }
             }
 
             if (GUILayout.Button("New Build", buttonStyle))
             {
-                bool buildBlocked = !VRCBuildPipelineCallbacks.OnVRCSDKBuildRequested(VRCSDKRequestedBuildType.Scene);
-                if (!buildBlocked)
-                {
-                    if (APIUser.CurrentUser.canPublishWorlds)
-                    {
-                        //EnvConfig.ConfigurePlayerSettings();
-                        EditorPrefs.SetBool("VRC.SDKBase_StripAllShaders", false);
-
-                        VRC_SdkBuilder.shouldBuildUnityPackage = false; //VRCSdkControlPanel.FutureProofPublishEnabled;
-                        VRC_SdkBuilder.PreBuildBehaviourPackaging();
-                        VRC_SdkBuilder.ExportAndUploadSceneBlueprint();
-                    }
-                    else
-                    {
-                    
-                        Debug.LogError("You need to be logged in to publish a world");
-                    }
-                }
+                BuildHelperBuilder.PublishNewBuild();
             }
             EditorGUILayout.EndHorizontal();
+            
+            EditorGUILayout.Space();
+            
+            GUILayout.Label("<b>Autonomous build</b>", styleRichTextLabel);
+            
+            EditorGUILayout.HelpBox("Autonomous build can be used to publish your world for both PC and Android automatically with one button press.", MessageType.Info);
+            
+            GUIStyle autoButtonStyle = new GUIStyle(GUI.skin.button) {fixedHeight = 40};
+            
+            if (GUILayout.Button("Build and publish for PC and Android", autoButtonStyle))
+            {
+                if (InitAutonomousBuild())
+                {
+                    buildHelperData.SaveToJSON();
+                    
+                    AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                    statusWindow.currentPlatform = buildHelperData.autonomousBuild.initialTarget;
+                    statusWindow.currentState = AutonomousBuildState.building;
+                    
+                    BuildHelperBuilder.PublishNewBuild();
+                }
+            }
         }
 
         private bool CheckLastBuild()
@@ -500,6 +463,35 @@ namespace BocuD.BuildHelper
                 return false;
             }
 
+            return true;
+        }
+
+        private bool InitAutonomousBuild()
+        {
+            if (!EditorUtility.DisplayDialog("Build Helper",
+                "Build Helper will initiate a build and publish cycle for both PC and mobile in succesion","Proceed", "Cancel"))
+            {
+                return false;
+            }
+
+            UnityEditor.BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
+            switch (target)
+            {
+                case BuildTarget.Android:
+                    buildHelperData.autonomousBuild.initialTarget = AutonomousBuildInformation.Platform.mobile;
+                    buildHelperData.autonomousBuild.secondaryTarget = AutonomousBuildInformation.Platform.PC;
+                    break;
+                case BuildTarget.StandaloneWindows:
+                case BuildTarget.StandaloneWindows64:
+                    buildHelperData.autonomousBuild.initialTarget = AutonomousBuildInformation.Platform.PC;
+                    buildHelperData.autonomousBuild.secondaryTarget = AutonomousBuildInformation.Platform.mobile;
+                    break;
+                default:
+                    return false;
+            }
+
+            buildHelperData.autonomousBuild.activeBuild = true;
+            buildHelperData.autonomousBuild.progress = AutonomousBuildInformation.Progress.PreInitialBuild;
             return true;
         }
     
@@ -750,7 +742,7 @@ namespace BocuD.BuildHelper
                         }
                     }
                 }
-
+                
                 GUILayout.Space(iconSize / 4);
             }
 
@@ -766,9 +758,9 @@ namespace BocuD.BuildHelper
             {
                 Application.OpenURL("https://vrchat.com/home/user/usr_3a5bf7e4-e569-41d5-b70a-31304fd8e0e8");
             }
-        
+            
             GUILayout.Space(iconSize / 4);
-        
+
             GUIContent buttonGitHub = new GUIContent("", "Github");
             GUIStyle styleGitHub = new GUIStyle(GUI.skin.box);
             if (_iconGitHub != null)

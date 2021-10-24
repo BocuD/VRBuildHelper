@@ -2,15 +2,86 @@
 using System.IO;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using static BocuD.BuildHelper.AutonomousBuildInformation;
+
+#if UNITY_EDITOR
+using System.Collections;
+using UnityEditor;
+using VRC.Core;
+#endif
 
 namespace BocuD.BuildHelper
 {
+    [ExecuteInEditMode]
     public class BuildHelperData : MonoBehaviour
     {
         public int currentBranch;
         public int lastBuiltBranch;
         public Branch[] branches;
+        public AutonomousBuildInformation autonomousBuild;
         public OverrideContainer[] overrideContainers;
+
+#if UNITY_EDITOR
+        private void Awake()
+        {
+            loginCheckerActive = false;
+        }
+
+        private void Update()
+        {
+            if (Application.isPlaying) return;
+
+            if (!autonomousBuild.activeBuild) return;
+
+            if (!APIUser.IsLoggedIn)
+            {
+                EditorApplication.ExecuteMenuItem("VRChat SDK/Show Control Panel");
+                
+                if (!loginCheckerActive)
+                {
+                    timeOut = 0;
+                    EditorApplication.update += LoginStateChecker;
+                    
+                    AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                    statusWindow.currentState = AutonomousBuildState.waitingForApi;
+                }
+            }
+        }
+
+        [SerializeField]private bool loginCheckerActive;
+        private int timeOut;
+        private void LoginStateChecker()
+        {
+            if (autonomousBuild.progress == Progress.PostPlatformSwitch)
+            {
+                if (APIUser.IsLoggedIn)
+                {
+                    autonomousBuild.progress = Progress.PreSecondaryBuild;
+                    SaveToJSON();
+                    EditorApplication.update -= LoginStateChecker;
+                    loginCheckerActive = false;
+                    
+                    AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                    statusWindow.currentPlatform = autonomousBuild.secondaryTarget;
+                    statusWindow.currentState = AutonomousBuildState.building;
+
+                    BuildHelperBuilder.PublishNewBuild();
+                }
+            }
+            timeOut++;
+            if (timeOut > 5000)
+            {
+                EditorApplication.update -= LoginStateChecker;
+                loginCheckerActive = false;
+                
+                //reset build state
+                autonomousBuild.activeBuild = false;
+                SaveToJSON();
+                
+                Debug.LogError("Timed out waiting for login");
+            }
+        }
+#endif
 
         public void PrepareExcludedGameObjects()
         {
@@ -31,34 +102,36 @@ namespace BocuD.BuildHelper
         {
             BranchStorageObject storageObject = new BranchStorageObject
             {
-                branches = branches, currentBranch = currentBranch, lastBuiltBranch = lastBuiltBranch
+                branches = branches, currentBranch = currentBranch, lastBuiltBranch = lastBuiltBranch, autonomousBuild = autonomousBuild
             };
 
             if (storageObject.branches == null) storageObject.branches = new Branch[0];
         
             string savePath = Application.dataPath + $"/Resources/BuildHelper/{SceneManager.GetActiveScene().name}.json";
-
-            string json = JsonUtility.ToJson(storageObject);
-
             CheckIfFileExists();
-
+            
+            string json = JsonUtility.ToJson(storageObject, true);
             File.WriteAllText(savePath, json);
         }
 
         public void LoadFromJSON()
         {
             string savePath = Application.dataPath + $"/Resources/BuildHelper/{SceneManager.GetActiveScene().name}.json";
-
             CheckIfFileExists();
+            
             string json = File.ReadAllText(savePath);
             BranchStorageObject storageObject = JsonUtility.FromJson<BranchStorageObject>(json);
 
             if (storageObject.branches == null)
                 storageObject.branches = new Branch[0];
+
+            if (storageObject.autonomousBuild == null)
+                storageObject.autonomousBuild = new AutonomousBuildInformation();
         
             branches = storageObject.branches;
             currentBranch = storageObject.currentBranch;
             lastBuiltBranch = storageObject.lastBuiltBranch;
+            autonomousBuild = storageObject.autonomousBuild;
 
             if (overrideContainers == null)
             {
@@ -105,6 +178,7 @@ namespace BocuD.BuildHelper
         public int currentBranch;
         public int lastBuiltBranch;
         public Branch[] branches;
+        public AutonomousBuildInformation autonomousBuild;
     }
 
     [Serializable]
@@ -216,6 +290,36 @@ namespace BocuD.BuildHelper
                     obj.tag = "EditorOnly";
                 }
             }
+        }
+    }
+    
+    [Serializable]
+    public class AutonomousBuildInformation
+    {
+        public bool activeBuild;
+        public Platform initialTarget;
+        public Platform secondaryTarget;
+        public Progress progress;
+
+        public AutonomousBuildInformation()
+        {
+            activeBuild = false;
+        }
+        
+        public enum Platform
+        {
+            PC,
+            mobile
+        }
+        
+        public enum Progress
+        {
+            PreInitialBuild,
+            PostInitialBuild,
+            PostPlatformSwitch,
+            PreSecondaryBuild,
+            PostSecondaryBuild,
+            Finished
         }
     }
 }
