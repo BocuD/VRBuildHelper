@@ -629,12 +629,23 @@ namespace BocuD.BuildHelper
                     EditorGUILayout.LabelField(changesWarning, infoStyle);
                 }
 
+                EditorGUILayout.BeginHorizontal();
                 GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 100};
                 
                 if (GUILayout.Button("Edit", buttonStyle))
                 {
                     editMode = true;
                 }
+
+                if (!editMode)
+                {
+                    buttonStyle.fixedWidth = 200;
+                    if (GUILayout.Button("View on VRChat website", buttonStyle))
+                    {
+                        Application.OpenURL($"https://vrchat.com/home/world/{branch.blueprintID}");
+                    }
+                }
+                EditorGUILayout.EndHorizontal();
             }
             
             Rect imageRect = new Rect(position.width - imgWidth - 10, imgStartPos + 10, imgWidth, imgWidth / 4 * 3);
