@@ -71,51 +71,7 @@ namespace BocuD.BuildHelper
             
             DrawBanner();
 
-            if (settings)
-            {
-                if (buildHelperData)
-                {
-                    if (buildHelperData.gameObject.hideFlags == HideFlags.None)
-                    {
-                        EditorGUILayout.HelpBox("The VRBuildHelper Data object is currently not hidden.", MessageType.Warning);
-                        if (GUILayout.Button("Hide VRBuildHelper Data object"))
-                        {
-                            buildHelperData.gameObject.hideFlags = HideFlags.HideInHierarchy;
-                            EditorApplication.RepaintHierarchyWindow();
-                        }
-                    }
-                    else
-                    {
-                        if (GUILayout.Button("Show VRBuildHelper Data object (Not recommended)"))
-                        {
-                            buildHelperData.gameObject.hideFlags = HideFlags.None;
-                            EditorApplication.RepaintHierarchyWindow();
-                        }
-                    }
-                }
-
-                if (GUILayout.Button("Remove VRBuildHelper from this scene"))
-                {
-                    bool confirm = EditorUtility.DisplayDialog("Build Helper",
-                        "Are you sure you want to remove Build Helper from this scene? All stored information will be lost permanently.",
-                        "Yes",
-                        "Cancel");
-
-                    if (confirm)
-                    {
-                        if (FindObjectOfType<BuildHelperData>() != null)
-                        {
-                            DestroyImmediate(FindObjectOfType<BuildHelperData>().gameObject);
-                        }
-                    }
-                }
-                
-                if (GUILayout.Button("Close"))
-                {
-                    settings = false;
-                }
-                return;
-            }
+            if (DrawSettings()) return;
         
             if (buildHelperData == null)
             {
@@ -156,6 +112,56 @@ namespace BocuD.BuildHelper
             
                 DisplayBuildButtons();
             }
+        }
+
+        private bool DrawSettings()
+        {
+            if (!settings) return false;
+            
+            if (buildHelperData)
+            {
+                if (buildHelperData.gameObject.hideFlags == HideFlags.None)
+                {
+                    EditorGUILayout.HelpBox("The VRBuildHelper Data object is currently not hidden.", MessageType.Warning);
+                    if (GUILayout.Button("Hide VRBuildHelper Data object"))
+                    {
+                        buildHelperData.gameObject.hideFlags = HideFlags.HideInHierarchy;
+                        EditorApplication.RepaintHierarchyWindow();
+                    }
+                }
+                else
+                {
+                    if (GUILayout.Button("Show VRBuildHelper Data object (Not recommended)"))
+                    {
+                        buildHelperData.gameObject.hideFlags = HideFlags.None;
+                        EditorApplication.RepaintHierarchyWindow();
+                    }
+                }
+            }
+
+            if (GUILayout.Button("Remove VRBuildHelper from this scene"))
+            {
+                bool confirm = EditorUtility.DisplayDialog("Build Helper",
+                    "Are you sure you want to remove Build Helper from this scene? All stored information will be lost permanently.",
+                    "Yes",
+                    "Cancel");
+
+                if (confirm)
+                {
+                    if (FindObjectOfType<BuildHelperData>() != null)
+                    {
+                        DestroyImmediate(FindObjectOfType<BuildHelperData>().gameObject);
+                    }
+                }
+            }
+
+            if (GUILayout.Button("Close"))
+            {
+                settings = false;
+            }
+
+            return true;
+
         }
 
         private void DrawSwitchBranchButton()
@@ -204,6 +210,8 @@ namespace BocuD.BuildHelper
             }
         }
 
+        private bool deploymentEditor = false, gameObjectOverrides = false, udonLinkFoldout;
+        
         private void DrawBranchEditor()
         {
             Branch selectedBranch = buildHelperData.branches[branchList.index];
@@ -233,29 +241,54 @@ namespace BocuD.BuildHelper
             
             DrawVRCWorldEditor(selectedBranch);
             
+            DrawGameObjectEditor(selectedBranch);
+            DrawDeploymentEditorPreview(selectedBranch);
+            DrawUdonLinkEditor(selectedBranch);
+
+            GUILayout.FlexibleSpace();
+            
+            DisplayBuildInformation(selectedBranch);
+
+            DrawBuildVersionWarnings(selectedBranch);
+
+            EditorGUILayout.Space();
+        }
+
+        private void DrawGameObjectEditor(Branch selectedBranch)
+        {
             EditorGUI.BeginChangeCheck();
             GUILayout.BeginVertical("Helpbox");
             selectedBranch.hasOverrides = EditorGUILayout.Toggle("GameObject Overrides", selectedBranch.hasOverrides);
-            if(EditorGUI.EndChangeCheck()) Save();
-            if (selectedBranch.hasOverrides)
+            if (selectedBranch.hasOverrides) gameObjectOverrides = EditorGUILayout.Foldout(gameObjectOverrides, "");
+            if (EditorGUI.EndChangeCheck()) Save();
+
+            if (gameObjectOverrides && selectedBranch.hasOverrides)
             {
-                EditorGUILayout.HelpBox("GameObject overrides are rules that can be set up for a branch to exclude GameObjects from builds for that or other branches. Exclusive GameObjects are only included on branches which have them added to the exclusive list. Excluded GameObjects are excluded for branches that have them added.", MessageType.Info);
-            
+                EditorGUILayout.HelpBox(
+                    "GameObject overrides are rules that can be set up for a branch to exclude GameObjects from builds for that or other branches. Exclusive GameObjects are only included on branches which have them added to the exclusive list. Excluded GameObjects are excluded for branches that have them added.",
+                    MessageType.Info);
+
                 _overrideContainer = buildHelperData.overrideContainers[branchList.index];
-            
-                if(currentGameObjectContainerIndex != branchList.index) InitGameObjectContainerLists();
-                if(exclusiveGameObjectsList == null) InitGameObjectContainerLists();
-                if(excludedGameObjectsList == null) InitGameObjectContainerLists();
-            
+
+                if (currentGameObjectContainerIndex != branchList.index) InitGameObjectContainerLists();
+                if (exclusiveGameObjectsList == null) InitGameObjectContainerLists();
+                if (excludedGameObjectsList == null) InitGameObjectContainerLists();
+
                 buildHelperDataSO.Update();
-            
+
                 exclusiveGameObjectsList.DoLayoutList();
                 excludedGameObjectsList.DoLayoutList();
-            
+
                 buildHelperDataSO.ApplyModifiedProperties();
             }
+
             GUILayout.EndVertical();
-            
+        }
+
+
+        private Vector2 deploymentScrollArea;
+        private void DrawDeploymentEditorPreview(Branch selectedBranch)
+        {
             EditorGUI.BeginChangeCheck();
             GUILayout.BeginVertical("Helpbox");
             
@@ -264,7 +297,7 @@ namespace BocuD.BuildHelper
             EditorGUI.BeginDisabledGroup(!selectedBranch.hasDeploymentData);
             if (GUILayout.Button("Open Deployment Manager"))
             {
-                DeploymentManagerEditor.OpenDeploymentManager(selectedBranch);
+                DeploymentManagerEditor.OpenDeploymentManager(buildHelperData, branchList.index);
             }
             if (GUILayout.Button("Force Refresh"))
             {
@@ -272,11 +305,134 @@ namespace BocuD.BuildHelper
             }
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.EndHorizontal();
-            
+
             if (selectedBranch.hasDeploymentData)
             {
-                DrawDeploymentEditorPreview(selectedBranch);
+                deploymentEditor = EditorGUILayout.Foldout(deploymentEditor, "");
+                if (deploymentEditor)
+                {
+
+                    if (selectedBranch.deploymentData.deploymentPath == "")
+                    {
+                        EditorGUILayout.HelpBox(
+                            "The Deployment Manager automatically saves uploaded builds so you can revisit or reupload them later.\nTo start using the Deployment Manager, please set a location to store uploaded builds.",
+                            MessageType.Info);
+                        if (GUILayout.Button("Set deployment path..."))
+                        {
+                            string selectedFolder = EditorUtility.OpenFolderPanel("Set deployment folder location...",
+                                Application.dataPath, "Deployments");
+                            if (!string.IsNullOrEmpty(selectedFolder))
+                            {
+                                if (selectedFolder.StartsWith(Application.dataPath))
+                                {
+                                    selectedBranch.deploymentData.deploymentPath =
+                                        selectedFolder.Substring(Application.dataPath.Length);
+                                }
+                                else
+                                {
+                                    Debug.LogError("Please choose a location within the Assets folder");
+                                }
+                            }
+                        }
+
+                        return;
+                    }
+
+                    DeploymentManager.RefreshDeploymentData(selectedBranch);
+                    deploymentScrollArea = EditorGUILayout.BeginScrollView(deploymentScrollArea);
+
+                    if (selectedBranch.deploymentData.units.Length < 1)
+                    {
+                        EditorGUILayout.HelpBox(
+                            "No builds have been saved yet. To save a build for this branch, upload your world.",
+                            MessageType.Info);
+                    }
+
+                    bool pcUploadKnown = false, androidUploadKnown = false;
+
+                    foreach (DeploymentUnit deploymentUnit in selectedBranch.deploymentData.units)
+                    {
+                        Color backgroundColor = GUI.backgroundColor;
+
+                        bool isLive = false;
+
+                        if (deploymentUnit.platform == Platform.mobile)
+                        {
+                            DateTime androidUploadTime = DateTime.Parse(selectedBranch.buildData.androidUploadTime,
+                                CultureInfo.InvariantCulture);
+                            if (Mathf.Abs((float) (androidUploadTime - deploymentUnit.buildDate).TotalSeconds) < 300 &&
+                                !androidUploadKnown)
+                            {
+                                androidUploadKnown = true;
+                                isLive = true;
+                            }
+                        }
+                        else
+                        {
+                            DateTime pcUploadTime = DateTime.Parse(selectedBranch.buildData.pcUploadTime,
+                                CultureInfo.InvariantCulture);
+                            if (Mathf.Abs((float) (pcUploadTime - deploymentUnit.buildDate).TotalSeconds) < 300 &&
+                                !pcUploadKnown)
+                            {
+                                pcUploadKnown = true;
+                                isLive = true;
+                            }
+                        }
+
+                        if (isLive) GUI.backgroundColor = new Color(0.2f, 0.92f, 0.2f);
+
+                        GUILayout.BeginVertical("GroupBox");
+
+                        GUI.backgroundColor = backgroundColor;
+
+                        EditorGUILayout.BeginHorizontal();
+                        GUIContent icon = EditorGUIUtility.IconContent(deploymentUnit.platform == Platform.PC
+                            ? "BuildSettings.Metro On"
+                            : "BuildSettings.Android On");
+                        EditorGUILayout.LabelField(icon, GUILayout.Width(20));
+                        GUILayout.Label("Build " + deploymentUnit.buildNumber, GUILayout.Width(60));
+
+                        EditorGUI.BeginDisabledGroup(true);
+                        Rect fieldRect = EditorGUILayout.GetControlRect();
+                        GUI.TextField(fieldRect, deploymentUnit.fileName);
+                        EditorGUI.EndDisabledGroup();
+
+                        GUIStyle selectButtonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 60};
+                        if (GUILayout.Button("Select", selectButtonStyle))
+                        {
+                            Selection.activeObject = AssetDatabase.LoadMainAssetAtPath(
+                                $"Assets/{selectedBranch.deploymentData.deploymentPath}/" + deploymentUnit.fileName);
+                        }
+
+                        EditorGUILayout.EndHorizontal();
+                        // GUILayout.Label("Build date: " + deploymentUnit.buildDate);
+                        // GUILayout.Label("Modified on: " + deploymentUnit.modifiedDate);
+                        // GUILayout.Label("Platform: " + deploymentUnit.platform);
+                        // GUILayout.Label("Git hash: " + deploymentUnit.gitHash);
+                        //
+                        // EditorGUILayout.BeginHorizontal();
+                        //
+                        // EditorGUI.BeginDisabledGroup(deploymentUnit.platform == Platform.mobile);
+                        // if (GUILayout.Button("Test locally in VRChat"))
+                        // {
+                        //     BuildHelperBuilder.TestExistingBuild(deploymentUnit);
+                        // }
+                        // EditorGUI.EndDisabledGroup();
+                        //
+                        // EditorGUI.BeginDisabledGroup(!APIUser.IsLoggedIn);
+                        // if (GUILayout.Button("Publish this build"))
+                        // {
+                        //     BuildHelperBuilder.PublishExistingBuild(deploymentUnit);
+                        // }
+                        // EditorGUI.EndDisabledGroup();
+                        // EditorGUILayout.EndHorizontal();
+                        GUILayout.EndVertical();
+                    }
+
+                    EditorGUILayout.EndScrollView();
+                }
             }
+            
             GUILayout.EndVertical();
             if (EditorGUI.EndChangeCheck())
             {
@@ -287,124 +443,43 @@ namespace BocuD.BuildHelper
                 }
                 Save();
             }
-            
-            GUILayout.FlexibleSpace();
-            
-            DisplayBuildInformation(selectedBranch);
-
-            BuildData buildData = selectedBranch.buildData;
-
-            if (buildData.pcUploadedBuildVersion != buildData.androidUploadedBuildVersion)
-            {
-                if (buildData.pcUploadedBuildVersion > buildData.androidUploadedBuildVersion)
-                {
-                    if (buildData.androidUploadedBuildVersion != -1)
-                    {
-                        EditorGUILayout.HelpBox(
-                            "Your uploaded PC and Android builds currently don't match. The last uploaded PC build is newer than the last uploaded Android build. You should consider reuploading for Android to make them match.",
-                            MessageType.Warning);
-                    }
-                }
-                else
-                {
-                    if (buildData.pcUploadedBuildVersion != -1)
-                    {
-                        EditorGUILayout.HelpBox(
-                            "Your uploaded PC and Android builds currently don't match. The last uploaded Android build is newer than the last uploaded PC build. You should consider reuploading for PC to make them match.",
-                            MessageType.Warning);
-                    }
-                }
-            }
-            else
-            {
-                if (buildData.pcUploadedBuildVersion != -1 && buildData.androidUploadedBuildVersion != -1)
-                {
-                    EditorGUILayout.HelpBox(
-                        "Your uploaded PC and Android builds match. Awesome!",
-                        MessageType.Info);
-                }
-            }
-        
-            EditorGUILayout.Space();
         }
 
-        
-        private Vector2 deploymentScrollArea;
-        private void DrawDeploymentEditorPreview(Branch branch)
+        private void DrawUdonLinkEditor(Branch selectedBranch)
         {
-            if (branch.deploymentData.deploymentPath == "")
-            {
-                EditorGUILayout.HelpBox("The Deployment Manager automatically saves uploaded builds so you can revisit or reupload them later.\nTo start using the Deployment Manager, please set a location to store uploaded builds.", MessageType.Info);
-                if (GUILayout.Button("Set deployment path..."))
-                {
-                    string selectedFolder = EditorUtility.OpenFolderPanel("Set deployment folder location...", Application.dataPath, "Deployments");
-                    if (!string.IsNullOrEmpty(selectedFolder))
-                    {
-                        if (selectedFolder.StartsWith(Application.dataPath)) {
-                            branch.deploymentData.deploymentPath = selectedFolder.Substring(Application.dataPath.Length);
-                        }
-                        else
-                        {
-                            Debug.LogError("Please choose a location within the Assets folder");
-                        }
-                    }
-                }
+            EditorGUI.BeginChangeCheck();
+            GUILayout.BeginVertical("Helpbox");
+            
+            EditorGUILayout.BeginHorizontal();
+            selectedBranch.hasUdonLink = EditorGUILayout.Toggle("Udon Link", selectedBranch.hasUdonLink);
+            EditorGUILayout.EndHorizontal();
+            
+            udonLinkFoldout = EditorGUILayout.Foldout(udonLinkFoldout, "");
 
-                return;
-            }
-            
-            DeploymentManager.RefreshDeploymentData(branch);
-            deploymentScrollArea = EditorGUILayout.BeginScrollView(deploymentScrollArea);
-            
-            if (branch.deploymentData.units.Length < 1)
+            if (udonLinkFoldout)
             {
-                EditorGUILayout.HelpBox("No builds have been saved yet. To save a build for this branch, upload your world.", MessageType.Info);
-            }
-            
-            foreach (DeploymentUnit deploymentUnit in branch.deploymentData.units)
-            {
-                GUILayout.BeginVertical("GroupBox");
-                
                 EditorGUILayout.BeginHorizontal();
-                GUIContent icon = EditorGUIUtility.IconContent(deploymentUnit.platform == Platform.PC ? "BuildSettings.Metro On" : "BuildSettings.Android On");
-                EditorGUILayout.LabelField(icon, GUILayout.Width(20));
-                GUILayout.Label("Build " + deploymentUnit.buildNumber, GUILayout.Width(60));
-                
-                EditorGUI.BeginDisabledGroup(true);
-                Rect fieldRect = EditorGUILayout.GetControlRect();
-                GUI.TextField(fieldRect, deploymentUnit.fileName);
-                EditorGUI.EndDisabledGroup();
-                
-                GUIStyle selectButtonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 60};
-                if (GUILayout.Button("Select", selectButtonStyle))
+                EditorGUI.BeginChangeCheck();
+                buildHelperDataSO.Update();
+                EditorGUILayout.PropertyField(buildHelperDataSO.FindProperty("linkedBehaviour"));
+                buildHelperDataSO.ApplyModifiedProperties();
+                if (EditorGUI.EndChangeCheck())
                 {
-                    Selection.activeObject = AssetDatabase.LoadMainAssetAtPath($"Assets/{branch.deploymentData.deploymentPath}/" + deploymentUnit.fileName);
+                    if (buildHelperData.linkedBehaviour != null)
+                        buildHelperData.linkedBehaviourGameObject = buildHelperData.linkedBehaviour.gameObject;
                 }
                 EditorGUILayout.EndHorizontal();
-                // GUILayout.Label("Build date: " + deploymentUnit.buildDate);
-                // GUILayout.Label("Modified on: " + deploymentUnit.modifiedDate);
-                // GUILayout.Label("Platform: " + deploymentUnit.platform);
-                // GUILayout.Label("Git hash: " + deploymentUnit.gitHash);
-                //
-                // EditorGUILayout.BeginHorizontal();
-                //
-                // EditorGUI.BeginDisabledGroup(deploymentUnit.platform == Platform.mobile);
-                // if (GUILayout.Button("Test locally in VRChat"))
-                // {
-                //     BuildHelperBuilder.TestExistingBuild(deploymentUnit);
-                // }
-                // EditorGUI.EndDisabledGroup();
-                //
-                // EditorGUI.BeginDisabledGroup(!APIUser.IsLoggedIn);
-                // if (GUILayout.Button("Publish this build"))
-                // {
-                //     BuildHelperBuilder.PublishExistingBuild(deploymentUnit);
-                // }
-                // EditorGUI.EndDisabledGroup();
-                // EditorGUILayout.EndHorizontal();
-                GUILayout.EndVertical();
             }
-            EditorGUILayout.EndScrollView();
+            
+            GUILayout.EndVertical();
+            if (EditorGUI.EndChangeCheck())
+            {
+                if (selectedBranch.hasUdonLink)
+                {
+                    
+                }
+                Save();
+            }
         }
 
         private bool editMode;
@@ -696,6 +771,42 @@ namespace BocuD.BuildHelper
             EditorGUILayout.Space();
             EditorGUILayout.Space();
         }
+        
+        private static void DrawBuildVersionWarnings(Branch selectedBranch)
+        {
+            BuildData buildData = selectedBranch.buildData;
+
+            if (buildData.pcUploadedBuildVersion != buildData.androidUploadedBuildVersion)
+            {
+                if (buildData.pcUploadedBuildVersion > buildData.androidUploadedBuildVersion)
+                {
+                    if (buildData.androidUploadedBuildVersion != -1)
+                    {
+                        EditorGUILayout.HelpBox(
+                            "Your uploaded PC and Android builds currently don't match. The last uploaded PC build is newer than the last uploaded Android build. You should consider reuploading for Android to make them match.",
+                            MessageType.Warning);
+                    }
+                }
+                else
+                {
+                    if (buildData.pcUploadedBuildVersion != -1)
+                    {
+                        EditorGUILayout.HelpBox(
+                            "Your uploaded PC and Android builds currently don't match. The last uploaded Android build is newer than the last uploaded PC build. You should consider reuploading for PC to make them match.",
+                            MessageType.Warning);
+                    }
+                }
+            }
+            else
+            {
+                if (buildData.pcUploadedBuildVersion != -1 && buildData.androidUploadedBuildVersion != -1)
+                {
+                    EditorGUILayout.HelpBox(
+                        "Your uploaded PC and Android builds match. Awesome!",
+                        MessageType.Info);
+                }
+            }
+        }
 
         private void DisplayBuildButtons()
         {
@@ -729,41 +840,34 @@ namespace BocuD.BuildHelper
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("");
-            EditorGUILayout.LabelField("Number of Clients");
-            VRCSettings.NumClients = EditorGUILayout.IntField(VRCSettings.NumClients);
+            EditorGUILayout.LabelField("Number of Clients", GUILayout.Width(140));
+            VRCSettings.NumClients = EditorGUILayout.IntField(VRCSettings.NumClients, GUILayout.Width(140));
             EditorGUILayout.EndHorizontal();
         
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("");
-            EditorGUILayout.LabelField("Force no VR");
-            VRCSettings.ForceNoVR = EditorGUILayout.Toggle(VRCSettings.ForceNoVR);
-
+            EditorGUILayout.LabelField("Force no VR", GUILayout.Width(140));
+            VRCSettings.ForceNoVR = EditorGUILayout.Toggle(VRCSettings.ForceNoVR, GUILayout.Width(140));
             EditorGUILayout.EndHorizontal();
 
-            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 140};        
+            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { fixedWidth = 140 };        
         
             EditorGUILayout.BeginHorizontal();
-        
             EditorGUILayout.LabelField("Local test in VRChat");
-
             if (GUILayout.Button("Last Build", buttonStyle))
             {
                 if(CheckLastBuild()) {
                     BuildHelperBuilder.TestLastBuild();
                 }
             }
-        
             if (GUILayout.Button("New Build", buttonStyle))
             {
                 BuildHelperBuilder.TestNewBuild();
             }
-        
             EditorGUILayout.EndHorizontal();
         
             EditorGUILayout.BeginHorizontal();
-
             EditorGUILayout.LabelField("Reload local test clients");
-        
             if (GUILayout.Button("Last Build", buttonStyle))
             {
                 if (CheckLastBuild())
@@ -771,18 +875,14 @@ namespace BocuD.BuildHelper
                     BuildHelperBuilder.ReloadLastBuild();
                 }
             }
-        
             if (GUILayout.Button("New Build", buttonStyle))
             {
                 BuildHelperBuilder.ReloadNewBuild();
             }
-        
             EditorGUILayout.EndHorizontal();
         
             EditorGUILayout.BeginHorizontal();
-        
             EditorGUILayout.LabelField("Publish to VRChat");
-        
             if (GUILayout.Button("Last Build", buttonStyle))
             {
                 if (CheckLastBuild())
@@ -790,13 +890,12 @@ namespace BocuD.BuildHelper
                     BuildHelperBuilder.PublishLastBuild();
                 }
             }
-
             if (GUILayout.Button("New Build", buttonStyle))
             {
                 BuildHelperBuilder.PublishNewBuild();
             }
             EditorGUILayout.EndHorizontal();
-            
+
             EditorGUILayout.Space();
             
             GUILayout.Label("<b>Autonomous build</b>", styleRichTextLabel);

@@ -54,7 +54,7 @@ namespace BocuD.BuildHelper
                         buildHelperData.SaveToJSON();
                         statusWindow.currentState = AutonomousBuildState.aborted;
                     }
-                    else
+                    else if(statusWindow.currentState != AutonomousBuildState.waitingForApi)
                     {
                         EditorApplication.update += LoginStateChecker;
                         statusWindow.currentState = AutonomousBuildState.waitingForApi;
@@ -123,6 +123,7 @@ namespace BocuD.BuildHelper
                 log += $"\n[{DateTime.Now:HH:mm:ss}]: {GetStateString(_currentState)}";
                 window.Repaint();
             }
+            get => _currentState;
         }
 
         public Platform currentPlatform;
@@ -159,6 +160,8 @@ namespace BocuD.BuildHelper
                     return "Aborting...";
                 case AutonomousBuildState.aborted:
                     return "Aborted";
+                case AutonomousBuildState.failed:
+                    return "Failed";
             }
 
             return "Unknown status";
@@ -166,8 +169,21 @@ namespace BocuD.BuildHelper
 
         private void OnGUI()
         {
+            EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField($"Autonomous Builder Status:");
-
+            if(_currentState == AutonomousBuildState.aborting)
+                if (GUILayout.Button("Force close"))
+                {
+                    if (EditorUtility.DisplayDialog("Autonomous Builder",
+                        "Are you sure you want to close the Autonomous Builder? Only do this if its stuck, it might continue building anyways if its not 'hanging'.",
+                        "Yes", "No"))
+                    {
+                        currentState = AutonomousBuildState.finished;
+                        DestroyImmediate(this);
+                    }
+                }
+            EditorGUILayout.EndHorizontal();
+            
             GUIStyle stateLabel = new GUIStyle(GUI.skin.label) {fontSize = 24};
             GUIContent icon;
             GUIStyle iconStyle = new GUIStyle(GUI.skin.label) {fixedHeight = 30};
@@ -214,15 +230,8 @@ namespace BocuD.BuildHelper
                     GUILayout.EndHorizontal();
                     break;
                 case AutonomousBuildState.aborting:
-                    icon = EditorGUIUtility.IconContent("Error@2x");
-                    
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label(GetStateString(_currentState), stateLabel);
-                    GUILayout.FlexibleSpace();
-                    GUILayout.Label(icon, iconStyle);
-                    GUILayout.EndHorizontal();
-                    break;
                 case AutonomousBuildState.aborted:
+                case AutonomousBuildState.failed:
                     icon = EditorGUIUtility.IconContent("Error@2x");
                     
                     GUILayout.BeginHorizontal();
@@ -274,6 +283,7 @@ namespace BocuD.BuildHelper
                     }
                     break;
 
+                case AutonomousBuildState.failed:
                 case AutonomousBuildState.finished:
                 case AutonomousBuildState.aborted:
                     return;
@@ -315,7 +325,8 @@ namespace BocuD.BuildHelper
         uploading,
         finished,
         aborting,
-        aborted
+        aborted,
+        failed
     }
     
     [InitializeOnLoad]
@@ -340,10 +351,10 @@ namespace BocuD.BuildHelper
         // register an event handler when the class is initialized
         static AutonomousBuilderPlaymodeStateWatcher()
         {
-            EditorApplication.playModeStateChanged += LogPlayModeState;
+            EditorApplication.playModeStateChanged += PlayModeStateUpdate;
         }
 
-        private static void LogPlayModeState(PlayModeStateChange state)
+        private static void PlayModeStateUpdate(PlayModeStateChange state)
         {
             if (state == PlayModeStateChange.EnteredEditMode)
             {

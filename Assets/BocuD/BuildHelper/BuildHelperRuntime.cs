@@ -2,6 +2,7 @@
 
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using BestHTTP.Extensions;
 using UnityEditor;
@@ -332,14 +333,14 @@ namespace BocuD.BuildHelper
             if (CurrentPlatform() == Platform.mobile)
             {
                 Debug.Log("Detected succesful upload for Android");
-                buildHelperData.currentBranch.buildData.androidUploadTime = $"{DateTime.Now}";
+                buildHelperData.currentBranch.buildData.androidUploadTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
                 buildHelperData.currentBranch.buildData.androidUploadedBuildVersion =
                     buildHelperData.currentBranch.buildData.androidBuildVersion;
             }
             else
             {
                 Debug.Log("Detected succesful upload for PC");
-                buildHelperData.currentBranch.buildData.pcUploadTime = $"{DateTime.Now}";
+                buildHelperData.currentBranch.buildData.pcUploadTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
                 buildHelperData.currentBranch.buildData.pcUploadedBuildVersion =
                     buildHelperData.currentBranch.buildData.pcBuildVersion;
             }

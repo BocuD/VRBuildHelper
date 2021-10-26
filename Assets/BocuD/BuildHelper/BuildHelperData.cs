@@ -2,12 +2,9 @@
 using System.IO;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using static BocuD.BuildHelper.AutonomousBuildInformation;
 
 #if UNITY_EDITOR
-using System.Collections;
-using UnityEditor;
-using VRC.Core;
+using UdonSharpEditor;
 #endif
 
 namespace BocuD.BuildHelper
@@ -20,16 +17,21 @@ namespace BocuD.BuildHelper
         public Branch[] branches;
         public AutonomousBuildInformation autonomousBuild;
         public OverrideContainer[] overrideContainers;
+        public BuildHelperUdon linkedBehaviour;
+        public GameObject linkedBehaviourGameObject;
 
         private void Awake()
         {
             LoadFromJSON();
+            #if UNITY_EDITOR
+            if (linkedBehaviourGameObject != null)
+                linkedBehaviour = linkedBehaviourGameObject.GetUdonSharpComponent<BuildHelperUdon>();
+            #endif
         }
 
         public Branch currentBranch
         {
             get => branches[currentBranchIndex];
-            set => branches[currentBranchIndex] = value;
         }
         
         public void PrepareExcludedGameObjects()
@@ -166,6 +168,8 @@ namespace BocuD.BuildHelper
 
         public bool hasDeploymentData = false;
         public DeploymentData deploymentData;
+
+        public bool hasUdonLink = false;
     }
 
     [Serializable]

@@ -2,9 +2,11 @@
 
 using System;
 using System.Globalization;
+using UdonSharpEditor;
 using UnityEditor;
 using UnityEngine;
 using VRC.SDKBase.Editor.BuildPipeline;
+using Object = UnityEngine.Object;
 
 namespace BocuD.BuildHelper
 {
@@ -157,6 +159,20 @@ namespace BocuD.BuildHelper
 #endif
             buildHelperData.lastBuiltBranch = buildHelperData.currentBranchIndex;
             buildHelperData.SaveToJSON();
+
+            if (buildHelperData.currentBranch.hasUdonLink)
+            {
+                BuildHelperUdon linkedUdon = buildHelperData.linkedBehaviourGameObject.GetUdonSharpComponent<BuildHelperUdon>();
+                linkedUdon.UpdateProxy();
+                linkedUdon.branchName = buildHelperData.currentBranch.name;
+#if UNITY_ANDROID
+                linkedUdon.buildNumber = buildData.androidBuildVersion;
+#else
+                linkedUdon.buildNumber = buildData.pcBuildVersion;
+#endif
+                linkedUdon.buildDate = DateTime.Now;
+                linkedUdon.ApplyProxyModifications();
+            }
 
             return true;
         }

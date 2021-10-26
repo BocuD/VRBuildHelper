@@ -41,29 +41,33 @@ using BocuD.BuildHelper;
 using UnityEditor;
 using UnityEngine;
 using VRC.Core;
+using Object = UnityEngine.Object;
 
 public class DeploymentManagerEditor : EditorWindow
 {
-    public Branch branch;
+    public BuildHelperData data;
+    public int dataIndex;
     private Vector2 deploymentScrollArea;
     
-    public static void OpenDeploymentManager(Branch b)
+    public static void OpenDeploymentManager(BuildHelperData data, int dataIndex)
     {
         DeploymentManagerEditor window = (DeploymentManagerEditor) GetWindow(typeof(DeploymentManagerEditor), true);
-        window.branch = b;
+        window.data = data;
+        window.dataIndex = dataIndex;
         
-        window.titleContent = new GUIContent($"Deployment Manager for {b.name}");
+        window.titleContent = new GUIContent($"Deployment Manager for {data.branches[dataIndex].name}");
         window.minSize = new Vector2(400, 200);
         window.autoRepaintOnSceneChange = true;
         
-        DeploymentManager.RefreshDeploymentData(b);
+        DeploymentManager.RefreshDeploymentData(data.branches[dataIndex]);
             
         window.Show();
     }
     
     private void OnGUI()
     {
-        if (branch.deploymentData.deploymentPath == "")
+        if (data == null) DestroyImmediate(this);
+        if (data.branches[dataIndex].deploymentData.deploymentPath == "")
         {
             if (GUILayout.Button("Set deployment path..."))
             {
@@ -73,7 +77,7 @@ public class DeploymentManagerEditor : EditorWindow
                 {
                     if (selectedFolder.StartsWith(Application.dataPath))
                     {
-                        branch.deploymentData.deploymentPath = selectedFolder.Substring(Application.dataPath.Length);
+                        data.branches[dataIndex].deploymentData.deploymentPath = selectedFolder.Substring(Application.dataPath.Length);
                     }
                     else
                     {
@@ -85,28 +89,81 @@ public class DeploymentManagerEditor : EditorWindow
             return;
         }
 
-        if (GUILayout.Button("Force Refresh"))
-        {
-            DeploymentManager.RefreshDeploymentData(branch);
-        }
-        
         deploymentScrollArea = EditorGUILayout.BeginScrollView(deploymentScrollArea);
 
-        if (branch.deploymentData.units.Length < 1)
+        if (data.branches[dataIndex].deploymentData.units.Length < 1)
         {
+            if (GUILayout.Button("Force Refresh"))
+            {
+                DeploymentManager.RefreshDeploymentData(data.branches[dataIndex]);
+            }
             EditorGUILayout.HelpBox("No builds have been saved yet. To save a build for this branch, upload your world.", MessageType.Info);
+            return;
         }
 
-        foreach (DeploymentUnit deploymentUnit in branch.deploymentData.units)
+        //make sure its loaded properly
+        if(data.branches[dataIndex].deploymentData.units[0].buildDate < new DateTime(2020, 1, 1))
         {
+            if(GUILayout.Button("Refresh"))
+                DeploymentManager.RefreshDeploymentData(data.branches[dataIndex]);
+            EditorGUILayout.EndScrollView();
+            return;
+        }
+        
+        if (GUILayout.Button("Force Refresh")) 
+            DeploymentManager.RefreshDeploymentData(data.branches[dataIndex]);
+
+        bool pcUploadKnown = false, androidUploadKnown = false;
+        
+        foreach (DeploymentUnit deploymentUnit in data.branches[dataIndex].deploymentData.units)
+        {
+            //GUIStyle box = new GUIStyle("GroupBox");
+            Color backgroundColor = GUI.backgroundColor;
+            
+            bool isLive = false;
+
+            if (deploymentUnit.platform == Platform.mobile)
+            {
+                DateTime androidUploadTime = DateTime.Parse(data.branches[dataIndex].buildData.androidUploadTime, CultureInfo.InvariantCulture);
+                if (Mathf.Abs((float) (androidUploadTime - deploymentUnit.buildDate).TotalSeconds) < 300 && !androidUploadKnown)
+                {
+                    androidUploadKnown = true;
+                    isLive = true;
+                }
+            }
+            else
+            {
+                DateTime pcUploadTime = DateTime.Parse(data.branches[dataIndex].buildData.pcUploadTime, CultureInfo.InvariantCulture);
+                if (Mathf.Abs((float) (pcUploadTime - deploymentUnit.buildDate).TotalSeconds) < 300 && !pcUploadKnown)
+                {
+                    pcUploadKnown = true;
+                    isLive = true;
+                }
+            }
+            if(isLive) GUI.backgroundColor = new Color(0.2f, 0.92f, 0.2f);
+
             GUILayout.BeginVertical("GroupBox");
 
+            GUI.backgroundColor = backgroundColor;
+
             EditorGUILayout.BeginHorizontal();
-            GUIContent icon = EditorGUIUtility.IconContent(deploymentUnit.platform == Platform.PC
+            GUIContent platformIcon = EditorGUIUtility.IconContent(deploymentUnit.platform == Platform.PC
                 ? "BuildSettings.Metro On"
                 : "BuildSettings.Android On");
-            EditorGUILayout.LabelField(icon, GUILayout.Width(20));
-
+            EditorGUILayout.LabelField(platformIcon, GUILayout.Width(20));
+            
+            if(isLive) GUILayout.Label("Live on VRChat");
+            
+            GUILayout.FlexibleSpace();
+            
+            GUIContent uploadIcon = EditorGUIUtility.IconContent("UpArrow");
+            EditorGUILayout.LabelField(deploymentUnit.autoUploader
+                ? "Uploaded with Autonomous Builder"
+                : "Uploaded manually");
+            EditorGUILayout.LabelField(uploadIcon, GUILayout.Width(20));
+            EditorGUILayout.EndHorizontal();
+            
+            EditorGUILayout.BeginHorizontal();
             EditorGUI.BeginDisabledGroup(true);
             Rect fieldRect = EditorGUILayout.GetControlRect();
             GUI.TextField(fieldRect, deploymentUnit.fileName);
@@ -116,7 +173,7 @@ public class DeploymentManagerEditor : EditorWindow
             if (GUILayout.Button("Select", selectButtonStyle))
             {
                 Selection.activeObject =
-                    AssetDatabase.LoadMainAssetAtPath($"Assets/{branch.deploymentData.deploymentPath}/" +
+                    AssetDatabase.LoadMainAssetAtPath($"Assets/{data.branches[dataIndex].deploymentData.deploymentPath}/" +
                                                       deploymentUnit.fileName);
             }
 
@@ -138,7 +195,7 @@ public class DeploymentManagerEditor : EditorWindow
                     File.Delete(deploymentUnit.filePath);
                     File.Delete(deploymentUnit.filePath + ".meta");
                     AssetDatabase.Refresh();
-                    DeploymentManager.RefreshDeploymentData(branch);
+                    DeploymentManager.RefreshDeploymentData(data.branches[dataIndex]);
                     return;
                 }
             }
@@ -242,6 +299,35 @@ public static class DeploymentManager
         if (!Regex.IsMatch(hash, "[0-9a-f]{8}")) return "";
 
         return hash;
+    }
+}
+
+[InitializeOnLoadAttribute]
+public static class AutonomousBuilderPlaymodeStateWatcher
+{
+    // register an event handler when the class is initialized
+    static AutonomousBuilderPlaymodeStateWatcher()
+    {
+        EditorApplication.playModeStateChanged += PlayModeStateUpdate;
+    }
+
+    private static void PlayModeStateUpdate(PlayModeStateChange state)
+    {
+        if (state == PlayModeStateChange.EnteredEditMode)
+        {
+            if (Object.FindObjectOfType<BuildHelperData>() == null) return;
+                
+            BuildHelperData buildHelperData = Object.FindObjectOfType<BuildHelperData>();
+            buildHelperData.LoadFromJSON();
+
+            foreach (Branch b in buildHelperData.branches)
+            {
+                if (b.hasDeploymentData)
+                {
+                    DeploymentManager.RefreshDeploymentData(b);
+                }
+            }
+        }
     }
 }
 
