@@ -170,7 +170,7 @@ namespace BocuD.BuildHelper
             {
                 Rect buttonRectBase = EditorGUILayout.GetControlRect();
 
-                Rect buttonRect = new Rect(5, buttonRectBase.y - EditorGUIUtility.singleLineHeight, 150,
+                Rect buttonRect = new Rect(5, buttonRectBase.y - EditorGUIUtility.singleLineHeight, 250,
                     EditorGUIUtility.singleLineHeight);
 
                 if (GUI.Button(buttonRect, $"Switch to {buildHelperData.branches[branchList.index].name}"))

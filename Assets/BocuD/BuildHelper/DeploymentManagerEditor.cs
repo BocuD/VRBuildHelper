@@ -281,7 +281,7 @@ public static class DeploymentManager
                 };
             })
             .OrderByDescending(unit => unit.modifiedFileTime)
-            .Where(unit => unit.fileName.Contains(branch.name))
+            .Where(unit => unit.fileName.Contains(branch.deploymentData.initialBranchName))
             .ToArray();
     }
     
