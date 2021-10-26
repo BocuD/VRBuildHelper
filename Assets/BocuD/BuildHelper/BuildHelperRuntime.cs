@@ -1,6 +1,7 @@
 ﻿#if UNITY_EDITOR
 
 using System;
+using System.Diagnostics;
 using System.IO;
 using BestHTTP.Extensions;
 using UnityEditor;
@@ -8,6 +9,7 @@ using UnityEngine;
 using VRCSDK2;
 
 using static BocuD.BuildHelper.AutonomousBuildInformation;
+using Debug = UnityEngine.Debug;
 
 namespace BocuD.BuildHelper
 {
@@ -23,15 +25,13 @@ namespace BocuD.BuildHelper
         [SerializeField]private Texture vrcImage;
 
         [SerializeField]private BuildHelperData buildHelperData;
-        [SerializeField]private Branch branch;
 
         [SerializeField]private BuildHelperToolsMenu buildHelperToolsMenu;
-        private bool autoUpload;
+        private bool shouldAutoUpload;
 
         private void Start()
         {
-            buildHelperData = (BuildHelperData)FindObjectOfType(typeof(BuildHelperData));
-            branch = buildHelperData.branches[buildHelperData.currentBranch];
+            buildHelperData = FindObjectOfType<BuildHelperData>();
         }
 
         private int timeout = 10;
@@ -51,7 +51,7 @@ namespace BocuD.BuildHelper
                         Debug.Log("Found RuntimeWorldCreation component, initialising BuildHelperRuntime");
 
                         //apply saved camera position
-                        GameObject.Find("VRCCam").transform.SetPositionAndRotation(branch.camPos, branch.camRot);
+                        GameObject.Find("VRCCam").transform.SetPositionAndRotation(buildHelperData.currentBranch.camPos, buildHelperData.currentBranch.camRot);
 
                         //modify sdk upload panel to add world helper menu
                         Transform worldPanel = runtimeWorldCreation.transform.GetChild(0).GetChild(0).GetChild(1);
@@ -64,12 +64,12 @@ namespace BocuD.BuildHelper
 
                         buildHelperToolsMenu = RuntimeTools.GetComponent<BuildHelperToolsMenu>();
 
-                        buildHelperToolsMenu.saveCamPosition.isOn = branch.saveCamPos;
-                        buildHelperToolsMenu.uniqueCamPosition.isOn = branch.uniqueCamPos;
+                        buildHelperToolsMenu.saveCamPosition.isOn = buildHelperData.currentBranch.saveCamPos;
+                        buildHelperToolsMenu.uniqueCamPosition.isOn = buildHelperData.currentBranch.uniqueCamPos;
                     
                         if (buildHelperData.autonomousBuild.activeBuild)
                         {
-                            autoUpload = true;
+                            shouldAutoUpload = true;
                         }
 
                         vrcSceneReady = true;
@@ -95,93 +95,116 @@ namespace BocuD.BuildHelper
                 vrcImage = runtimeWorldCreation.shouldUpdateImageToggle.isOn
                     ? runtimeWorldCreation.liveBpImage.mainTexture
                     : runtimeWorldCreation.bpImage.mainTexture;
-
-
-                if (runtimeWorldCreation.titleText.text == "Configure World")
+                
+                if (runtimeWorldCreation.titleText.text != "Configure World") return;
+                
+                if (!appliedChanges && buildHelperData.currentBranch.vrcDataHasChanges)
                 {
-                    if (!appliedChanges && branch.vrcDataHasChanges)
-                    {
-                        runtimeWorldCreation.blueprintName.text = branch.VRCNameLocal;
-                        runtimeWorldCreation.blueprintDescription.text = branch.VRCDescLocal;
-                        runtimeWorldCreation.worldCapacity.text = branch.VRCCapLocal.ToString();
-                        runtimeWorldCreation.userTags.text = branch.vrcTagsLocal;
-                        appliedChanges = true;
-                        return;
-                    }
+                    runtimeWorldCreation.blueprintName.text = buildHelperData.currentBranch.VRCNameLocal;
+                    runtimeWorldCreation.blueprintDescription.text = buildHelperData.currentBranch.VRCDescLocal;
+                    runtimeWorldCreation.worldCapacity.text = buildHelperData.currentBranch.VRCCapLocal.ToString();
+                    runtimeWorldCreation.userTags.text = buildHelperData.currentBranch.vrcTagsLocal;
+                    appliedChanges = true;
+                    return;
+                }
 
-                    if (!appliedImageChanges && branch.vrcImageHasChanges)
-                    {
-                        runtimeWorldCreation.shouldUpdateImageToggle.isOn = true;
-                        buildHelperToolsMenu.imageSourceDropdown.value = 1;
-                        buildHelperToolsMenu.imageSourceDropdown.onValueChanged.Invoke(1);
-                        buildHelperToolsMenu.OnFileSelected(Application.dataPath + "/Resources/BuildHelper/" + branch.name + "-edit.png");
-                        appliedImageChanges = true;
-                        return;
-                    }
+                if (!appliedImageChanges && buildHelperData.currentBranch.vrcImageHasChanges)
+                {
+                    runtimeWorldCreation.shouldUpdateImageToggle.isOn = true;
+                    buildHelperToolsMenu.imageSourceDropdown.value = 1;
+                    buildHelperToolsMenu.imageSourceDropdown.onValueChanged.Invoke(1);
+                    buildHelperToolsMenu.OnFileSelected(Application.dataPath + "/Resources/BuildHelper/" + buildHelperData.currentBranch.name + "-edit.png");
+                    appliedImageChanges = true;
+                    return;
+                }
                     
-                    if (autoUpload)
+                if (shouldAutoUpload)
+                {
+                    Upload();
+                    shouldAutoUpload = false;
+                }
+
+                if (autoUploading)
+                {
+                    AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                    
+                    if(statusWindow.abort)
                     {
-                        Upload();
-                        autoUpload = false;
+                        buildHelperData.autonomousBuild.activeBuild = false;
+                        buildHelperData.SaveToJSON();
+                        statusWindow.currentState = AutonomousBuildState.aborted;
+                        EditorApplication.isPlaying = false;
                     }
                 }
             }
         }
 
+        private bool autoUploading = false;
+        
         private void Upload()
         {
-            AutonomousBuildInformation autonomousBuild = buildHelperData.autonomousBuild;
-            switch (autonomousBuild.progress)
+            AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+            
+            if (statusWindow.abort)
             {
-                case Progress.PreInitialBuild:
-                    runtimeWorldCreation.uploadButton.onClick.Invoke();
-                    break;
-                case Progress.PreSecondaryBuild:
-                    runtimeWorldCreation.uploadButton.onClick.Invoke();
-                    break;
+                buildHelperData.autonomousBuild.activeBuild = false;
+                buildHelperData.SaveToJSON();
+                statusWindow.currentState = AutonomousBuildState.aborted;
+                EditorApplication.isPlaying = false;
+            }
+            else
+            {
+                AutonomousBuildInformation autonomousBuild = buildHelperData.autonomousBuild;
+                switch (autonomousBuild.progress)
+                {
+                    case Progress.PreInitialBuild:
+                        runtimeWorldCreation.uploadButton.onClick.Invoke();
+                        break;
+                    case Progress.PreSecondaryBuild:
+                        runtimeWorldCreation.uploadButton.onClick.Invoke();
+                        break;
+                }
             }
         }
 
         private void Log(string logString, string stackTrace, LogType type)
         {
-            if (logString.Contains("Starting upload"))
+            if (type == LogType.Log && logString.Contains("Starting upload"))
             {
                 AutonomousBuildInformation autonomousBuild = buildHelperData.autonomousBuild;
 
                 if (autonomousBuild.activeBuild)
                 {
+                    AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                    
                     switch (autonomousBuild.progress)
                     {
                         case Progress.PreInitialBuild:
-                        {
-                            AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
                             statusWindow.currentPlatform = autonomousBuild.initialTarget;
                             statusWindow.currentState = AutonomousBuildState.uploading;
-                        }
+                            autoUploading = true;
                             break;
 
                         case Progress.PreSecondaryBuild:
-                        {
-                            AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
                             statusWindow.currentPlatform = autonomousBuild.secondaryTarget;
                             statusWindow.currentState = AutonomousBuildState.uploading;
-                        }
+                            autoUploading = true;
                             break;
                     }
                 }
 
-                branch.saveCamPos = buildHelperToolsMenu.saveCamPosition.isOn;
-                branch.uniqueCamPos = buildHelperToolsMenu.uniqueCamPosition.isOn;
+                buildHelperData.currentBranch.saveCamPos = buildHelperToolsMenu.saveCamPosition.isOn;
+                buildHelperData.currentBranch.uniqueCamPos = buildHelperToolsMenu.uniqueCamPosition.isOn;
             
-                if (branch.saveCamPos)
+                if (buildHelperData.currentBranch.saveCamPos)
                 {
                     GameObject vrcCam = GameObject.Find("VRCCam");
                     if (vrcCam)
                     {
-                        if (branch.uniqueCamPos)
+                        if (buildHelperData.currentBranch.uniqueCamPos)
                         {
-                            branch.camPos = vrcCam.transform.position;
-                            branch.camRot = vrcCam.transform.rotation;
+                            buildHelperData.currentBranch.camPos = vrcCam.transform.position;
+                            buildHelperData.currentBranch.camRot = vrcCam.transform.rotation;
                         }
                         else
                         {
@@ -193,16 +216,16 @@ namespace BocuD.BuildHelper
                                 b.camRot = vrcCam.transform.rotation;
                             }
                             
-                            branch.camPos = vrcCam.transform.position;
-                            branch.camRot = vrcCam.transform.rotation;
+                            buildHelperData.currentBranch.camPos = vrcCam.transform.position;
+                            buildHelperData.currentBranch.camRot = vrcCam.transform.rotation;
                         }
                     }
                 }
             }
         
-            if (logString.Contains("Asset bundle upload succeeded"))
+            if (type == LogType.Log && logString.Contains("Asset bundle upload succeeded"))
             {
-                if (branch == null)
+                if (buildHelperData.currentBranch == null)
                 {
                     Debug.LogError("Build Helper data object doesn't exist, skipping build data update");
                     return;
@@ -245,40 +268,17 @@ namespace BocuD.BuildHelper
                 
                 ExtractWorldImage();
                 ExtractBuildInfo();
+                TrySavePublishedWorld();
             }
 
-            if (logString.Contains("Image upload succeeded"))
+            if (type == LogType.Log && logString.Contains("Image upload succeeded"))
             {
-                branch.vrcImageHasChanges = false;
-                buildHelperData.branches[buildHelperData.currentBranch] = branch;
+                buildHelperData.currentBranch.vrcImageHasChanges = false;
+                buildHelperData.branches[buildHelperData.currentBranchIndex] = buildHelperData.currentBranch;
                 buildHelperData.SaveToJSON();
             }
         }
-
-        private void ExtractBuildInfo()
-        {
-            branch.VRCName = VRCName;
-            branch.VRCDesc = VRCDesc;
-            branch.VRCCap = vrcPlayerCount;
-            branch.vrcReleaseState = vrcReleaseState;
-            branch.vrcTags = vrcTags;
-            branch.VRCDataInitialised = true;
-
-#if UNITY_ANDROID
-            Debug.Log("Detected succesful upload for Android");
-            branch.buildData.androidUploadTime = $"{DateTime.Now}";
-            branch.buildData.androidUploadedBuildVersion = branch.buildData.androidBuildVersion;
-#else
-            Debug.Log("Detected succesful upload for PC");
-            branch.buildData.pcUploadTime = $"{DateTime.Now}";
-            branch.buildData.pcUploadedBuildVersion = branch.buildData.pcBuildVersion;
-#endif
-            branch.vrcDataHasChanges = false;
-            
-            buildHelperData.branches[buildHelperData.currentBranch] = branch;
-            buildHelperData.SaveToJSON();
-        }
-
+        
         private void ExtractWorldImage()
         {
             Texture2D texture2D = new Texture2D(vrcImage.width, vrcImage.height, TextureFormat.RGBA32, false);
@@ -302,15 +302,136 @@ namespace BocuD.BuildHelper
                 Directory.CreateDirectory(dirPath);
             }
 
-            string filePath = dirPath + branch.name + ".png";
+            string filePath = dirPath + buildHelperData.currentBranch.name + ".png";
             File.WriteAllBytes(filePath, worldImagePNG);
 
-            filePath = "Assets/Resources/BuildHelper/" + branch.name + ".png";
+            filePath = "Assets/Resources/BuildHelper/" + buildHelperData.currentBranch.name + ".png";
 
-            TextureImporter importer = AssetImporter.GetAtPath(filePath) as TextureImporter;
-            importer.textureType = TextureImporterType.GUI;
+            // TextureImporter importer = AssetImporter.GetAtPath(filePath) as TextureImporter;
+            // importer.textureType = TextureImporterType.GUI;
             AssetDatabase.WriteImportSettingsIfDirty(filePath);
             AssetDatabase.ImportAsset(filePath);
+        }
+
+        private void ExtractBuildInfo()
+        {
+            buildHelperData.currentBranch.VRCName = VRCName;
+            buildHelperData.currentBranch.VRCDesc = VRCDesc;
+            buildHelperData.currentBranch.VRCCap = vrcPlayerCount;
+            buildHelperData.currentBranch.vrcReleaseState = vrcReleaseState;
+            buildHelperData.currentBranch.vrcTags = vrcTags;
+            
+            buildHelperData.currentBranch.VRCNameLocal = VRCName;
+            buildHelperData.currentBranch.VRCDescLocal = VRCDesc;
+            buildHelperData.currentBranch.VRCCapLocal = vrcPlayerCount;
+            buildHelperData.currentBranch.vrcReleaseStateLocal = vrcReleaseState;
+            buildHelperData.currentBranch.vrcTagsLocal = vrcTags;
+            
+            buildHelperData.currentBranch.VRCDataInitialised = true;
+
+            if (CurrentPlatform() == Platform.mobile)
+            {
+                Debug.Log("Detected succesful upload for Android");
+                buildHelperData.currentBranch.buildData.androidUploadTime = $"{DateTime.Now}";
+                buildHelperData.currentBranch.buildData.androidUploadedBuildVersion =
+                    buildHelperData.currentBranch.buildData.androidBuildVersion;
+            }
+            else
+            {
+                Debug.Log("Detected succesful upload for PC");
+                buildHelperData.currentBranch.buildData.pcUploadTime = $"{DateTime.Now}";
+                buildHelperData.currentBranch.buildData.pcUploadedBuildVersion =
+                    buildHelperData.currentBranch.buildData.pcBuildVersion;
+            }
+
+            buildHelperData.currentBranch.vrcDataHasChanges = false;
+
+            buildHelperData.SaveToJSON();
+        }
+
+        private void TrySavePublishedWorld()
+        {
+            if (!buildHelperData.currentBranch.hasDeploymentData) return;
+            
+            if (buildHelperData.currentBranch.deploymentData.deploymentPath == "") {
+                Debug.LogWarning($"Deployment folder location for {buildHelperData.currentBranch.name} is not set, no published builds will be saved.");
+                return;
+            }
+
+            string justPublishedFilePath = EditorPrefs.GetString("lastVRCPath");
+            
+            if (!File.Exists(justPublishedFilePath)) return; // Defensive check, normally the file should exist there given that a publish was just completed
+
+            string deploymentFolder = Path.GetFullPath(Application.dataPath + buildHelperData.currentBranch.deploymentData.deploymentPath);
+            
+            if (Path.GetDirectoryName(justPublishedFilePath).StartsWith(deploymentFolder))
+            {
+                Debug.Log("Not saving build as the published build was already located within the deployments folder. This probably means the published build was an existing (older) build.");
+                return;
+            }
+
+            string backupFileName = ComposeBackupFileName(buildHelperData.currentBranch, justPublishedFilePath);
+            string backupPath = Path.Combine(new []{deploymentFolder, backupFileName});
+
+            File.Copy(justPublishedFilePath, backupPath);
+            Debug.Log("Completed a backup: " + backupFileName);
+        }
+        
+        private string ComposeBackupFileName(Branch branch, string justPublishedFilePath)
+        {
+            string buildDate = File.GetLastWriteTime(justPublishedFilePath).ToString("yyyy'-'MM'-'dd HH'-'mm'-'ss");
+            string autoUploader = buildHelperData.autonomousBuild.activeBuild ? "auto_" : "";
+            string buildNumber =
+                $"build{(CurrentPlatform() == Platform.PC ? branch.buildData.pcBuildVersion.ToString() : branch.buildData.pcBuildVersion.ToString())}";
+            string platform = CurrentPlatform().ToString();
+            string gitHash = TryGetGitHashDiscardErrorsSilently();
+            return $"[{buildDate}]_{autoUploader}{branch.name}_{buildNumber}_{branch.blueprintID}_{platform}_{gitHash}.vrcw";
+        }
+        
+        private static string TryGetGitHashDiscardErrorsSilently()
+        {
+            try
+            {
+                var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo()
+                    {
+                        FileName = "git",
+                        WorkingDirectory = Application.dataPath,
+                        UseShellExecute = false,
+                        RedirectStandardError = true,
+                        RedirectStandardInput = true,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true,
+                        Arguments = "rev-parse --short HEAD"
+                    }
+                };
+                process.Start();
+                var output = process.StandardOutput.ReadToEnd();
+                process.WaitForExit();
+                var trimmedOutput = output.Trim().ToLowerInvariant();
+                if (trimmedOutput.Length != 8)
+                {
+                    UnityEngine.Debug.Log("Could not retrieve git hash: " + trimmedOutput);
+                    return "@nohash";
+                }
+
+                return trimmedOutput;
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.Log("Could not retrieve git hash: " + e.Message);
+                return "@nohash";
+            }
+        }
+
+        private static Platform CurrentPlatform()
+        {
+#if UNITY_ANDROID
+            return Platform.mobile;
+#else
+            return Platform.PC;
+#endif
         }
 
         private void OnEnable()

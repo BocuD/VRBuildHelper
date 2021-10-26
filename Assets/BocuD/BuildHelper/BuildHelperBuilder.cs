@@ -2,14 +2,13 @@
 
 using System;
 using System.IO;
-using BocuD.BuildHelper;
 using UnityEditor;
-using UnityEditor.Build;
 using UnityEngine;
+using UnityEngine.Networking;
 using VRC.Core;
+using VRC.SDK3.Editor.Builder;
 using VRC.SDKBase.Editor;
 using VRC.SDKBase.Editor.BuildPipeline;
-using static BocuD.BuildHelper.AutonomousBuildInformation;
 
 namespace BocuD.BuildHelper
 {
@@ -94,6 +93,30 @@ namespace BocuD.BuildHelper
                     Debug.LogError("You need to be logged in to publish a world");
                 }
             }
+        }
+        
+        public static void TestExistingBuild(DeploymentUnit deploymentUnit)
+        {
+            string actualLastBuild = EditorPrefs.GetString("lastVRCPath");
+            
+            EditorPrefs.SetString("lastVRCPath", deploymentUnit.filePath);
+            //EditorPrefs.SetString("currentBuildingAssetBundlePath", UnityWebRequest.UnEscapeURL(deploymentUnit.buildPath));
+            VRC_SdkBuilder.shouldBuildUnityPackage = false;
+            VRC_SdkBuilder.RunLastExportedSceneResource();
+            
+            EditorPrefs.SetString("lastVRCPath", actualLastBuild);
+        }
+        
+        public static void PublishExistingBuild(DeploymentUnit deploymentUnit)
+        {
+            //string actualLastBuild = EditorPrefs.GetString("lastVRCPath");
+            
+            EditorPrefs.SetString("lastVRCPath", deploymentUnit.filePath);
+            EditorPrefs.SetString("currentBuildingAssetBundlePath", UnityWebRequest.UnEscapeURL(deploymentUnit.filePath));
+            AssetExporter.CleanupUnityPackageExport();
+            VRCWorldAssetExporter.LaunchSceneBlueprintUploader();
+            
+            //EditorPrefs.SetString("lastVRCPath", actualLastBuild);
         }
     }
 }

@@ -7,6 +7,7 @@
 
 !Assets
 Assets/*
+!Assets/Deployments/**
 !Assets/BocuD
 !Assets/BocuD/**
 !Assets/Plugins

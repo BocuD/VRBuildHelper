@@ -15,74 +15,23 @@ namespace BocuD.BuildHelper
     [ExecuteInEditMode]
     public class BuildHelperData : MonoBehaviour
     {
-        public int currentBranch;
+        public int currentBranchIndex;
         public int lastBuiltBranch;
         public Branch[] branches;
         public AutonomousBuildInformation autonomousBuild;
         public OverrideContainer[] overrideContainers;
 
-#if UNITY_EDITOR
         private void Awake()
         {
-            loginCheckerActive = false;
+            LoadFromJSON();
         }
 
-        private void Update()
+        public Branch currentBranch
         {
-            if (Application.isPlaying) return;
-
-            if (!autonomousBuild.activeBuild) return;
-
-            if (!APIUser.IsLoggedIn)
-            {
-                EditorApplication.ExecuteMenuItem("VRChat SDK/Show Control Panel");
-                
-                if (!loginCheckerActive)
-                {
-                    timeOut = 0;
-                    EditorApplication.update += LoginStateChecker;
-                    
-                    AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
-                    statusWindow.currentState = AutonomousBuildState.waitingForApi;
-                }
-            }
+            get => branches[currentBranchIndex];
+            set => branches[currentBranchIndex] = value;
         }
-
-        [SerializeField]private bool loginCheckerActive;
-        private int timeOut;
-        private void LoginStateChecker()
-        {
-            if (autonomousBuild.progress == Progress.PostPlatformSwitch)
-            {
-                if (APIUser.IsLoggedIn)
-                {
-                    autonomousBuild.progress = Progress.PreSecondaryBuild;
-                    SaveToJSON();
-                    EditorApplication.update -= LoginStateChecker;
-                    loginCheckerActive = false;
-                    
-                    AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
-                    statusWindow.currentPlatform = autonomousBuild.secondaryTarget;
-                    statusWindow.currentState = AutonomousBuildState.building;
-
-                    BuildHelperBuilder.PublishNewBuild();
-                }
-            }
-            timeOut++;
-            if (timeOut > 5000)
-            {
-                EditorApplication.update -= LoginStateChecker;
-                loginCheckerActive = false;
-                
-                //reset build state
-                autonomousBuild.activeBuild = false;
-                SaveToJSON();
-                
-                Debug.LogError("Timed out waiting for login");
-            }
-        }
-#endif
-
+        
         public void PrepareExcludedGameObjects()
         {
             for (int i = 0; i < branches.Length; i++)
@@ -102,7 +51,7 @@ namespace BocuD.BuildHelper
         {
             BranchStorageObject storageObject = new BranchStorageObject
             {
-                branches = branches, currentBranch = currentBranch, lastBuiltBranch = lastBuiltBranch, autonomousBuild = autonomousBuild
+                branches = branches, currentBranch = currentBranchIndex, lastBuiltBranch = lastBuiltBranch, autonomousBuild = autonomousBuild
             };
 
             if (storageObject.branches == null) storageObject.branches = new Branch[0];
@@ -129,7 +78,7 @@ namespace BocuD.BuildHelper
                 storageObject.autonomousBuild = new AutonomousBuildInformation();
         
             branches = storageObject.branches;
-            currentBranch = storageObject.currentBranch;
+            currentBranchIndex = storageObject.currentBranch;
             lastBuiltBranch = storageObject.lastBuiltBranch;
             autonomousBuild = storageObject.autonomousBuild;
 
@@ -184,35 +133,39 @@ namespace BocuD.BuildHelper
     [Serializable]
     public class Branch
     {
-        //basic branch data
-        public string name;
-        public bool hasOverrides;
-        public string blueprintID;
-    
+        //basic branch information
+        public string name = "";
+        public bool hasOverrides = false;
+        public string blueprintID = "";
+
         //VRC World Data
-        public bool VRCDataInitialised;
-        public string VRCName;
-        public string VRCDesc;
-        public int VRCCap;
-        public bool vrcReleaseState;
-        public string vrcTags;
+        public bool VRCDataInitialised = false;
+        public string VRCName = "Unpublished VRChat world";
+        public string VRCDesc = "";
+        public int VRCCap = 16;
+        public bool vrcReleaseState = false;
+        public string vrcTags = "";
+
+        public string VRCNameLocal = "Unpublished VRChat world";
+        public string VRCDescLocal = "";
+        public int VRCCapLocal = 16;
+        public bool vrcReleaseStateLocal = false;
+        public string vrcTagsLocal = "";
         
-        public string VRCNameLocal;
-        public string VRCDescLocal;
-        public int VRCCapLocal;
-        public bool vrcReleaseStateLocal;
-        public string vrcTagsLocal;
         public bool vrcDataHasChanges = false;
         public bool vrcImageHasChanges = false;
-        public string vrcImageWarning;
+        public string vrcImageWarning = "";
     
         //VRCCam state
         public bool saveCamPos = true;
-        public bool uniqueCamPos;
-        public Vector3 camPos;
-        public Quaternion camRot;
+        public bool uniqueCamPos = false;
+        public Vector3 camPos = Vector3.zero;
+        public Quaternion camRot = Quaternion.identity;
     
         public BuildData buildData;
+
+        public bool hasDeploymentData = false;
+        public DeploymentData deploymentData;
     }
 
     [Serializable]
@@ -248,6 +201,35 @@ namespace BocuD.BuildHelper
             pcUploadedBuildVersion = -1;
             androidUploadedBuildVersion = -1;
         }
+    }
+    
+    public enum Platform
+    {
+        PC,
+        mobile
+    }
+
+    [Serializable]
+    public class DeploymentData
+    {
+        public string deploymentPath;
+        public string initialBranchName;
+        public DeploymentUnit[] units;
+    }
+    
+    [Serializable]
+    public struct DeploymentUnit
+    {
+        public bool autoUploader;
+        public string fileName;
+        public int buildNumber;
+        public long fileSize;
+        public Platform platform;
+        public string gitHash;
+        public string filePath;
+        public DateTime buildDate;
+        public DateTime modifiedDate;
+        public long modifiedFileTime;
     }
 
     [Serializable]
@@ -316,13 +298,7 @@ namespace BocuD.BuildHelper
             activeBuild = false;
             singleTarget = false;
         }
-        
-        public enum Platform
-        {
-            PC,
-            mobile
-        }
-        
+
         public enum Progress
         {
             PreInitialBuild,
