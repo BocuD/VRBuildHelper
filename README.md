@@ -17,6 +17,7 @@ Special Thanks: @Nestorboy for letting me steal some of his inspector code :)
 
 ## Requirements
 - VRCSDK3 WORLD 2021.10.22.18.33 or later (earlier versions are untested but may work)
+- UdonSharp 0.20.0 or later (earlier versions are untested but may work)
 
 ## Documentation
 ### Getting started
