@@ -33,7 +33,7 @@ You can change you world name, decription, tags, playercount and image right fro
 VR Build Helper tracks every build and upload you do for a branch, for both PC and mobile platforms. It automatically keeps a build number which is updated every time you create a new build. If you switch platforms and do a new build, VR Build Helper will attempt to detect if any changes were made after switching. If not, the build numbers for the new platform will automatically be updated to match the other one.
 ### Deployment Manager
 Every build uploaded with the Deployment Manager active will be saved to the specified folder, and can be locally tested in VRChat or reuploaded later.
-### Runtime Udon features
+### Runtime Udon features (currently not in unitypackage, needs work)
 You can access information about the branch and build at runtime. Since the build number is accessible, this can be used to detect version errors between two different builds - for example when a Quest user joins a PC world that has not been updated for their platform yet, or right after an update was published to notify users that are still on the old build that they should rejoin. Branch information is also available.
 ### Autonomous builder
 You can upload your world for both platforms with the press of a single button. The autonomous builder will then build your world for the first platform, upload it, switch platform, build for the second platform, upload it, and then switch back to the platform you were originally on. It can of course also be used to upload to a single platform autonomously. (no more pressing upload buttons!)
