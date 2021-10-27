@@ -1,10 +1,32 @@
-﻿#if UNITY_EDITOR
+﻿/* MIT License
+ Copyright (c) 2021 BocuD (github.com/BocuD)
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+*/
+
+#if UNITY_EDITOR
 
 using System;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
+using UdonSharpEditor;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEditorInternal;
@@ -405,27 +427,6 @@ namespace BocuD.BuildHelper
                         }
 
                         EditorGUILayout.EndHorizontal();
-                        // GUILayout.Label("Build date: " + deploymentUnit.buildDate);
-                        // GUILayout.Label("Modified on: " + deploymentUnit.modifiedDate);
-                        // GUILayout.Label("Platform: " + deploymentUnit.platform);
-                        // GUILayout.Label("Git hash: " + deploymentUnit.gitHash);
-                        //
-                        // EditorGUILayout.BeginHorizontal();
-                        //
-                        // EditorGUI.BeginDisabledGroup(deploymentUnit.platform == Platform.mobile);
-                        // if (GUILayout.Button("Test locally in VRChat"))
-                        // {
-                        //     BuildHelperBuilder.TestExistingBuild(deploymentUnit);
-                        // }
-                        // EditorGUI.EndDisabledGroup();
-                        //
-                        // EditorGUI.BeginDisabledGroup(!APIUser.IsLoggedIn);
-                        // if (GUILayout.Button("Publish this build"))
-                        // {
-                        //     BuildHelperBuilder.PublishExistingBuild(deploymentUnit);
-                        // }
-                        // EditorGUI.EndDisabledGroup();
-                        // EditorGUILayout.EndHorizontal();
                         GUILayout.EndVertical();
                     }
 
@@ -452,23 +453,39 @@ namespace BocuD.BuildHelper
             
             EditorGUILayout.BeginHorizontal();
             selectedBranch.hasUdonLink = EditorGUILayout.Toggle("Udon Link", selectedBranch.hasUdonLink);
+            if (GUILayout.Button("Open inspector"))
+            {
+                EditorApplication.ExecuteMenuItem("Window/General/Inspector");
+                Selection.objects = new UnityEngine.Object[] {buildHelperData.linkedBehaviourGameObject};
+            }
             EditorGUILayout.EndHorizontal();
             
             udonLinkFoldout = EditorGUILayout.Foldout(udonLinkFoldout, "");
 
             if (udonLinkFoldout)
             {
-                EditorGUILayout.BeginHorizontal();
-                EditorGUI.BeginChangeCheck();
-                buildHelperDataSO.Update();
-                EditorGUILayout.PropertyField(buildHelperDataSO.FindProperty("linkedBehaviour"));
-                buildHelperDataSO.ApplyModifiedProperties();
-                if (EditorGUI.EndChangeCheck())
+                if (buildHelperData.linkedBehaviourGameObject == null)
                 {
-                    if (buildHelperData.linkedBehaviour != null)
-                        buildHelperData.linkedBehaviourGameObject = buildHelperData.linkedBehaviour.gameObject;
+                    EditorGUILayout.HelpBox("There is no BuildHelperUdon behaviour set up in the scene right now.", MessageType.Info);
+                    if (GUILayout.Button("Set up BuildHelperUdon behaviour"))
+                    {
+                        GameObject buildHelperUdonGameObject = Instantiate(new GameObject("BuildHelperUdon"));
+                        buildHelperUdonGameObject.AddUdonSharpComponent<BuildHelperUdon>();
+                        buildHelperData.linkedBehaviourGameObject = buildHelperUdonGameObject;
+                    }
                 }
-                EditorGUILayout.EndHorizontal();
+                else
+                {
+                    EditorGUI.BeginChangeCheck();
+                    buildHelperData.linkedBehaviour = buildHelperData.linkedBehaviourGameObject.GetUdonSharpComponent<BuildHelperUdon>();
+                    buildHelperDataSO.Update();
+                    EditorGUILayout.PropertyField(buildHelperDataSO.FindProperty("linkedBehaviour"));
+                    buildHelperDataSO.ApplyModifiedProperties();
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        buildHelperData.linkedBehaviourGameObject = buildHelperData.linkedBehaviour.gameObject;
+                    }
+                }
             }
             
             GUILayout.EndVertical();
@@ -488,10 +505,8 @@ namespace BocuD.BuildHelper
             GUILayout.Label($"<b>{branch.VRCName}</b>", styleRichTextLabelBig);
 
             float imgStartPos = GUILayoutUtility.GetLastRect().y + 25;
-            float imgWidth = position.width / 2 - 80;
-            float maxHeight = 220;
-            if (imgWidth > maxHeight / 3 * 4)
-                imgWidth = maxHeight / 3 * 4;
+            float imgWidth = 170;
+            
             float x = position.width / 2 + 40;
                 
             float width = position.width - imgWidth - 20;
@@ -534,6 +549,10 @@ namespace BocuD.BuildHelper
                 tagsRect.x = width - textFieldStyle.fixedWidth;
                 branch.vrcTagsLocal = EditorGUI.TextArea(tagsRect, branch.vrcTagsLocal, textFieldStyle);
                 EditorGUILayout.EndHorizontal();
+                
+                Rect releaseRect = EditorGUILayout.GetControlRect();
+                tagsRect.x = width - textFieldStyle.fixedWidth;
+                EditorGUI.LabelField(releaseRect, $"Release: {(branch.vrcReleaseState ? "Public" : "Private")}");
 
                 GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 100};
 
@@ -619,7 +638,7 @@ namespace BocuD.BuildHelper
                 EditorGUILayout.LabelField("Description: " + displayDesc, worldInfoStyle);
                 EditorGUILayout.LabelField($"Capacity: " + displayCap, worldInfoStyle);
                 EditorGUILayout.LabelField($"Tags: " + displayTags, worldInfoStyle);
-                EditorGUILayout.LabelField($"Release: {(branch.vrcReleaseState ? "Public" : "Private")}");
+                EditorGUILayout.LabelField($"Release: {(branch.vrcReleaseState ? "Public" : "Private")}", worldInfoStyle);
 
                 if (branch.vrcDataHasChanges || branch.vrcImageHasChanges)
                 {
