@@ -20,14 +20,13 @@
  SOFTWARE.
 */
 
+#if UNITY_EDITOR
+
 using System;
 using System.IO;
+using UdonSharpEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-
-#if UNITY_EDITOR
-using UdonSharpEditor;
-#endif
 
 namespace BocuD.BuildHelper
 {
@@ -36,6 +35,7 @@ namespace BocuD.BuildHelper
     {
         public int currentBranchIndex;
         public int lastBuiltBranch;
+        public bool autoSave = true;
         public Branch[] branches;
         public AutonomousBuildInformation autonomousBuild;
         public OverrideContainer[] overrideContainers;
@@ -75,7 +75,7 @@ namespace BocuD.BuildHelper
         {
             BranchStorageObject storageObject = new BranchStorageObject
             {
-                branches = branches, currentBranch = currentBranchIndex, lastBuiltBranch = lastBuiltBranch, autonomousBuild = autonomousBuild
+                branches = branches, currentBranch = currentBranchIndex, autoSave = autoSave, lastBuiltBranch = lastBuiltBranch, autonomousBuild = autonomousBuild
             };
 
             if (storageObject.branches == null) storageObject.branches = new Branch[0];
@@ -103,6 +103,7 @@ namespace BocuD.BuildHelper
         
             branches = storageObject.branches;
             currentBranchIndex = storageObject.currentBranch;
+            autoSave = storageObject.autoSave;
             lastBuiltBranch = storageObject.lastBuiltBranch;
             autonomousBuild = storageObject.autonomousBuild;
 
@@ -150,6 +151,7 @@ namespace BocuD.BuildHelper
     {
         public int currentBranch;
         public int lastBuiltBranch;
+        public bool autoSave = true;
         public Branch[] branches;
         public AutonomousBuildInformation autonomousBuild;
     }
@@ -163,18 +165,16 @@ namespace BocuD.BuildHelper
         public string blueprintID = "";
 
         //VRC World Data
-        public bool VRCDataInitialised = false;
-        public string VRCName = "Unpublished VRChat world";
-        public string VRCDesc = "";
-        public int VRCCap = 16;
-        public bool vrcReleaseState = false;
-        public string vrcTags = "";
+        public string cachedName = "Unpublished VRChat world";
+        public string cachedDescription = "";
+        public int cachedCap = 16;
+        public string cachedRelease = "private";
+        public string cachedTags = "";
 
-        public string VRCNameLocal = "Unpublished VRChat world";
-        public string VRCDescLocal = "";
-        public int VRCCapLocal = 16;
-        public bool vrcReleaseStateLocal = false;
-        public string vrcTagsLocal = "";
+        public string editedName = "notInitialised";
+        public string editedDescription = "notInitialised";
+        public int editedCap = -1;
+        public string editedTags = "notInitialised";
         
         public bool vrcDataHasChanges = false;
         public bool vrcImageHasChanges = false;
@@ -313,3 +313,5 @@ namespace BocuD.BuildHelper
         }
     }
 }
+
+#endif

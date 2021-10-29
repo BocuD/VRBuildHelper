@@ -29,8 +29,6 @@
 */
 
 using System;
-
-#if UNITY_EDITOR
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -39,11 +37,9 @@ using UnityEditor;
 using UnityEngine;
 using VRC.Core;
 using Object = UnityEngine.Object;
-#endif
 
-namespace BocuD.BuildHelper
+namespace BocuD.BuildHelper.Editor
 {
-#if UNITY_EDITOR
     public class DeploymentManagerEditor : EditorWindow
     {
         public BuildHelperData data;
@@ -82,7 +78,7 @@ namespace BocuD.BuildHelper
                         }
                         else
                         {
-                            Debug.LogError("Please choose a location within the Assets folder");
+                            Logger.LogError("Please choose a location within the Assets folder");
                         }
                     }
                 }
@@ -118,6 +114,11 @@ namespace BocuD.BuildHelper
         
             foreach (DeploymentUnit deploymentUnit in data.branches[dataIndex].deploymentData.units)
             {
+                if (!VRChatApiTools.worldCache.TryGetValue(deploymentUnit.pipelineID, out ApiWorld test))
+                {
+                    VRChatApiTools.FetchApiWorld(deploymentUnit.pipelineID);
+                }
+                
                 //GUIStyle box = new GUIStyle("GroupBox");
                 Color backgroundColor = GUI.backgroundColor;
             
@@ -158,9 +159,10 @@ namespace BocuD.BuildHelper
                 GUILayout.FlexibleSpace();
             
                 GUIContent uploadIcon = EditorGUIUtility.IconContent("UpArrow");
+                GUIStyle uploadTypeStyle = new GUIStyle(GUI.skin.label) {alignment = TextAnchor.MiddleRight};
                 EditorGUILayout.LabelField(deploymentUnit.autoUploader
                     ? "Uploaded with Autonomous Builder"
-                    : "Uploaded manually");
+                    : "Uploaded manually", uploadTypeStyle);
                 EditorGUILayout.LabelField(uploadIcon, GUILayout.Width(20));
                 EditorGUILayout.EndHorizontal();
             
@@ -173,13 +175,23 @@ namespace BocuD.BuildHelper
                 GUIStyle selectButtonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 60};
                 if (GUILayout.Button("Select", selectButtonStyle))
                 {
-                    Selection.activeObject =
-                        AssetDatabase.LoadMainAssetAtPath($"Assets/{data.branches[dataIndex].deploymentData.deploymentPath}/" +
-                                                          deploymentUnit.fileName);
+                    EditorGUIUtility.PingObject(AssetDatabase.LoadMainAssetAtPath($"Assets/{data.branches[dataIndex].deploymentData.deploymentPath}/" +
+                        deploymentUnit.fileName));
                 }
 
                 EditorGUILayout.EndHorizontal();
 
+                bool badID = data.branches[dataIndex].blueprintID != deploymentUnit.pipelineID;
+                if (badID)
+                {
+                    GUIStyle badIDStyle = new GUIStyle(GUI.skin.label){richText = true};
+                    GUILayout.Label($"<color=red>{deploymentUnit.pipelineID}</color>", badIDStyle);
+                }
+                else
+                {
+                    GUILayout.Label(deploymentUnit.pipelineID);
+                }
+                
                 GUILayout.Label("Build " + deploymentUnit.buildNumber);
                 GUILayout.Label("Build date: " + deploymentUnit.buildDate);
                 GUILayout.Label("Modified on: " + deploymentUnit.modifiedDate);
@@ -211,6 +223,46 @@ namespace BocuD.BuildHelper
                 EditorGUI.BeginDisabledGroup(!APIUser.IsLoggedIn);
                 if (GUILayout.Button("Publish this build"))
                 {
+                    //run account checks
+                    ApiWorld apiWorld;
+                    if (VRChatApiTools.worldCache.TryGetValue(deploymentUnit.pipelineID, out apiWorld))
+                    {
+                        if (apiWorld.authorId != APIUser.CurrentUser.id)
+                        {
+                            if (EditorUtility.DisplayDialog("Build Helper",
+                                "The world author for the selected branch doesn't match the currently logged in user. Publishing will result in an error. Do you still want to continue?",
+                                "Yes", "No"))
+                            {
+
+                            }
+                            else
+                            {
+                                EditorGUI.EndDisabledGroup();
+                                EditorGUILayout.EndHorizontal();
+
+                                GUILayout.EndVertical();
+                                continue;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (EditorUtility.DisplayDialog("Build Helper",
+                            "Couldn't verify the world author for the selected branch. Do you want to try publishing anyways?",
+                            "Yes", "No"))
+                        {
+
+                        }
+                        else
+                        {
+                            EditorGUI.EndDisabledGroup();
+                            EditorGUILayout.EndHorizontal();
+
+                            GUILayout.EndVertical();
+                            continue;
+                        }
+                    }
+                    
                     BuildHelperBuilder.PublishExistingBuild(deploymentUnit);
                 }
                 EditorGUI.EndDisabledGroup();
@@ -225,9 +277,8 @@ namespace BocuD.BuildHelper
                 EditorGUILayout.HelpBox("You need to be logged in to publish. Try opening and closing the VRChat SDK menu.", MessageType.Error);
                 if (GUILayout.Button("Open VRCSDK Control Panel"))
                 {
-                    EditorApplication.ExecuteMenuItem("VRChat SDK/Show Control Panel");
+                    VRChatApiTools.TryAutoLogin(this);
                 }
-                return;
             }
         }
     
@@ -262,7 +313,8 @@ namespace BocuD.BuildHelper
                     string gitHash = ResolveGitHash(fileName);
                     Platform platform = fileName.Contains("_mobile_") ? Platform.mobile : Platform.PC;
                     bool autoUploader = fileName.Contains("auto_");
-                    string buildNumberString = fileName.Substring(fileName.IndexOf("build") + 5);
+                    string pipelineID = ResolveBlueprintId(fileName);
+                    string buildNumberString = fileName.Substring(fileName.IndexOf("build", StringComparison.Ordinal) + 5);
                     buildNumberString = buildNumberString.Substring(0, buildNumberString.IndexOf('_'));
                     int buildNumber = int.Parse(buildNumberString);
                     long fileSize = new FileInfo(filePath).Length;
@@ -275,6 +327,7 @@ namespace BocuD.BuildHelper
                         gitHash = gitHash,
                         platform = platform,
                         buildDate = buildDate,
+                        pipelineID = pipelineID,
                         modifiedFileTime = lastWriteTime.ToFileTime(),
                         filePath = filePath,
                         buildNumber = buildNumber,
@@ -300,6 +353,14 @@ namespace BocuD.BuildHelper
             if (!Regex.IsMatch(hash, "[0-9a-f]{8}")) return "";
 
             return hash;
+        }
+        
+        private static string ResolveBlueprintId(string fileName)
+        {
+            string worldPattern = "(?:wrld_)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+            if (Regex.IsMatch(fileName, worldPattern))
+                return Regex.Match(fileName, worldPattern).ToString();
+            else return "";
         }
     }
 
@@ -330,29 +391,5 @@ namespace BocuD.BuildHelper
                 }
             }
         }
-    }
-#endif
-
-    [Serializable]
-    public class DeploymentData
-    {
-        public string deploymentPath;
-        public string initialBranchName;
-        public DeploymentUnit[] units;
-    }
-    
-    [Serializable]
-    public struct DeploymentUnit
-    {
-        public bool autoUploader;
-        public string fileName;
-        public int buildNumber;
-        public long fileSize;
-        public Platform platform;
-        public string gitHash;
-        public string filePath;
-        public DateTime buildDate;
-        public DateTime modifiedDate;
-        public long modifiedFileTime;
     }
 }

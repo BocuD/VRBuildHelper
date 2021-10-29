@@ -24,8 +24,8 @@
 
 using System;
 using System.IO;
+using BocuD.BuildHelper.Editor;
 using UnityEditor;
-using UnityEngine;
 using UnityEngine.Networking;
 using VRC.Core;
 using VRC.SDK3.Editor.Builder;
@@ -47,6 +47,7 @@ namespace BocuD.BuildHelper
             bool buildTestBlocked = !VRCBuildPipelineCallbacks.OnVRCSDKBuildRequested(VRCSDKRequestedBuildType.Scene);
             if (!buildTestBlocked)
             {
+                EnvConfig.ConfigurePlayerSettings();
                 VRC_SdkBuilder.shouldBuildUnityPackage = false;
                 AssetExporter.CleanupUnityPackageExport(); // force unity package rebuild on next publish
                 VRC_SdkBuilder.PreBuildBehaviourPackaging();
@@ -65,7 +66,7 @@ namespace BocuD.BuildHelper
             }
             else
             {
-                Debug.LogWarning($"Cannot find last built scene, please Rebuild.");
+                Logger.LogWarning($"Cannot find last built scene, please Rebuild.");
             }
         }
 
@@ -74,6 +75,7 @@ namespace BocuD.BuildHelper
             bool buildTestBlocked = !VRCBuildPipelineCallbacks.OnVRCSDKBuildRequested(VRCSDKRequestedBuildType.Scene);
             if (!buildTestBlocked)
             {
+                EnvConfig.ConfigurePlayerSettings();
                 VRC_SdkBuilder.shouldBuildUnityPackage = false;
                 AssetExporter.CleanupUnityPackageExport(); // force unity package rebuild on next publish
                 VRC_SdkBuilder.PreBuildBehaviourPackaging();
@@ -87,12 +89,13 @@ namespace BocuD.BuildHelper
             if (APIUser.CurrentUser.canPublishWorlds)
             {
                 EditorPrefs.SetBool("VRC.SDKBase_StripAllShaders", false);
+                
                 VRC_SdkBuilder.shouldBuildUnityPackage = false;
                 VRC_SdkBuilder.UploadLastExportedSceneBlueprint();
             }
             else
             {
-                Debug.LogError("You need to be logged in to publish a world");
+                Logger.LogError("You need to be logged in to publish a world");
             }
         }
     
@@ -103,7 +106,7 @@ namespace BocuD.BuildHelper
             {
                 if (APIUser.CurrentUser.canPublishWorlds)
                 {
-                    //EnvConfig.ConfigurePlayerSettings();
+                    EnvConfig.ConfigurePlayerSettings();
                     EditorPrefs.SetBool("VRC.SDKBase_StripAllShaders", false);
 
                     VRC_SdkBuilder.shouldBuildUnityPackage = false; //VRCSdkControlPanel.FutureProofPublishEnabled;
@@ -112,7 +115,7 @@ namespace BocuD.BuildHelper
                 }
                 else
                 {
-                    Debug.LogError("You need to be logged in to publish a world");
+                    Logger.LogError("You need to be logged in to publish a world");
                 }
             }
         }
@@ -131,16 +134,21 @@ namespace BocuD.BuildHelper
         
         public static void PublishExistingBuild(DeploymentUnit deploymentUnit)
         {
-            //string actualLastBuild = EditorPrefs.GetString("lastVRCPath");
-            
+            if (VRChatApiTools.FindPipelineManager().blueprintId != deploymentUnit.pipelineID)
+            {
+                if (EditorUtility.DisplayDialog("Deployment Manager",
+                    "The blueprint ID for the selected build doesn't match the one on the scene descriptor. This can happen if the blueprint ID on the selected branch was changed after this build was published. While this build can still be uploaded, you will have to switch the blueprint ID on your scene descriptor to match that of the selected build. Are you sure you want to continue?",
+                    "Yes", "No"))
+                    BuildHelperWindow.ApplyPipelineID(deploymentUnit.pipelineID);
+                else return;
+            }
+
             EditorPrefs.SetString("lastVRCPath", deploymentUnit.filePath);
             EditorPrefs.SetString("currentBuildingAssetBundlePath", UnityWebRequest.UnEscapeURL(deploymentUnit.filePath));
+            EditorPrefs.SetString("lastBuiltAssetBundleBlueprintID", deploymentUnit.pipelineID);
             AssetExporter.CleanupUnityPackageExport();
             VRCWorldAssetExporter.LaunchSceneBlueprintUploader();
-            
-            //EditorPrefs.SetString("lastVRCPath", actualLastBuild);
         }
     }
 }
-
 #endif

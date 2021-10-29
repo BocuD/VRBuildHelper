@@ -31,6 +31,8 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UdonSharpEditor;
+using UnityEngine.SceneManagement;
+
 #endif
 
 namespace BocuD.BuildHelper
@@ -552,7 +554,7 @@ namespace BocuD.BuildHelper
 
         private static void PlayModeStateUpdate(PlayModeStateChange state)
         {
-            if (state == PlayModeStateChange.ExitingEditMode)
+            if (state == PlayModeStateChange.EnteredPlayMode)
             {
                 if (UnityEngine.Object.FindObjectOfType<BuildHelperData>() == null) return;
                 
@@ -566,14 +568,34 @@ namespace BocuD.BuildHelper
                             .GetUdonSharpComponent<BuildHelperUdon>();
                         
                         buildHelperUdon.UpdateProxy();
-                        buildHelperUdon.branchName = buildHelperData.currentBranch.name + " (Editor)";
+                        buildHelperUdon.branchName = buildHelperData.currentBranch.name;
                         buildHelperUdon.buildDate = DateTime.Now;
 #if UNITY_ANDROID
-                        buildHelperUdon.buildNumber = buildHelperData.currentBranch.buildData.androidBuildVersion + 1;
+                        buildHelperUdon.buildNumber = buildHelperData.currentBranch.buildData.androidBuildVersion;
 #else
-                        buildHelperUdon.buildNumber = buildHelperData.currentBranch.buildData.pcBuildVersion + 1;
+                        buildHelperUdon.buildNumber = buildHelperData.currentBranch.buildData.pcBuildVersion;
 #endif
                         buildHelperUdon.ApplyProxyModifications();
+                    }
+                }
+                else
+                {
+                    Scene currentScene = SceneManager.GetActiveScene();
+                    List<BuildHelperUdon> foundBehaviours = new List<BuildHelperUdon>();
+
+                    foreach (GameObject obj in currentScene.GetRootGameObjects())
+                    {
+                        BuildHelperUdon[] behaviours = obj.GetUdonSharpComponentsInChildren<BuildHelperUdon>();
+                        foundBehaviours.AddRange(behaviours);
+                    }
+                    
+                    if (foundBehaviours.Count > 0)
+                    {
+                        foreach (BuildHelperUdon behaviour in foundBehaviours)
+                        {
+                            behaviour.enabled = false;
+                            behaviour.gameObject.SetActive(false);
+                        }
                     }
                 }
             }

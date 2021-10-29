@@ -20,6 +20,8 @@
  SOFTWARE.
 */
 
+#if UNITY_EDITOR
+
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -78,7 +80,7 @@ namespace BocuD.BuildHelper
 
         public void OnFileSelected(string filePath)
         {
-            Debug.Log($"Loading override image from {filePath}");
+            Logger.Log($"Loading override image from {filePath}");
             overrideImage = null;
             byte[] fileData;
 
@@ -134,3 +136,5 @@ namespace BocuD.BuildHelper
         }
     }
 }
+
+#endif
