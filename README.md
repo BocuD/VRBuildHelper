@@ -37,6 +37,7 @@ You can change you world name, decription, tags, playercount and image right fro
 ![World Editor](https://i.imgur.com/fQhhoEx.png)
 ### Blueprint ID Editor
 When selecting the blueprint ID for a branch, you won't have to manually (ew, what are we, monkeys?) copy paste it any more.
+
 ![Blueprint ID editor](https://i.imgur.com/Wwf92Cp.png)
 ### GameObject Overrides
 You can specify a list of GameObjects that should be excluded from a given branch by enabling GameObject overrides for that branch. Exclusive GameObjects will only be included in builds for a branch that has them in the Exclusive GameObject list. Excluded GameObjects will not be included in builds for that branch.
