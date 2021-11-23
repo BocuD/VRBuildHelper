@@ -40,17 +40,5 @@ namespace BocuD.BuildHelper
         
         [SerializeField] private string string1;
         [SerializeField] private string string2;
-
-        private void Start()
-        {
-            Debug.Log(dateTime1);
-            Debug.Log(dateTime2);
-            Debug.Log(number1);
-            Debug.Log(number2);
-            Debug.Log(number3);
-            Debug.Log(number4);
-            Debug.Log(string1);
-            Debug.Log(string2);
-        }
     }
 }

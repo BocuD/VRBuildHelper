@@ -31,6 +31,7 @@ using VRC.Core;
 using UnityEditor.Build;
 using Object = UnityEngine.Object;
 using static BocuD.BuildHelper.AutonomousBuildInformation;
+using UnityEditor.Callbacks;
 
 namespace BocuD.BuildHelper
 {
@@ -130,7 +131,9 @@ namespace BocuD.BuildHelper
         {
             Logger.Log("Switched build target to " + newTarget);
 
-            BuildHelperData buildHelperData = UnityEngine.Object.FindObjectOfType<BuildHelperData>();
+            if (!Object.FindObjectOfType<BuildHelperData>()) return;
+            
+            BuildHelperData buildHelperData = Object.FindObjectOfType<BuildHelperData>();
             buildHelperData.LoadFromJSON();
 
             AutonomousBuildInformation autonomousBuild = buildHelperData.autonomousBuild;
@@ -253,6 +256,13 @@ namespace BocuD.BuildHelper
             statusWindow.currentState = AutonomousBuildState.building;
             BuildHelperBuilder.PublishNewBuild();
         }
+    }
+}
+
+public class MyBuildPostprocessor {
+    [PostProcessBuildAttribute(1)]
+    public static void OnPostprocessBuild(BuildTarget target, string pathToBuiltProject) {
+        Debug.Log( pathToBuiltProject );
     }
 }
 

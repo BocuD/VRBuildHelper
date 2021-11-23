@@ -103,6 +103,7 @@ namespace BocuD.BuildHelper.Editor
                 null,
                 null,
                 null,
+                null,
                 "",
                 ApiWorld.ReleaseStatus.All,
                 null,
