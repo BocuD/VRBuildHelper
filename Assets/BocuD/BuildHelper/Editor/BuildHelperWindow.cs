@@ -705,7 +705,7 @@ namespace BocuD.BuildHelper.Editor
                 branch.editedDescription = EditorGUILayout.TextField("Description:", branch.editedDescription);
                 branch.editedCap = EditorGUILayout.IntField($"Capacity:", branch.editedCap);
                 branch.editedTags = EditorGUILayout.TextField($"Tags:", branch.editedTags);
-                EditorGUILayout.LabelField($"Release: " + apiWorld.releaseStatus, worldInfoStyle);
+                EditorGUILayout.LabelField(apiWorldLoaded ? $"Release: " + apiWorld.releaseStatus : branch.cachedRelease, worldInfoStyle);
 
                 GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 100};
 
@@ -944,67 +944,76 @@ namespace BocuD.BuildHelper.Editor
 
         public void OnImageSelected(string filePath)
         {
-            Texture2D overrideImage = null;
-            byte[] fileData;
-
             if (File.Exists(filePath))
             {
-                fileData = File.ReadAllBytes(filePath);
-                overrideImage = new Texture2D(2, 2);
-                overrideImage.LoadImage(fileData); //..this will auto-resize the texture dimensions.
-
-                //check aspectRatio and resolution
-                if (overrideImage.width * 3 != overrideImage.height * 4)
+                if (imageBranch != null)
                 {
-                    if (overrideImage.width < 1200)
+                    byte[] fileData = File.ReadAllBytes(filePath);
+                    Texture2D overrideImage = new Texture2D(2, 2);
+                    
+                    overrideImage.LoadImage(fileData); //..this will auto-resize the texture dimensions.
+
+                    //check aspect ratio and resolution
+                    if (overrideImage.width * 3 != overrideImage.height * 4)
                     {
-                        imageBranch.vrcImageWarning = "<color=yellow>" +
-                                                      "For best results, use a 4:3 image that is at least 1200x900.\n" +
-                                                      "</color>";
+                        if (overrideImage.width < 1200)
+                        {
+                            imageBranch.vrcImageWarning = "<color=yellow>" +
+                                                          "For best results, use a 4:3 image that is at least 1200x900.\n" +
+                                                          "</color>";
+                        }
+                        else
+                        {
+                            imageBranch.vrcImageWarning =
+                                "<color=yellow>" + "For best results, use a 4:3 image.\n" + "</color>";
+                        }
                     }
                     else
                     {
-                        imageBranch.vrcImageWarning =
-                            "<color=yellow>" + "For best results, use a 4:3 image.\n" + "</color>";
+                        if (overrideImage.width < 1200)
+                        {
+                            imageBranch.vrcImageWarning = "<color=yellow>" +
+                                                          "For best results, use an image that is at least 1200x900.\n" +
+                                                          "</color>";
+                        }
+                        else
+                        {
+                            imageBranch.vrcImageWarning = "<color=green>" +
+                                                          "Your new image has the correct aspect ratio and is high resolution. Nice!\n" +
+                                                          "</color>";
+                        }
                     }
+
+                    byte[] worldImagePNG = overrideImage.EncodeToPNG();
+
+                    string dirPath = Application.dataPath + "/Resources/BuildHelper/";
+                    if (!Directory.Exists(dirPath))
+                    {
+                        Directory.CreateDirectory(dirPath);
+                    }
+
+                    string savePath = dirPath + imageBranch.name + "_" + imageBranch.blueprintID +
+                                      "-edit.png";
+                    File.WriteAllBytes(savePath, worldImagePNG);
+
+                    savePath = "Assets/Resources/BuildHelper/" + imageBranch.name + "_" +
+                               imageBranch.blueprintID + "-edit.png";
+
+                    AssetDatabase.WriteImportSettingsIfDirty(savePath);
+                    AssetDatabase.ImportAsset(savePath);
+
+                    imageBranch.vrcImageHasChanges = true;
+
+                    TrySave();
                 }
                 else
                 {
-                    if (overrideImage.width < 1200)
-                    {
-                        imageBranch.vrcImageWarning = "<color=yellow>" +
-                                                      "For best results, use an image that is at least 1200x900.\n" +
-                                                      "</color>";
-                    }
-                    else
-                    {
-                        imageBranch.vrcImageWarning = "<color=green>" +
-                                                      "Your new image has the correct aspect ratio and is high resolution. Nice!\n" +
-                                                      "</color>";
-                    }
+                    Logger.LogError("Target branch for image processor doesn't exist anymore, was it deleted?");
                 }
-
-                byte[] worldImagePNG = overrideImage.EncodeToPNG();
-
-                string dirPath = Application.dataPath + "/Resources/BuildHelper/";
-                if (!Directory.Exists(dirPath))
-                {
-                    Directory.CreateDirectory(dirPath);
-                }
-
-                string savePath = dirPath + imageBranch.name + "_" + buildHelperData.currentBranch.blueprintID +
-                                  "-edit.png";
-                File.WriteAllBytes(savePath, worldImagePNG);
-
-                savePath = "Assets/Resources/BuildHelper/" + imageBranch.name + "_" +
-                           buildHelperData.currentBranch.blueprintID + "-edit.png";
-
-                AssetDatabase.WriteImportSettingsIfDirty(savePath);
-                AssetDatabase.ImportAsset(savePath);
-
-                imageBranch.vrcImageHasChanges = true;
-                
-                TrySave();
+            }
+            else
+            {
+                Logger.LogError("Null filepath was passed to image processor, skipping process steps");
             }
         }
 

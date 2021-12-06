@@ -55,7 +55,7 @@ namespace BocuD.BuildHelper
         {
             get
             {
-                if (currentBranchIndex > 0 && currentBranchIndex < branches.Length)
+                if (currentBranchIndex >= 0 && currentBranchIndex < branches.Length)
                     return branches[currentBranchIndex];
                 
                 return null;

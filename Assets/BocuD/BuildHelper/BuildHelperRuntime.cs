@@ -480,7 +480,7 @@ namespace BocuD.BuildHelper
             Application.logMessageReceived += Log;
         }
 
-        void OnDisable()
+        private void OnDisable()
         {
             if (vrcSceneReady)
                 Application.logMessageReceived -= Log;
