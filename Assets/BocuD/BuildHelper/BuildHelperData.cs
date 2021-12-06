@@ -53,9 +53,15 @@ namespace BocuD.BuildHelper
 
         public Branch currentBranch
         {
-            get => branches[currentBranchIndex];
+            get
+            {
+                if (currentBranchIndex > 0 && currentBranchIndex < branches.Length)
+                    return branches[currentBranchIndex];
+                
+                return null;
+            }
         }
-        
+
         public void PrepareExcludedGameObjects()
         {
             for (int i = 0; i < branches.Length; i++)

@@ -84,7 +84,7 @@ namespace BocuD.BuildHelper.Editor
 
             EditorApplication.playModeStateChanged += LogPlayModeState;
         }
-        
+
         private void OnGUI()
         {
             if (styleRichTextLabel == null) InitializeStyles();
@@ -126,14 +126,7 @@ namespace BocuD.BuildHelper.Editor
 
             DrawSwitchBranchButton();
 
-            if (pipelineManager.blueprintId != buildHelperData.currentBranch.blueprintID)
-            {
-                EditorGUILayout.HelpBox("The scene descriptor blueprint ID currently doesn't match the branch blueprint ID. VR Build Helper will not function properly.", MessageType.Error);
-                if (GUILayout.Button("Auto fix"))
-                {
-                    ApplyPipelineID(buildHelperData.currentBranch.blueprintID);
-                }
-            }
+            PipelineChecks();
 
             if (branchList.index != -1 && buildHelperData.branches.Length > 0)
             {
@@ -221,6 +214,43 @@ namespace BocuD.BuildHelper.Editor
                 {
                     SwitchBranch(buildHelperData, branchList.index);
                 }
+            }
+        }
+        
+        private void PipelineChecks()
+        {
+            pipelineManager = FindObjectOfType<PipelineManager>();
+
+            if (buildHelperData.currentBranch == null) return;
+            
+            if (pipelineManager != null)
+            {
+                if (pipelineManager.blueprintId != buildHelperData.currentBranch.blueprintID)
+                {
+                    EditorGUILayout.HelpBox(
+                        "The scene descriptor blueprint ID currently doesn't match the branch blueprint ID. VR Build Helper will not function properly.",
+                        MessageType.Error);
+                    if (GUILayout.Button("Auto fix"))
+                    {
+                        ApplyPipelineID(buildHelperData.currentBranch.blueprintID);
+                    }
+                }
+            }
+            else
+            {
+                EditorGUILayout.HelpBox(
+                    "To properly use VR Build Helper you need a VRC Scene Decriptor in the scene. Please add a VRC Scene Descriptor.",
+                    MessageType.Error);
+                
+                EditorGUI.BeginDisabledGroup(true);
+
+                GUIContent autoFix = new GUIContent("Auto fix", "This will be added in a future version.");
+                
+                if (GUILayout.Button(autoFix))
+                {
+                    ApplyPipelineID(buildHelperData.currentBranch.blueprintID);
+                }
+                EditorGUI.EndDisabledGroup();
             }
         }
         
