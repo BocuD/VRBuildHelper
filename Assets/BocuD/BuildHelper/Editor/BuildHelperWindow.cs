@@ -181,25 +181,32 @@ namespace BocuD.BuildHelper.Editor
                 {
                     if (FindObjectOfType<BuildHelperData>() != null)
                     {
+                        if (buildHelperData != null)
+                        {
+                            buildHelperData.DeleteJSON();
+                        }
                         DestroyImmediate(FindObjectOfType<BuildHelperData>().gameObject);
                     }
                 }
             }
 
-            EditorGUI.BeginChangeCheck();
-            buildHelperData.autoSave = EditorGUILayout.Toggle("Auto save", buildHelperData.autoSave);
-            if (EditorGUI.EndChangeCheck())
+            if (buildHelperData)
             {
-                if (buildHelperData.autoSave) Save();
-            }
 
+                EditorGUI.BeginChangeCheck();
+                buildHelperData.autoSave = EditorGUILayout.Toggle("Auto save", buildHelperData.autoSave);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    if (buildHelperData.autoSave) Save();
+                }
+            }
+            
             if (GUILayout.Button("Close"))
             {
                 settings = false;
             }
 
             return true;
-
         }
 
         private void DrawSwitchBranchButton()
@@ -225,14 +232,18 @@ namespace BocuD.BuildHelper.Editor
             
             if (pipelineManager != null)
             {
-                if (pipelineManager.blueprintId != buildHelperData.currentBranch.blueprintID)
+                //dumb check to prevent buildhelper from throwing an error when it doesn't need to
+                if (buildHelperData.currentBranch.blueprintID.Length > 1)
                 {
-                    EditorGUILayout.HelpBox(
-                        "The scene descriptor blueprint ID currently doesn't match the branch blueprint ID. VR Build Helper will not function properly.",
-                        MessageType.Error);
-                    if (GUILayout.Button("Auto fix"))
+                    if (pipelineManager.blueprintId != buildHelperData.currentBranch.blueprintID)
                     {
-                        ApplyPipelineID(buildHelperData.currentBranch.blueprintID);
+                        EditorGUILayout.HelpBox(
+                            "The scene descriptor blueprint ID currently doesn't match the branch blueprint ID. VR Build Helper will not function properly.",
+                            MessageType.Error);
+                        if (GUILayout.Button("Auto fix"))
+                        {
+                            ApplyPipelineID(buildHelperData.currentBranch.blueprintID);
+                        }
                     }
                 }
             }
@@ -1000,6 +1011,15 @@ namespace BocuD.BuildHelper.Editor
                                imageBranch.blueprintID + "-edit.png";
 
                     AssetDatabase.WriteImportSettingsIfDirty(savePath);
+                    AssetDatabase.ImportAsset(savePath);
+
+                    TextureImporter importer = (TextureImporter) AssetImporter.GetAtPath(savePath);
+                    importer.npotScale = TextureImporterNPOTScale.None;
+                    importer.textureCompression = TextureImporterCompression.Uncompressed;
+                    importer.maxTextureSize = 2048;
+                    EditorUtility.SetDirty(importer);
+                    AssetDatabase.WriteImportSettingsIfDirty(savePath);
+
                     AssetDatabase.ImportAsset(savePath);
 
                     imageBranch.vrcImageHasChanges = true;

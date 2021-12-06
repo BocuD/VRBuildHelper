@@ -109,7 +109,7 @@ namespace BocuD.BuildHelper
                     EnvConfig.ConfigurePlayerSettings();
                     EditorPrefs.SetBool("VRC.SDKBase_StripAllShaders", false);
 
-                    VRC_SdkBuilder.shouldBuildUnityPackage = false; //VRCSdkControlPanel.FutureProofPublishEnabled;
+                    VRC_SdkBuilder.shouldBuildUnityPackage = VRCSdkControlPanel.FutureProofPublishEnabled;
                     VRC_SdkBuilder.PreBuildBehaviourPackaging();
                     VRC_SdkBuilder.ExportAndUploadSceneBlueprint();
                 }

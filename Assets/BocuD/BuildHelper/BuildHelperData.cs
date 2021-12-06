@@ -147,7 +147,26 @@ namespace BocuD.BuildHelper
                 }
 
                 StreamWriter sw = File.CreateText(savePath);
+                
+                //write something so it won't be empty on next load
+                BranchStorageObject storageObject = new BranchStorageObject();
+                
+                sw.Write(JsonUtility.ToJson(storageObject));
+
+                if (storageObject.branches == null) storageObject.branches = new Branch[0];
+
                 sw.Close();
+            }
+        }
+        
+        public void DeleteJSON()
+        {
+            string savePath = Application.dataPath + $"/Resources/BuildHelper/{SceneManager.GetActiveScene().name}.json";
+        
+            // Create file
+            if (File.Exists(savePath))
+            {
+                File.Delete(savePath);
             }
         }
     }

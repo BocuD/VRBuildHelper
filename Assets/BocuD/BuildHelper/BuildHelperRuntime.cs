@@ -39,7 +39,6 @@ namespace BocuD.BuildHelper
     {
         [SerializeField]private bool vrcSceneReady;
         [SerializeField]private RuntimeWorldCreation runtimeWorldCreation;
-        [SerializeField]private Texture vrcImage;
 
         [SerializeField]private BuildHelperData buildHelperData;
         
@@ -103,10 +102,6 @@ namespace BocuD.BuildHelper
 
             if (vrcSceneReady)
             {
-                vrcImage = runtimeWorldCreation.shouldUpdateImageToggle.isOn
-                    ? runtimeWorldCreation.liveBpImage.mainTexture
-                    : runtimeWorldCreation.bpImage.mainTexture;
-                
                 if (runtimeWorldCreation.titleText.text != "Configure World") return;
                 
                 if (!appliedChanges && buildHelperData.currentBranch.vrcDataHasChanges)
@@ -283,7 +278,7 @@ namespace BocuD.BuildHelper
                     buildHelperData.SaveToJSON();
                 }
                 
-                ExtractWorldImage();
+                //ExtractWorldImage();
                 ExtractBuildInfo();
                 TrySavePublishedWorld();
             }
@@ -329,6 +324,7 @@ namespace BocuD.BuildHelper
             }
         }
         
+        /*is not used anymore now that images are fetched by the VRChat Api
         private void ExtractWorldImage()
         {
             Texture2D texture2D = new Texture2D(vrcImage.width, vrcImage.height, TextureFormat.RGBA32, false);
@@ -361,7 +357,7 @@ namespace BocuD.BuildHelper
             // importer.textureType = TextureImporterType.GUI;
             AssetDatabase.WriteImportSettingsIfDirty(filePath);
             AssetDatabase.ImportAsset(filePath);
-        }
+        }*/
 
         private void ExtractBuildInfo()
         {
