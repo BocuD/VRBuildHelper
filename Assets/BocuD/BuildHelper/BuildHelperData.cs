@@ -33,8 +33,12 @@ namespace BocuD.BuildHelper
     [ExecuteInEditMode]
     public class BuildHelperData : MonoBehaviour
     {
+        public string sceneID = "";
+        
+        //TODO: make this use branch ID instead
         public int currentBranchIndex;
         public int lastBuiltBranch;
+        public Platform lastBuiltPlatform;
         public bool autoSave = true;
         public Branch[] branches;
         public AutonomousBuildInformation autonomousBuild;
@@ -85,9 +89,9 @@ namespace BocuD.BuildHelper
             };
 
             if (storageObject.branches == null) storageObject.branches = new Branch[0];
-        
-            string savePath = Application.dataPath + $"/Resources/BuildHelper/{SceneManager.GetActiveScene().name}.json";
-            CheckIfFileExists();
+
+            string savePath = GetSavePath(sceneID);
+            CheckIfFileExists(savePath);
             
             string json = JsonUtility.ToJson(storageObject, true);
             File.WriteAllText(savePath, json);
@@ -95,8 +99,8 @@ namespace BocuD.BuildHelper
 
         public void LoadFromJSON()
         {
-            string savePath = Application.dataPath + $"/Resources/BuildHelper/{SceneManager.GetActiveScene().name}.json";
-            CheckIfFileExists();
+            string savePath = GetSavePath(sceneID);
+            CheckIfFileExists(savePath);
             
             string json = File.ReadAllText(savePath);
             BranchStorageObject storageObject = JsonUtility.FromJson<BranchStorageObject>(json);
@@ -106,7 +110,7 @@ namespace BocuD.BuildHelper
 
             if (storageObject.autonomousBuild == null)
                 storageObject.autonomousBuild = new AutonomousBuildInformation();
-        
+            
             branches = storageObject.branches;
             currentBranchIndex = storageObject.currentBranch;
             autoSave = storageObject.autoSave;
@@ -133,11 +137,9 @@ namespace BocuD.BuildHelper
                 }
             }
         }
-    
-        private static void CheckIfFileExists()
+
+        private static void CheckIfFileExists(string savePath)
         {
-            string savePath = Application.dataPath + $"/Resources/BuildHelper/{SceneManager.GetActiveScene().name}.json";
-        
             // Create file
             if (!File.Exists(savePath))
             {
@@ -150,7 +152,7 @@ namespace BocuD.BuildHelper
                 
                 //write something so it won't be empty on next load
                 BranchStorageObject storageObject = new BranchStorageObject();
-                
+
                 sw.Write(JsonUtility.ToJson(storageObject));
 
                 if (storageObject.branches == null) storageObject.branches = new Branch[0];
@@ -161,13 +163,39 @@ namespace BocuD.BuildHelper
         
         public void DeleteJSON()
         {
-            string savePath = Application.dataPath + $"/Resources/BuildHelper/{SceneManager.GetActiveScene().name}.json";
+            string savePath = GetSavePath(sceneID);
         
             // Create file
             if (File.Exists(savePath))
             {
                 File.Delete(savePath);
             }
+        }
+
+        private static string GetSavePath(string sceneID)
+        {
+            //legacy data save
+            if (sceneID == "")
+            {
+                return Application.dataPath + $"/Resources/BuildHelper/{SceneManager.GetActiveScene().name}.json";
+            }
+            
+            //GUID based save
+            return Application.dataPath + $"/Resources/BuildHelper/{sceneID}.json";
+        }
+        
+        public static string GetUniqueID()
+        {
+            string [] split = DateTime.Now.TimeOfDay.ToString().Split(new Char [] {':','.'});
+            string id = "";
+            for (int i = 0; i < split.Length; i++)
+            {
+                id += split[i];
+            }
+
+            id = long.Parse(id).ToString("X");
+            
+            return id;
         }
     }
 
@@ -188,6 +216,7 @@ namespace BocuD.BuildHelper
         public string name = "";
         public bool hasOverrides = false;
         public string blueprintID = "";
+        public string branchID = "";
 
         //VRC World Data
         public string cachedName = "Unpublished VRChat world";

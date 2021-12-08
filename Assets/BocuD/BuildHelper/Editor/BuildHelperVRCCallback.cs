@@ -180,6 +180,9 @@ namespace BocuD.BuildHelper.Editor
 
 #endif
             buildHelperData.lastBuiltBranch = buildHelperData.currentBranchIndex;
+            buildHelperData.lastBuiltPlatform = (EditorUserBuildSettings.activeBuildTarget == BuildTarget.Android)
+                ? Platform.mobile
+                : Platform.PC;
             buildHelperData.SaveToJSON();
 
             if (buildHelperData.currentBranch.hasUdonLink && buildHelperData.linkedBehaviourGameObject != null)

@@ -95,6 +95,7 @@ namespace BocuD.BuildHelper.Editor
                     DeploymentManager.RefreshDeploymentData(data.branches[dataIndex]);
                 }
                 EditorGUILayout.HelpBox("No builds have been saved yet. To save a build for this branch, upload your world.", MessageType.Info);
+                EditorGUILayout.EndScrollView();
                 return;
             }
 
@@ -123,8 +124,8 @@ namespace BocuD.BuildHelper.Editor
                 Color backgroundColor = GUI.backgroundColor;
             
                 bool isLive = false;
-
-                if (deploymentUnit.platform == Platform.mobile)
+                
+                if (deploymentUnit.platform == Platform.mobile && data.branches[dataIndex].buildData.androidUploadTime.Length > 1)
                 {
                     DateTime androidUploadTime = DateTime.Parse(data.branches[dataIndex].buildData.androidUploadTime, CultureInfo.InvariantCulture);
                     if (Mathf.Abs((float) (androidUploadTime - deploymentUnit.buildDate).TotalSeconds) < 300 && !androidUploadKnown)
@@ -133,7 +134,7 @@ namespace BocuD.BuildHelper.Editor
                         isLive = true;
                     }
                 }
-                else
+                else if(data.branches[dataIndex].buildData.pcUploadTime.Length > 1)
                 {
                     DateTime pcUploadTime = DateTime.Parse(data.branches[dataIndex].buildData.pcUploadTime, CultureInfo.InvariantCulture);
                     if (Mathf.Abs((float) (pcUploadTime - deploymentUnit.buildDate).TotalSeconds) < 300 && !pcUploadKnown)
@@ -184,8 +185,8 @@ namespace BocuD.BuildHelper.Editor
                 bool badID = data.branches[dataIndex].blueprintID != deploymentUnit.pipelineID;
                 if (badID)
                 {
-                    GUIStyle badIDStyle = new GUIStyle(GUI.skin.label){richText = true};
-                    GUILayout.Label($"<color=red>{deploymentUnit.pipelineID}</color>", badIDStyle);
+                    GUIStyle badIDStyle = new GUIStyle(GUI.skin.label){richText = true, wordWrap = true};
+                    GUILayout.Label($"<color=red>Blueprint ID mismatch: {deploymentUnit.pipelineID}</color>", badIDStyle);
                 }
                 else
                 {
@@ -297,6 +298,57 @@ namespace BocuD.BuildHelper.Editor
     public static class DeploymentManager
     {
         public static void RefreshDeploymentData(Branch branch)
+        {
+            if (branch.deploymentData.initialBranchName != "unused")
+            {
+                RefreshDeploymentDataLegacy(branch);
+            } else RefreshDeploymentDataNew(branch);
+        }
+        
+        public static void RefreshDeploymentDataNew(Branch branch)
+        {
+            string[] files = Directory.GetFiles(Application.dataPath + branch.deploymentData.deploymentPath, "*.vrcw", SearchOption.TopDirectoryOnly);
+
+            branch.deploymentData.units = files
+                .Select(filePath =>
+                {
+                    string fileName = Path.GetFileName(filePath);
+                    char[] splitChars = {'[', ']'};
+                    string dateString = fileName.Split(splitChars)[1];
+                    DateTime buildDate = DateTime.ParseExact(dateString, "yyyy'-'MM'-'dd HH'-'mm'-'ss",
+                        CultureInfo.InvariantCulture);
+                    DateTime lastWriteTime = File.GetLastWriteTime(filePath);
+
+                    string gitHash = ResolveGitHash(fileName);
+                    Platform platform = fileName.Contains("_mobile_") ? Platform.mobile : Platform.PC;
+                    bool autoUploader = fileName.Contains("auto_");
+                    string pipelineID = ResolveBlueprintId(fileName);
+                    string buildNumberString = fileName.Substring(fileName.IndexOf("build", StringComparison.Ordinal) + 5);
+                    buildNumberString = buildNumberString.Substring(0, buildNumberString.IndexOf('_'));
+                    int buildNumber = int.Parse(buildNumberString);
+                    long fileSize = new FileInfo(filePath).Length;
+
+                    return new DeploymentUnit
+                    {
+                        autoUploader = autoUploader,
+                        fileName = fileName,
+                        modifiedDate = lastWriteTime,
+                        gitHash = gitHash,
+                        platform = platform,
+                        buildDate = buildDate,
+                        pipelineID = pipelineID,
+                        modifiedFileTime = lastWriteTime.ToFileTime(),
+                        filePath = filePath,
+                        buildNumber = buildNumber,
+                        fileSize = fileSize
+                    };
+                })
+                .OrderByDescending(unit => unit.modifiedFileTime)
+                .Where(unit => unit.fileName.Contains(branch.branchID))
+                .ToArray();
+        }
+        
+        public static void RefreshDeploymentDataLegacy(Branch branch)
         {
             string[] files = Directory.GetFiles(Application.dataPath + branch.deploymentData.deploymentPath, "*.vrcw", SearchOption.TopDirectoryOnly);
 

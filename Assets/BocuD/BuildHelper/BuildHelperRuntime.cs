@@ -119,7 +119,7 @@ namespace BocuD.BuildHelper
                     runtimeWorldCreation.shouldUpdateImageToggle.isOn = true;
                     buildHelperToolsMenu.imageSourceDropdown.value = 1;
                     buildHelperToolsMenu.imageSourceDropdown.onValueChanged.Invoke(1);
-                    buildHelperToolsMenu.OnFileSelected(Application.dataPath + "/Resources/BuildHelper/" + buildHelperData.currentBranch.name + "_" + buildHelperData.currentBranch.blueprintID + "-edit.png");
+                    buildHelperToolsMenu.OnFileSelected(Application.dataPath + "/Resources/BuildHelper/" + buildHelperData.sceneID + '_' + buildHelperData.currentBranch.branchID + "-edit.png");
                     appliedImageChanges = true;
                     return;
                 }
@@ -422,7 +422,11 @@ namespace BocuD.BuildHelper
                 $"build{(CurrentPlatform() == Platform.PC ? branch.buildData.pcBuildVersion.ToString() : branch.buildData.androidBuildVersion.ToString())}";
             string platform = CurrentPlatform().ToString();
             string gitHash = TryGetGitHashDiscardErrorsSilently();
-            return $"[{buildDate}]_{autoUploader}{branch.name}_{buildNumber}_{branch.blueprintID}_{platform}_{gitHash}.vrcw";
+            if (branch.branchID == "")
+            {
+                return $"[{buildDate}]_{autoUploader}{branch.deploymentData.initialBranchName}_{buildNumber}_{branch.blueprintID}_{platform}_{gitHash}.vrcw";
+            }
+            return $"[{buildDate}]_{autoUploader}{branch.branchID}_{buildNumber}_{branch.blueprintID}_{platform}_{gitHash}.vrcw";
         }
         
         private static string TryGetGitHashDiscardErrorsSilently()

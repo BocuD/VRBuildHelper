@@ -38,7 +38,7 @@ namespace BocuD.BuildHelper
     public class DeploymentData
     {
         public string deploymentPath;
-        public string initialBranchName;
+        public string initialBranchName = "unused";
         public DeploymentUnit[] units;
     }
     
