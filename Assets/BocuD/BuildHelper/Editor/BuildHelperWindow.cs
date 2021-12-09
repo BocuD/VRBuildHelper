@@ -709,6 +709,7 @@ namespace BocuD.BuildHelper.Editor
 
         private bool editMode;
 
+        //TODO: clean up VRC world editor to make code less messy
         private void DrawVRCWorldEditor(Branch branch)
         {
             GUILayout.BeginVertical("Helpbox");
@@ -774,106 +775,21 @@ namespace BocuD.BuildHelper.Editor
             }
 
             float imgWidth = 170;
-            
             float width = position.width - imgWidth - 20;
             
             GUIStyle worldInfoStyle = new GUIStyle(GUI.skin.label) {wordWrap = true, fixedWidth = width, richText = true};
             
             GUILayout.BeginHorizontal();
-
-            if (editMode)
+            
+            if (!editMode)
             {
                 GUILayout.BeginVertical(GUILayout.Width(width));
 
-                branch.editedName = EditorGUILayout.TextField("Name:", branch.editedName);
-                branch.editedDescription = EditorGUILayout.TextField("Description:", branch.editedDescription);
-                branch.editedCap = EditorGUILayout.IntField($"Capacity:", branch.editedCap);
-                branch.editedTags = EditorGUILayout.TextField($"Tags:", branch.editedTags);
-                EditorGUILayout.LabelField(apiWorldLoaded ? $"Release: " + apiWorld.releaseStatus : branch.cachedRelease, worldInfoStyle);
-
-                if (branch.vrcImageHasChanges)
-                {
-                    GUIStyle infoStyle = new GUIStyle(EditorStyles.helpBox) {fixedWidth = width, richText = true};
-                    EditorGUILayout.LabelField(branch.vrcImageWarning, infoStyle);
-                }
-                
-                GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 100};
-
-                EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button("Save", buttonStyle))
-                {
-                    editMode = false;
-                    bool changesDetected = true;
-                    if (branch.editedName == apiWorld.name)
-                    {
-                        if (branch.editedDescription == branch.cachedDescription)
-                        {
-                            if (branch.editedCap == branch.cachedCap)
-                            {
-                                if (branch.editedTags == branch.cachedTags)
-                                {
-                                    changesDetected = false;
-                                }
-                            }
-                        }
-                    }
-
-                    if (changesDetected)
-                        branch.vrcDataHasChanges = true;
-
-                    TrySave();
-                }
-
-                if (GUILayout.Button("Revert", buttonStyle))
-                {
-                    branch.editedName = apiWorld.name;
-                    branch.editedDescription = apiWorld.description;
-                    branch.editedCap = apiWorld.capacity;
-                    branch.editedTags = apiWorld.tags.ToString();
-                    branch.vrcDataHasChanges = false;
-                    editMode = false;
-                    
-                    TrySave();
-                }
-
-                if (GUILayout.Button("Replace image", buttonStyle))
-                {
-                    string[] allowedFileTypes = {"png"};
-                    imageBranch = branch;
-                    NativeFilePicker.PickFile(OnImageSelected, allowedFileTypes);
-                }
-
-                if (branch.vrcImageHasChanges)
-                {
-                    if (GUILayout.Button("Revert image", buttonStyle))
-                    {
-                        branch.vrcImageHasChanges = false;
-                        branch.vrcImageWarning = "";
-                        
-                        modifiedWorldImages.Remove(branch.branchID);
-
-                        string oldImagePath = ImageTools.GetImageAssetPath(buildHelperData.sceneID, branch.branchID);
-
-                        Texture2D oldImage = AssetDatabase.LoadAssetAtPath(oldImagePath, typeof(Texture2D)) as Texture2D;
-                        
-                        if (oldImage != null)
-                        {
-                            AssetDatabase.DeleteAsset(oldImagePath);
-                        }
-                    }
-                }
-                EditorGUILayout.EndHorizontal();
-                GUILayout.EndVertical();
-            }
-            else
-            {
-                GUILayout.BeginVertical(GUILayout.Width(width));
-
+                //cache world information
                 if (apiWorldLoaded && !loadError)
                 {
                     bool localDataOutdated = false;
 
-                    //cache world information
                     if (branch.cachedName != apiWorld.name)
                     {
                         branch.cachedName = apiWorld.name;
@@ -892,9 +808,9 @@ namespace BocuD.BuildHelper.Editor
                         localDataOutdated = true;
                     }
 
-                    if (branch.cachedTags != apiWorld.tags.ToString())
+                    if (branch.cachedTags != apiWorld.tags)
                     {
-                        branch.cachedTags = apiWorld.tags.ToString();
+                        branch.cachedTags = apiWorld.tags;
                         localDataOutdated = true;
                     }
 
@@ -907,54 +823,52 @@ namespace BocuD.BuildHelper.Editor
                     if (localDataOutdated)
                     {
                         if (branch.editedName == "notInitialised") branch.editedName = branch.cachedName;
-                        if (branch.editedDescription == "notInitialised")
-                            branch.editedDescription = branch.cachedDescription;
+                        if (branch.editedDescription == "notInitialised") branch.editedDescription = branch.cachedDescription;
                         if (branch.editedCap == -1) branch.editedCap = branch.cachedCap;
-                        if (branch.editedTags == "notInitialised") branch.editedTags = branch.cachedTags;
+                        if (branch.editedTags.Count == 0) branch.editedTags = branch.cachedTags;
                     }
 
                     if (localDataOutdated) TrySave();
-                    
-                    string displayName = branch.vrcDataHasChanges && apiWorld.name != branch.editedName
+
+                    string displayName = branch.nameChanged
                         ? $"<color=yellow>{branch.editedName}</color>"
                         : apiWorld.name;
-                    string displayDesc = branch.vrcDataHasChanges && apiWorld.description != branch.editedDescription
+                    string displayDesc = branch.descriptionChanged
                         ? $"<color=yellow>{branch.editedDescription}</color>"
                         : apiWorld.description;
-                    string displayCap = branch.vrcDataHasChanges && apiWorld.capacity != branch.editedCap
+                    string displayCap = branch.capacityChanged
                         ? $"<color=yellow>{branch.editedCap}</color>"
                         : apiWorld.capacity.ToString();
-                    string displayTags = branch.vrcDataHasChanges && apiWorld.tags.ToString() != branch.editedTags
-                        ? $"<color=yellow>{branch.editedTags}</color>"
-                        : apiWorld.tags.ToString();
+                    string displayTags = branch.tagsChanged
+                        ? $"<color=yellow>{string.Join(", ", branch.editedTags)}</color>"
+                        : string.Join(", ", apiWorld.tags);
 
                     EditorGUILayout.LabelField("Name: " + displayName, worldInfoStyle);
                     EditorGUILayout.LabelField("Description: " + displayDesc, worldInfoStyle);
                     EditorGUILayout.LabelField($"Capacity: " + displayCap, worldInfoStyle);
                     EditorGUILayout.LabelField($"Tags: " + displayTags, worldInfoStyle);
+                    
                     EditorGUILayout.LabelField($"Release: " + apiWorld.releaseStatus, worldInfoStyle);
 
-                    if (branch.vrcDataHasChanges || branch.vrcImageHasChanges)
+                    if (branch.nameChanged || branch.descriptionChanged || branch.capacityChanged || branch.tagsChanged || branch.vrcImageHasChanges)
                     {
                         GUIStyle infoStyle = new GUIStyle(EditorStyles.helpBox) {fixedWidth = width, richText = true};
                         string changesWarning = branch.vrcImageWarning +
                                                 "<color=yellow>Your changes will be applied with the next upload.</color>";
                         EditorGUILayout.LabelField(changesWarning, infoStyle);
                     }
-                    
+
                     EditorGUILayout.BeginHorizontal();
                     GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 100};
 
                     if (GUILayout.Button("Edit", buttonStyle))
                     {
                         editMode = true;
-                        if (!branch.vrcDataHasChanges)
-                        {
-                            branch.editedName = apiWorld.name;
-                            branch.editedDescription = apiWorld.description;
-                            branch.editedCap = apiWorld.capacity;
-                            branch.editedTags = apiWorld.tags.ToString();
-                        }
+                        
+                        branch.editedName = branch.nameChanged ? branch.editedName : apiWorld.name;
+                        branch.editedDescription = branch.descriptionChanged ? branch.editedDescription : apiWorld.description;
+                        branch.editedCap = branch.capacityChanged ? branch.editedCap : apiWorld.capacity;
+                        branch.editedTags = branch.tagsChanged ? branch.editedTags : apiWorld.tags;
                     }
 
                     if (!editMode)
@@ -983,14 +897,99 @@ namespace BocuD.BuildHelper.Editor
                         EditorGUILayout.LabelField("Name: " + branch.cachedName, worldInfoStyle);
                         EditorGUILayout.LabelField("Description: " + branch.cachedDescription, worldInfoStyle);
                         EditorGUILayout.LabelField($"Capacity: " + branch.cachedCap, worldInfoStyle);
-                        EditorGUILayout.LabelField($"Tags: " + branch.cachedTags, worldInfoStyle);
+                        EditorGUILayout.LabelField($"Tags: " + string.Join(", ", branch.cachedTags), worldInfoStyle);
                         EditorGUILayout.LabelField($"Release: " + branch.cachedRelease, worldInfoStyle);
                     }
                 }
-                
+
                 GUILayout.EndVertical();
             }
-            
+            else
+            {
+                GUILayout.BeginVertical(GUILayout.Width(width));
+
+                branch.editedName = EditorGUILayout.TextField("Name:", branch.editedName);
+                branch.editedDescription = EditorGUILayout.TextField("Description:", branch.editedDescription);
+                branch.editedCap = EditorGUILayout.IntField($"Capacity:", branch.editedCap);
+
+                EditorGUILayout.LabelField("Tags:");
+                for (int i = 0; i < branch.editedTags.Count; i++)
+                {
+                    branch.editedTags[i] = EditorGUILayout.TextField(branch.editedTags[i]);
+                }
+
+                EditorGUILayout.LabelField(apiWorldLoaded ? $"Release: " + apiWorld.releaseStatus : branch.cachedRelease, worldInfoStyle);
+
+                if (branch.vrcImageHasChanges)
+                {
+                    GUIStyle infoStyle = new GUIStyle(EditorStyles.helpBox) {fixedWidth = width, richText = true};
+                    EditorGUILayout.LabelField(branch.vrcImageWarning, infoStyle);
+                }
+
+                GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 100};
+
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("Save", buttonStyle))
+                {
+                    editMode = false;
+
+                    branch.nameChanged = branch.editedName != apiWorld.name;
+                    branch.descriptionChanged = branch.editedDescription != apiWorld.description;
+                    branch.capacityChanged = branch.editedCap != apiWorld.capacity;
+                    branch.tagsChanged = !branch.editedTags.SequenceEqual(apiWorld.tags);
+
+                    TrySave();
+                }
+
+                if (GUILayout.Button("Revert", buttonStyle))
+                {
+                    branch.editedName = apiWorld.name;
+                    branch.editedDescription = apiWorld.description;
+                    branch.editedCap = apiWorld.capacity;
+                    branch.editedTags = apiWorld.tags;
+                    
+                    branch.nameChanged = false;
+                    branch.descriptionChanged = false;
+                    branch.capacityChanged = false;
+                    branch.tagsChanged = false;
+                    
+                    editMode = false;
+
+                    TrySave();
+                }
+
+                if (GUILayout.Button("Replace image", buttonStyle))
+                {
+                    string[] allowedFileTypes = {"png"};
+                    imageBranch = branch;
+                    NativeFilePicker.PickFile(OnImageSelected, allowedFileTypes);
+                }
+
+                if (branch.vrcImageHasChanges)
+                {
+                    if (GUILayout.Button("Revert image", buttonStyle))
+                    {
+                        branch.vrcImageHasChanges = false;
+                        branch.vrcImageWarning = "";
+
+                        modifiedWorldImages.Remove(branch.branchID);
+
+                        string oldImagePath = ImageTools.GetImageAssetPath(buildHelperData.sceneID, branch.branchID);
+
+                        Texture2D oldImage =
+                            AssetDatabase.LoadAssetAtPath(oldImagePath, typeof(Texture2D)) as Texture2D;
+
+                        if (oldImage != null)
+                        {
+                            AssetDatabase.DeleteAsset(oldImagePath);
+                        }
+                    }
+                }
+
+                EditorGUILayout.EndHorizontal();
+                GUILayout.EndVertical();
+            }
+
             if (branch.vrcImageHasChanges)
             {
                 if (!modifiedWorldImages.ContainsKey(branch.branchID))

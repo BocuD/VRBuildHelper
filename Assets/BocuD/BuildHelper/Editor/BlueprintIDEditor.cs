@@ -65,12 +65,12 @@ namespace BocuD.BuildHelper.Editor
                 branch.cachedName = "";
                 branch.cachedDescription = "";
                 branch.cachedCap = -1;
-                branch.cachedTags = "";
+                branch.cachedTags = new List<string>();
                 
                 branch.editedName = "notInitialised";
                 branch.editedDescription = "notInitialised";
                 branch.editedCap = -1;
-                branch.editedTags = "notInitialised";
+                branch.editedTags = new List<string>();
                 
                 BuildHelperWindow.SwitchBranch(data, Array.IndexOf(data.branches, branch));
             }

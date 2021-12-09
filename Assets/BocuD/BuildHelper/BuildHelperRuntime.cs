@@ -23,6 +23,7 @@
 #if UNITY_EDITOR
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -104,12 +105,19 @@ namespace BocuD.BuildHelper
             {
                 if (runtimeWorldCreation.titleText.text != "Configure World") return;
                 
-                if (!appliedChanges && buildHelperData.currentBranch.vrcDataHasChanges)
+                if (!appliedChanges)
                 {
-                    runtimeWorldCreation.blueprintName.text = buildHelperData.currentBranch.editedName;
-                    runtimeWorldCreation.blueprintDescription.text = buildHelperData.currentBranch.editedDescription;
-                    runtimeWorldCreation.worldCapacity.text = buildHelperData.currentBranch.editedCap.ToString();
-                    runtimeWorldCreation.userTags.text = buildHelperData.currentBranch.editedTags;
+                    if (buildHelperData.currentBranch.nameChanged)
+                        runtimeWorldCreation.blueprintName.text = buildHelperData.currentBranch.editedName;
+                    if (buildHelperData.currentBranch.descriptionChanged)
+                        runtimeWorldCreation.blueprintDescription.text =
+                            buildHelperData.currentBranch.editedDescription;
+                    if (buildHelperData.currentBranch.capacityChanged)
+                        runtimeWorldCreation.worldCapacity.text = buildHelperData.currentBranch.editedCap.ToString();
+                    if (buildHelperData.currentBranch.tagsChanged)
+                        runtimeWorldCreation.userTags.text =
+                            TagListToTagString(buildHelperData.currentBranch.editedTags);
+                    
                     appliedChanges = true;
                     return;
                 }
@@ -286,6 +294,7 @@ namespace BocuD.BuildHelper
             if (type == LogType.Log && logString.Contains("Image upload succeeded"))
             {
                 buildHelperData.currentBranch.vrcImageHasChanges = false;
+                buildHelperData.currentBranch.vrcImageWarning = "";
                 buildHelperData.branches[buildHelperData.currentBranchIndex] = buildHelperData.currentBranch;
                 buildHelperData.SaveToJSON();
             }
@@ -376,7 +385,10 @@ namespace BocuD.BuildHelper
                     buildHelperData.currentBranch.buildData.pcBuildVersion;
             }
 
-            buildHelperData.currentBranch.vrcDataHasChanges = false;
+            buildHelperData.currentBranch.nameChanged = false;
+            buildHelperData.currentBranch.descriptionChanged = false;
+            buildHelperData.currentBranch.capacityChanged = false;
+            buildHelperData.currentBranch.tagsChanged = false;
 
             if (buildHelperData.currentBranch.blueprintID == "")
             {
@@ -464,6 +476,20 @@ namespace BocuD.BuildHelper
                 Logger.Log("Could not retrieve git hash: " + e.Message);
                 return "@nohash";
             }
+        }
+
+        private static string TagListToTagString(IEnumerable<string> input)
+        {
+            string output = "";
+            
+            foreach (string s in input)
+            {
+                output += s + " ";
+            }
+
+            if (output.EndsWith(" ")) output = output.Substring(0, output.Length - 1);
+
+            return output;
         }
 
         private static Platform CurrentPlatform()

@@ -116,7 +116,7 @@ namespace BocuD.BuildHelper
             CoverVRCCam.position += VRCCam.forward;
         }
     }
-
+    
     public static class ImageTools
     {
         public static string GetImagePath(string sceneID, string branchID)

@@ -23,6 +23,7 @@
 #if UNITY_EDITOR
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UdonSharpEditor;
 using UnityEngine;
@@ -218,19 +219,22 @@ namespace BocuD.BuildHelper
         public string blueprintID = "";
         public string branchID = "";
 
-        //VRC World Data
+        //VRC World Data overrides
         public string cachedName = "Unpublished VRChat world";
         public string cachedDescription = "";
         public int cachedCap = 16;
         public string cachedRelease = "private";
-        public string cachedTags = "";
+        public List<string> cachedTags = new List<string>();
 
         public string editedName = "notInitialised";
         public string editedDescription = "notInitialised";
         public int editedCap = -1;
-        public string editedTags = "notInitialised";
+        public List<string> editedTags = new List<string>();
         
-        public bool vrcDataHasChanges = false;
+        public bool nameChanged = false;
+        public bool descriptionChanged = false;
+        public bool capacityChanged = false;
+        public bool tagsChanged = false;
         public bool vrcImageHasChanges = false;
         public string vrcImageWarning = "";
     
