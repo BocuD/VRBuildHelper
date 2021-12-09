@@ -25,6 +25,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using HarmonyLib;
 using UdonSharpEditor;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -105,7 +106,18 @@ namespace BocuD.BuildHelper.Editor
 
                     if (GUILayout.Button("Set up Build Helper in this scene"))
                     {
-                        ResetData();
+                        if(FindObjectOfType<VRCSceneDescriptor>())
+                            ResetData();
+                        else
+                        {
+                            if (EditorUtility.DisplayDialog("Build Helper",
+                                "The scene currently does not contain a scene descriptor. For VR Build Helper to work, a scene descriptor needs to be present. Should VR Build Helper create one automatically?",
+                                "Yes", "No"))
+                            {
+                                CreateSceneDescriptor();
+                                ResetData();
+                            }
+                        }
                     }
                     else return;
                 }
@@ -130,6 +142,8 @@ namespace BocuD.BuildHelper.Editor
             DrawBranchUpgradeUI();
 
             PipelineChecks();
+
+            if (SceneChecks()) return;
 
             if (branchList.index != -1 && buildHelperData.branches.Length > 0)
             {
@@ -311,7 +325,7 @@ namespace BocuD.BuildHelper.Editor
             pipelineManager = FindObjectOfType<PipelineManager>();
 
             if (buildHelperData.currentBranch == null) return;
-            
+
             if (pipelineManager != null)
             {
                 //dumb check to prevent buildhelper from throwing an error when it doesn't need to
@@ -332,19 +346,90 @@ namespace BocuD.BuildHelper.Editor
             else
             {
                 EditorGUILayout.HelpBox(
-                    "To properly use VR Build Helper you need a VRC Scene Decriptor in the scene. Please add a VRC Scene Descriptor.",
+                    "To use VR Build Helper you need a Scene Decriptor in the scene. Please add a VRC Scene Descriptor.",
                     MessageType.Error);
                 
-                EditorGUI.BeginDisabledGroup(true);
-
-                GUIContent autoFix = new GUIContent("Auto fix", "This will be added in a future version.");
+                GUIContent autoFix = new GUIContent("Auto fix", "Create a new GameObject containing Scene Descriptor and Pipeline Manager components");
                 
                 if (GUILayout.Button(autoFix))
                 {
+                    CreateSceneDescriptor();
                     ApplyPipelineID(buildHelperData.currentBranch.blueprintID);
                 }
-                EditorGUI.EndDisabledGroup();
             }
+        }
+        
+        private void CreateSceneDescriptor()
+        {
+            GameObject sceneDescriptorObject = new GameObject("Scene Descriptor");
+            sceneDescriptorObject.AddComponent<VRCSceneDescriptor>();
+            sceneDescriptorObject.AddComponent<PipelineManager>();
+            pipelineManager = sceneDescriptorObject.GetComponent<PipelineManager>();
+        }
+
+        private bool SceneChecks()
+        {
+            bool sceneIssues = !UpdateLayers.AreLayersSetup() || !UpdateLayers.IsCollisionLayerMatrixSetup();
+            
+            // if (!UpdateLayers.AreLayersSetup())
+            // {
+            //     if (GUILayout.Button("Setup Layers for VRChat", GUILayout.Width(172)))
+            //     {
+            //         if (EditorUtility.DisplayDialog("Build Helper",
+            //             "This will set up all VRChat reserved layers. Custom layers will be moved down the layer list. Any GameObjects currently using custom layers will have to be reassigned. Are you sure you want to continue?",
+            //             "Yes", "No"))
+            //             UpdateLayers.SetupEditorLayers();
+            //     }
+            // }
+            //
+            // if (!UpdateLayers.IsCollisionLayerMatrixSetup())
+            // {
+            // if (GUILayout.Button("Set Collision Matrix", GUILayout.Width(172)))
+            // {
+            //     if(EditorUtility.DisplayDialog("Build Helper",
+            //         "This will set up the Collision Matrix according to VRChats requirements. Are you sure you want to continue?",
+            //         "Yes", "No"))
+            //     {
+            //         UpdateLayers.SetupCollisionLayerMatrix();
+            //     }
+            // }
+            // }
+
+            if (sceneIssues)
+            {
+                EditorGUILayout.HelpBox(
+                    "The current project either has Layer or Collision Matrix issues. You should open the VRChat SDK Control Panel to fix these issues, or have Build Helper fix them automatically.",
+                    MessageType.Warning);
+                EditorGUILayout.BeginHorizontal();
+
+                if (GUILayout.Button("Open VRChat Control Panel"))
+                {
+                    VRCSettings.ActiveWindowPanel = 1;
+                    VRCSdkControlPanel controlPanel = GetWindow<VRCSdkControlPanel>();
+                }
+                
+                if (!UpdateLayers.AreLayersSetup())
+                {
+                    if (GUILayout.Button("Setup Layers for VRChat", GUILayout.Width(172)))
+                    {
+                        UpdateLayers.SetupEditorLayers();
+                    }
+                }
+
+                EditorGUI.BeginDisabledGroup(!UpdateLayers.AreLayersSetup());
+                if (!UpdateLayers.IsCollisionLayerMatrixSetup())
+                {
+                    if (GUILayout.Button("Set Collision Matrix", GUILayout.Width(172)))
+                    {
+                        UpdateLayers.SetupCollisionLayerMatrix();
+                    }
+                }
+                EditorGUI.EndDisabledGroup();
+
+                EditorGUILayout.EndHorizontal();
+            }
+
+            return sceneIssues;
         }
         
         public static void SwitchBranch(BuildHelperData data, int targetBranch)
