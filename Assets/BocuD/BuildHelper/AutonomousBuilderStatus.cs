@@ -228,6 +228,13 @@ namespace BocuD.BuildHelper
                 failReason = "Error building Player";
                 currentState = AutonomousBuildState.failed;
             }
+            
+            if (type == LogType.Error && logString.Contains("AndroidPlayer") &&
+                _currentState != AutonomousBuildState.failed)
+            {
+                failReason = "Couldn't switch platform to Android";
+                currentState = AutonomousBuildState.failed;
+            }
 
             if (type == LogType.Error && logString.Contains("Export Exception") &&
                 _currentState != AutonomousBuildState.failed)
