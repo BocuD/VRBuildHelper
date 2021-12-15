@@ -302,7 +302,6 @@ namespace BocuD.VRChatApiTools
             {
                 if (!autoLoginFailed)
                 {
-                    
                     VRCLogin.AttemptLogin(
                         (c) =>
                         {
