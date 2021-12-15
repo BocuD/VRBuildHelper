@@ -8,6 +8,8 @@ using VRC.Core;
 
 namespace BocuD.BuildHelper.Editor
 {
+    using VRChatApiTools;
+    
     public class BlueprintIDEditor : EditorWindow
     {
         private static string searchString = "";
@@ -83,15 +85,7 @@ namespace BocuD.BuildHelper.Editor
 
         private void DisplayWorldList()
         {
-            if (!APIUser.IsLoggedIn)
-            {
-                EditorGUILayout.HelpBox("You need to be logged in to load the world list. Try opening and closing the VRChat SDK menu.", MessageType.Error);
-                if (GUILayout.Button("Open VRCSDK Control Panel"))
-                {
-                    VRChatApiTools.TryAutoLogin(this);
-                }
-                return;
-            }
+            if (!VRChatApiToolsEditor.HandleLogin()) return;
             
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("VRChat World List", EditorStyles.boldLabel);

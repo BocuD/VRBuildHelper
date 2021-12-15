@@ -39,6 +39,8 @@ using VRC.Udon.Editor.ProgramSources.UdonGraphProgram.UI;
 
 namespace BocuD.BuildHelper.Editor
 {
+    using BocuD.VRChatApiTools;
+    
     public class BuildHelperWindow : EditorWindow
     {
         private GUIStyle styleHelpBox;
@@ -1264,19 +1266,8 @@ namespace BocuD.BuildHelper.Editor
                 EditorGUILayout.HelpBox("Build options are unavailable in play mode.", MessageType.Error);
                 return;
             }
-
-            if (!APIUser.IsLoggedIn)
-            {
-                EditorGUILayout.HelpBox(
-                    "You need to be logged in to build or publish. Try opening and closing the VRChat SDK menu.",
-                    MessageType.Error);
-                if (GUILayout.Button("Open VRCSDK Control Panel"))
-                {
-                    VRChatApiTools.TryAutoLogin(this);
-                }
-
-                return;
-            }
+            
+            if (!VRChatApiToolsEditor.HandleLogin(this)) return;
 
             if (branchList.index != buildHelperData.currentBranchIndex)
             {

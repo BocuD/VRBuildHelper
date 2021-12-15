@@ -40,6 +40,8 @@ using Object = UnityEngine.Object;
 
 namespace BocuD.BuildHelper.Editor
 {
+    using BocuD.VRChatApiTools;
+    
     public class DeploymentManagerEditor : EditorWindow
     {
         public BuildHelperData data;
@@ -225,8 +227,7 @@ namespace BocuD.BuildHelper.Editor
                 if (GUILayout.Button("Publish this build"))
                 {
                     //run account checks
-                    ApiWorld apiWorld;
-                    if (VRChatApiTools.worldCache.TryGetValue(deploymentUnit.pipelineID, out apiWorld))
+                    if (VRChatApiTools.worldCache.TryGetValue(deploymentUnit.pipelineID, out ApiWorld apiWorld))
                     {
                         if (apiWorld.authorId != APIUser.CurrentUser.id)
                         {
@@ -273,14 +274,8 @@ namespace BocuD.BuildHelper.Editor
             }
 
             EditorGUILayout.EndScrollView();
-        
-            if (!APIUser.IsLoggedIn) {
-                EditorGUILayout.HelpBox("You need to be logged in to publish. Try opening and closing the VRChat SDK menu.", MessageType.Error);
-                if (GUILayout.Button("Open VRCSDK Control Panel"))
-                {
-                    VRChatApiTools.TryAutoLogin(this);
-                }
-            }
+
+            if (!VRChatApiToolsEditor.HandleLogin(this)) return;
         }
     
         private static string BytesToString(long byteCount)

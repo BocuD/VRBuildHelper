@@ -34,6 +34,8 @@ using VRC.SDKBase.Editor.BuildPipeline;
 
 namespace BocuD.BuildHelper
 {
+    using BocuD.VRChatApiTools;
+    
     public static class BuildHelperBuilder
     {
         public static void TestLastBuild()
