@@ -25,6 +25,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using UdonSharpEditor;
 using UnityEditor;
+using UnityEditor.Callbacks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using VRC.SDKBase.Editor.BuildPipeline;
@@ -219,6 +220,15 @@ namespace BocuD.BuildHelper.Editor
             }
 
             return true;
+        }
+    }
+    
+    //todo: add option that verifies builds before updating build numbers in JSON file
+    public static class BuildHelperBuildPostProcessor {
+        [PostProcessBuild(1)]
+        public static void OnPostprocessBuild(BuildTarget target, string pathToBuiltProject) {
+            Logger.Log("Detected successful build");
+            Debug.Log( pathToBuiltProject );
         }
     }
 }

@@ -118,76 +118,75 @@ namespace BocuD.BuildHelper
 
             AutonomousBuildInformation autonomousBuild = buildHelperData.autonomousBuild;
 
-            if (autonomousBuild.activeBuild)
+            if (!autonomousBuild.activeBuild) return;
+            
+            Platform currentPlatform;
+
+            BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
+            switch (target)
             {
-                Platform currentPlatform;
+                case BuildTarget.Android:
+                    currentPlatform = Platform.mobile;
+                    break;
+                case BuildTarget.StandaloneWindows:
+                case BuildTarget.StandaloneWindows64:
+                    currentPlatform = Platform.PC;
+                    break;
+                default:
+                    return;
+            }
 
-                BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
-                switch (target)
-                {
-                    case BuildTarget.Android:
-                        currentPlatform = Platform.mobile;
-                        break;
-                    case BuildTarget.StandaloneWindows:
-                    case BuildTarget.StandaloneWindows64:
-                        currentPlatform = Platform.PC;
-                        break;
-                    default:
-                        return;
-                }
-
-                switch (autonomousBuild.progress)
-                {
-                    case Progress.PostInitialBuild:
-                        if (currentPlatform == autonomousBuild.secondaryTarget)
+            switch (autonomousBuild.progress)
+            {
+                case Progress.PostInitialBuild:
+                    if (currentPlatform == autonomousBuild.secondaryTarget)
+                    {
+                        AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                        if (statusWindow.abort)
                         {
-                            AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
-                            if (statusWindow.abort)
-                            {
-                                buildHelperData.autonomousBuild.activeBuild = false;
-                                buildHelperData.SaveToJSON();
-                                statusWindow.currentState = AutonomousBuildState.aborted;
-                            }
-                            else
-                            {
-                                autonomousBuild.progress = Progress.PostPlatformSwitch;
-                                buildHelperData.SaveToJSON();
-                                
-                                if (!APIUser.IsLoggedIn)
-                                {
-                                    EditorApplication.ExecuteMenuItem("VRChat SDK/Show Control Panel");
-                                    
-                                    if (statusWindow.abort)
-                                    {
-                                        buildHelperData.autonomousBuild.activeBuild = false;
-                                        buildHelperData.SaveToJSON();
-                                        statusWindow.currentState = AutonomousBuildState.aborted;
-                                    }
-                                    else if (statusWindow.currentState != AutonomousBuildState.waitingForApi)
-                                    {
-                                        statusWindow.currentState = AutonomousBuildState.waitingForApi;
-                                        LoginStateChecker(buildHelperData);
-                                    }
-                                } else StartSecondaryBuild(buildHelperData);
-                            }
-                        }
-
-                        break;
-
-                    case Progress.PostSecondaryBuild:
-                        if (currentPlatform == autonomousBuild.initialTarget)
-                        {
-                            autonomousBuild.activeBuild = false;
-                            autonomousBuild.progress = Progress.Finished;
-                            Logger.Log("<color=green>Autonomous publish succeeded</color>");
-
-                            AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
-                            statusWindow.currentState = AutonomousBuildState.finished;
-
+                            buildHelperData.autonomousBuild.activeBuild = false;
                             buildHelperData.SaveToJSON();
+                            statusWindow.currentState = AutonomousBuildState.aborted;
                         }
-                        break;
-                }
+                        else
+                        {
+                            autonomousBuild.progress = Progress.PostPlatformSwitch;
+                            buildHelperData.SaveToJSON();
+                                
+                            if (!APIUser.IsLoggedIn)
+                            {
+                                EditorApplication.ExecuteMenuItem("VRChat SDK/Show Control Panel");
+                                    
+                                if (statusWindow.abort)
+                                {
+                                    buildHelperData.autonomousBuild.activeBuild = false;
+                                    buildHelperData.SaveToJSON();
+                                    statusWindow.currentState = AutonomousBuildState.aborted;
+                                }
+                                else if (statusWindow.currentState != AutonomousBuildState.waitingForApi)
+                                {
+                                    statusWindow.currentState = AutonomousBuildState.waitingForApi;
+                                    LoginStateChecker(buildHelperData);
+                                }
+                            } else StartSecondaryBuild(buildHelperData);
+                        }
+                    }
+
+                    break;
+
+                case Progress.PostSecondaryBuild:
+                    if (currentPlatform == autonomousBuild.initialTarget)
+                    {
+                        autonomousBuild.activeBuild = false;
+                        autonomousBuild.progress = Progress.Finished;
+                        Logger.Log("<color=green>Autonomous publish succeeded</color>");
+
+                        AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
+                        statusWindow.currentState = AutonomousBuildState.finished;
+
+                        buildHelperData.SaveToJSON();
+                    }
+                    break;
             }
         }
         
@@ -263,13 +262,6 @@ namespace BocuD.BuildHelper
         {
             AutonomousBuilder.BuildTargetUpdate(newTarget);
         }
-    }
-}
-
-public class MyBuildPostprocessor {
-    [PostProcessBuildAttribute(1)]
-    public static void OnPostprocessBuild(BuildTarget target, string pathToBuiltProject) {
-        Debug.Log( pathToBuiltProject );
     }
 }
 
