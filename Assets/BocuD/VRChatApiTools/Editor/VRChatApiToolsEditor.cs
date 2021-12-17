@@ -90,7 +90,7 @@ namespace BocuD.VRChatApiTools
             EditorGUILayout.Space();
         }
         
-        public static bool HandleLogin(EditorWindow repaintOnSucces = null)
+        public static bool HandleLogin(EditorWindow repaintOnSucces = null, bool displayLoginStatus = true)
         {
             if (!APIUser.IsLoggedIn)
             {
@@ -109,10 +109,15 @@ namespace BocuD.VRChatApiTools
                 else
                 {
                     VRChatApiTools.TryAutoLogin(repaintOnSucces.Repaint);
-                    EditorGUILayout.HelpBox("Logging in...", MessageType.Info);
+                    
+                    EditorGUILayout.BeginVertical(GUI.skin.box);
+
+                    EditorGUILayout.LabelField("Logging in...");
+                    
+                    EditorGUILayout.EndVertical();
                 }
             }
-            else
+            else if(displayLoginStatus)
             {
                 EditorGUILayout.HelpBox($"Currently logged in as {APIUser.CurrentUser.displayName}", MessageType.Info);
             }
