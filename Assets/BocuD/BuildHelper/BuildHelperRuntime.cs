@@ -27,9 +27,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using VRC.Core;
+using VRC.Udon.Editor.ProgramSources.UdonGraphProgram.UI;
 using VRCSDK2;
 using static BocuD.BuildHelper.AutonomousBuildInformation;
 using Debug = UnityEngine.Debug;
@@ -477,19 +479,10 @@ namespace BocuD.BuildHelper
                 return "@nohash";
             }
         }
-
+        
         private static string TagListToTagString(IEnumerable<string> input)
         {
-            string output = "";
-            
-            foreach (string s in input)
-            {
-                output += s + " ";
-            }
-
-            if (output.EndsWith(" ")) output = output.Substring(0, output.Length - 1);
-
-            return output;
+            return input.Aggregate("", (current, s) => current + s.ReplaceFirst("author_tag_", "") + " ");
         }
 
         private static Platform CurrentPlatform()
