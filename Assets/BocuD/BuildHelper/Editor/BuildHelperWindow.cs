@@ -223,7 +223,7 @@ namespace BocuD.BuildHelper.Editor
                 settings = false;
             }
             
-            EditorGUILayout.LabelField("VR Build Helper v1.0.0rc1");
+            EditorGUILayout.LabelField("VR Build Helper v1.0.0rc2");
 
             return true;
         }
