@@ -52,6 +52,9 @@ namespace BocuD.VRChatApiTools
 
         public static IEnumerator FetchUploadedData()
         {
+            uploadedWorlds = new List<ApiWorld>();
+            uploadedAvatars = new List<ApiAvatar>();
+            
             if (!ConfigManager.RemoteConfig.IsInitialized())
                 ConfigManager.RemoteConfig.Init();
 

@@ -92,8 +92,6 @@ namespace BocuD.BuildHelper.Editor
             
             if (VRChatApiTools.uploadedWorlds == null)
             {
-                VRChatApiTools.uploadedWorlds = new List<ApiWorld>();
-
                 EditorCoroutine.Start(VRChatApiTools.FetchUploadedData());
             }
 
