@@ -81,7 +81,6 @@ namespace BocuD.BuildHelper
                                 break;
                             //build number
                             case 2:
-                                Debug.Log(targetTypes[index]);
                                 object dataToWrite = buildNumber;
                                 switch (targetTypes[index])
                                 {
