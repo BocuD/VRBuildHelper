@@ -38,7 +38,7 @@ using VRC.Udon.Editor.ProgramSources.UdonGraphProgram.UI;
 
 namespace BocuD.BuildHelper.Editor
 {
-    using BocuD.VRChatApiTools;
+    using VRChatApiTools;
     
     public class BuildHelperWindow : EditorWindow
     {
@@ -223,7 +223,7 @@ namespace BocuD.BuildHelper.Editor
                 settings = false;
             }
             
-            EditorGUILayout.LabelField("VR Build Helper v0.9.3");
+            EditorGUILayout.LabelField("VR Build Helper v1.0.0rc1");
 
             return true;
         }
