@@ -25,7 +25,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using HarmonyLib;
 using UdonSharpEditor;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -448,10 +447,17 @@ namespace BocuD.BuildHelper.Editor
 
             data.SaveToJSON();
 
-            if (data.branches[data.currentBranchIndex].hasOverrides)
-                data.overrideContainers[data.currentBranchIndex].ApplyStateChanges();
+            if (data.branches.Length > targetBranch)
+            {
+                if (data.branches[data.currentBranchIndex].hasOverrides)
+                    data.overrideContainers[data.currentBranchIndex].ApplyStateChanges();
 
-            ApplyPipelineID(data.branches[data.currentBranchIndex].blueprintID);
+                ApplyPipelineID(data.branches[data.currentBranchIndex].blueprintID);
+            }
+            else if(data.branches.Length == 0)
+            {
+                ApplyPipelineID("");
+            }
         }
 
         public static void ApplyPipelineID(string blueprintID)
@@ -868,6 +874,7 @@ namespace BocuD.BuildHelper.Editor
             
             GUILayout.BeginHorizontal();
             
+            //Draw normal world editor
             if (!editMode)
             {
                 GUILayout.BeginVertical(GUILayout.Width(width));
@@ -895,9 +902,9 @@ namespace BocuD.BuildHelper.Editor
                         localDataOutdated = true;
                     }
 
-                    if (branch.cachedTags != apiWorld.tags)
+                    if (!branch.cachedTags.SequenceEqual(apiWorld.publicTags))
                     {
-                        branch.cachedTags = apiWorld.tags;
+                        branch.cachedTags = apiWorld.publicTags.ToList();
                         localDataOutdated = true;
                     }
 
@@ -912,7 +919,7 @@ namespace BocuD.BuildHelper.Editor
                         if (branch.editedName == "notInitialised") branch.editedName = branch.cachedName;
                         if (branch.editedDescription == "notInitialised") branch.editedDescription = branch.cachedDescription;
                         if (branch.editedCap == -1) branch.editedCap = branch.cachedCap;
-                        if (branch.editedTags.Count == 0) branch.editedTags = branch.cachedTags;
+                        if (branch.editedTags.Count == 0) branch.editedTags = branch.cachedTags.ToList();
                     }
 
                     if (localDataOutdated) TrySave();
@@ -927,8 +934,8 @@ namespace BocuD.BuildHelper.Editor
                         ? $"<color=yellow>{branch.editedCap}</color>"
                         : apiWorld.capacity.ToString();
                     string displayTags = branch.tagsChanged
-                        ? $"<color=yellow>{string.Join(", ", branch.editedTags)}</color>"
-                        : string.Join(", ", apiWorld.tags);
+                        ? $"<color=yellow>{DisplayTags(branch.editedTags)}</color>"
+                        : DisplayTags(apiWorld.publicTags);
 
                     EditorGUILayout.LabelField("Name: " + displayName, worldInfoStyle);
                     EditorGUILayout.LabelField("Description: " + displayDesc, worldInfoStyle);
@@ -955,7 +962,7 @@ namespace BocuD.BuildHelper.Editor
                         branch.editedName = branch.nameChanged ? branch.editedName : apiWorld.name;
                         branch.editedDescription = branch.descriptionChanged ? branch.editedDescription : apiWorld.description;
                         branch.editedCap = branch.capacityChanged ? branch.editedCap : apiWorld.capacity;
-                        branch.editedTags = branch.tagsChanged ? branch.editedTags : apiWorld.tags;
+                        branch.editedTags = branch.tagsChanged ? branch.editedTags : apiWorld.publicTags.ToList();
                     }
 
                     if (!editMode)
@@ -984,25 +991,41 @@ namespace BocuD.BuildHelper.Editor
                         EditorGUILayout.LabelField("Name: " + branch.cachedName, worldInfoStyle);
                         EditorGUILayout.LabelField("Description: " + branch.cachedDescription, worldInfoStyle);
                         EditorGUILayout.LabelField($"Capacity: " + branch.cachedCap, worldInfoStyle);
-                        EditorGUILayout.LabelField($"Tags: " + string.Join(", ", branch.cachedTags), worldInfoStyle);
+                        EditorGUILayout.LabelField($"Tags: " + DisplayTags(branch.cachedTags), worldInfoStyle);
                         EditorGUILayout.LabelField($"Release: " + branch.cachedRelease, worldInfoStyle);
                     }
                 }
 
                 GUILayout.EndVertical();
             }
-            else
+            else //Edit mode
             {
                 GUILayout.BeginVertical(GUILayout.Width(width));
 
                 branch.editedName = EditorGUILayout.TextField("Name:", branch.editedName);
                 branch.editedDescription = EditorGUILayout.TextField("Description:", branch.editedDescription);
                 branch.editedCap = EditorGUILayout.IntField($"Capacity:", branch.editedCap);
-
+                
+                EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField("Tags:");
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button("Add tag", GUILayout.Width(70)))
+                {
+                    branch.editedTags.Add("author_tag_new tag");
+                }
+                EditorGUILayout.EndHorizontal();
+                
                 for (int i = 0; i < branch.editedTags.Count; i++)
                 {
-                    branch.editedTags[i] = EditorGUILayout.TextField(branch.editedTags[i]);
+                    EditorGUILayout.BeginHorizontal();
+                    //don't expose the user to author_tag_
+                    branch.editedTags[i] = "author_tag_" + EditorGUILayout.TextField(branch.editedTags[i].Substring(11));
+                    
+                    if (GUILayout.Button("Delete", GUILayout.Width(70)))
+                    {
+                        branch.editedTags.RemoveAt(i);
+                    }
+                    EditorGUILayout.EndHorizontal();
                 }
 
                 EditorGUILayout.LabelField(apiWorldLoaded ? $"Release: " + apiWorld.releaseStatus : branch.cachedRelease, worldInfoStyle);
@@ -1023,8 +1046,8 @@ namespace BocuD.BuildHelper.Editor
                     branch.nameChanged = branch.editedName != apiWorld.name;
                     branch.descriptionChanged = branch.editedDescription != apiWorld.description;
                     branch.capacityChanged = branch.editedCap != apiWorld.capacity;
-                    branch.tagsChanged = !branch.editedTags.SequenceEqual(apiWorld.tags);
-
+                    branch.tagsChanged = !branch.editedTags.SequenceEqual(apiWorld.publicTags);
+                    
                     TrySave();
                 }
 
@@ -1033,7 +1056,7 @@ namespace BocuD.BuildHelper.Editor
                     branch.editedName = apiWorld.name;
                     branch.editedDescription = apiWorld.description;
                     branch.editedCap = apiWorld.capacity;
-                    branch.editedTags = apiWorld.tags;
+                    branch.editedTags = apiWorld.publicTags.ToList();
                     
                     branch.nameChanged = false;
                     branch.descriptionChanged = false;
@@ -1112,6 +1135,21 @@ namespace BocuD.BuildHelper.Editor
             GUILayout.EndVertical();
         }
 
+        private static string DisplayTags(List<string> tags)
+        {
+            string output = "";
+            
+            foreach (string tag in tags)
+            {
+                output += tag.ReplaceFirst("author_tag_", "") + ", ";
+            }
+
+            if (output.Contains(", "))
+                output = output.Substring(0, output.Length - 2);
+            
+            return output;
+        }
+
         private Branch imageBranch;
 
         public void OnImageSelected(string filePath)
@@ -1173,7 +1211,7 @@ namespace BocuD.BuildHelper.Editor
         {
             BuildData buildData = branch.buildData;
 
-            GUILayout.Label("<b>Branch build information</b>", styleRichTextLabel);
+            GUILayout.Label("<b>Build Options</b>", styleRichTextLabel);
 
             Rect buildRectBase = EditorGUILayout.GetControlRect();
             Rect buildRect = new Rect(5, buildRectBase.y + 7, 32,
@@ -1206,6 +1244,7 @@ namespace BocuD.BuildHelper.Editor
                 buildStatusStyle);
 
             //ayes
+            //todo get rid of this mess
             EditorGUILayout.Space();
             EditorGUILayout.Space();
             EditorGUILayout.Space();
@@ -1267,7 +1306,7 @@ namespace BocuD.BuildHelper.Editor
                 return;
             }
             
-            if (!VRChatApiToolsEditor.HandleLogin(this)) return;
+            if (!VRChatApiToolsEditor.HandleLogin(this, false)) return;
 
             if (branchList.index != buildHelperData.currentBranchIndex)
             {
@@ -1282,8 +1321,11 @@ namespace BocuD.BuildHelper.Editor
             EditorGUILayout.Space();
             EditorGUILayout.Space();
 
+            
+            EditorGUILayout.BeginVertical("Helpbox");
+            
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("");
+            EditorGUILayout.LabelField("<b>Local Testing</b>", styleRichTextLabel);
             EditorGUILayout.LabelField("Number of Clients", GUILayout.Width(140));
             VRCSettings.NumClients = EditorGUILayout.IntField(VRCSettings.NumClients, GUILayout.Width(140));
             EditorGUILayout.EndHorizontal();
@@ -1365,7 +1407,16 @@ namespace BocuD.BuildHelper.Editor
             EditorGUI.EndDisabledGroup();
 
             EditorGUILayout.EndHorizontal();
+            EditorGUILayout.EndVertical();
+            
 
+            EditorGUILayout.BeginVertical("Helpbox");
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("<b>Publishing Options</b>", styleRichTextLabel);
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.LabelField($"<i>{(APIUser.IsLoggedIn ? "Currently logged in as " + APIUser.CurrentUser.displayName : "")}</i>", styleRichTextLabel);
+            EditorGUILayout.EndHorizontal();
+            
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Publish to VRChat");
 
@@ -1449,6 +1500,8 @@ namespace BocuD.BuildHelper.Editor
             }
 
             EditorGUILayout.EndHorizontal();
+            
+            EditorGUILayout.EndVertical();
         }
 
         private static void DrawBuildTargetSwitcher()
@@ -1592,8 +1645,8 @@ namespace BocuD.BuildHelper.Editor
             string platform = EditorUserBuildSettings.activeBuildTarget == BuildTarget.Android ? "Android" : "PC";
 
             string message = singleTarget
-                ? $"Build Helper will initiate a build and publish cycle for {platform}"
-                : "Build Helper will initiate a build and publish cycle for both PC and mobile in succesion";
+                ? $"Build Helper will initiate a build and publish cycle for {platform}."
+                : "Build Helper will initiate a build and publish cycle for both PC and mobile in succesion.";
 
             if (!EditorUtility.DisplayDialog("Build Helper", message, "Proceed", "Cancel"))
             {
@@ -1740,7 +1793,8 @@ namespace BocuD.BuildHelper.Editor
                 {
                     ArrayUtility.RemoveAt(ref buildHelperData.branches, list.index);
                 }
-
+                
+                SwitchBranch(buildHelperData, 0);
                 list.index = 0;
                 TrySave();
             };
