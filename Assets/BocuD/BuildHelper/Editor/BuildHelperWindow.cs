@@ -44,8 +44,6 @@ namespace BocuD.BuildHelper.Editor
     {
         private GUIStyle styleHelpBox;
         private GUIStyle styleBox;
-        private GUIStyle styleRichTextLabel;
-        private GUIStyle styleRichTextLabelBig;
         private GUIStyle styleRichTextButton;
 
         private Texture2D _iconGitHub;
@@ -88,7 +86,7 @@ namespace BocuD.BuildHelper.Editor
 
         private void OnGUI()
         {
-            if (styleRichTextLabel == null) InitializeStyles();
+            if (styleBox == null) InitializeStyles();
             if (_iconVRChat == null) GetUIAssets();
 
             if (BuildPipeline.isBuildingPlayer) return;
@@ -508,6 +506,7 @@ namespace BocuD.BuildHelper.Editor
         {
             Branch selectedBranch = buildHelperData.branches[branchList.index];
 
+            GUIStyle styleRichTextLabel = new GUIStyle(GUI.skin.label) { richText = true };
             GUILayout.Label($"<b>Branch Editor</b>", styleRichTextLabel);
 
             EditorGUI.BeginChangeCheck();
@@ -852,6 +851,8 @@ namespace BocuD.BuildHelper.Editor
                 isNewWorld = true;
                 apiWorldLoaded = false;
             }
+            
+            GUIStyle styleRichTextLabelBig = new GUIStyle(GUI.skin.label) { richText = true, fontSize = 20, wordWrap = true };
 
             if (loadError)
             {
@@ -1003,7 +1004,8 @@ namespace BocuD.BuildHelper.Editor
                 GUILayout.BeginVertical(GUILayout.Width(width));
 
                 branch.editedName = EditorGUILayout.TextField("Name:", branch.editedName);
-                branch.editedDescription = EditorGUILayout.TextField("Description:", branch.editedDescription);
+                EditorGUILayout.LabelField("Description:");
+                branch.editedDescription = EditorGUILayout.TextArea(branch.editedDescription, new GUIStyle(EditorStyles.textArea) {wordWrap = true});
                 branch.editedCap = EditorGUILayout.IntField($"Capacity:", branch.editedCap);
                 
                 EditorGUILayout.BeginHorizontal();
@@ -1210,6 +1212,7 @@ namespace BocuD.BuildHelper.Editor
         private void DisplayBuildInformation(Branch branch)
         {
             BuildData buildData = branch.buildData;
+            GUIStyle styleRichTextLabel = new GUIStyle(GUI.skin.label) { richText = true };
 
             GUILayout.Label("<b>Build Options</b>", styleRichTextLabel);
 
@@ -1298,6 +1301,7 @@ namespace BocuD.BuildHelper.Editor
 
         private void DisplayBuildButtons()
         {
+            GUIStyle styleRichTextLabel = new GUIStyle(GUI.skin.label) { richText = true };
             GUILayout.Label("<b>Build Options</b>", styleRichTextLabel);
 
             if (Application.isPlaying)
@@ -1914,14 +1918,6 @@ namespace BocuD.BuildHelper.Editor
                 GUI.skin.box.padding.top * 2, GUI.skin.box.padding.bottom * 2);
             styleBox.margin = new RectOffset(0, 0, 4, 4);
 
-            styleRichTextLabel = new GUIStyle(GUI.skin.label);
-            styleRichTextLabel.richText = true;
-
-            styleRichTextLabelBig = new GUIStyle(GUI.skin.label);
-            styleRichTextLabelBig.richText = true;
-            styleRichTextLabelBig.fontSize = 20;
-            styleRichTextLabelBig.wordWrap = true;
-
             styleRichTextButton = new GUIStyle(GUI.skin.button);
             styleRichTextButton.richText = true;
         }
@@ -1939,6 +1935,7 @@ namespace BocuD.BuildHelper.Editor
         {
             GUILayout.BeginHorizontal(EditorStyles.helpBox);
 
+            GUIStyle styleRichTextLabel = new GUIStyle(GUI.skin.label) { richText = true };
             GUILayout.Label("<b>VR Build Helper</b>", styleRichTextLabel);
 
             GUILayout.FlexibleSpace();
