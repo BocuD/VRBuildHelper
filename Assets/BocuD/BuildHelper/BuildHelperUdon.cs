@@ -555,24 +555,22 @@ namespace BocuD.BuildHelper
         {
             if (state == PlayModeStateChange.EnteredPlayMode)
             {
-                if (UnityEngine.Object.FindObjectOfType<BuildHelperData>() == null) return;
-                
-                BuildHelperData buildHelperData = UnityEngine.Object.FindObjectOfType<BuildHelperData>();
+                BuildHelperData data = BuildHelperData.GetDataBehaviour();
 
-                if (buildHelperData.currentBranch.hasUdonLink)
+                if (data.dataObject.CurrentBranch.hasUdonLink)
                 {
-                    if (buildHelperData.linkedBehaviourGameObject != null)
+                    if (data.linkedBehaviourGameObject != null)
                     {
-                        BuildHelperUdon buildHelperUdon = buildHelperData.linkedBehaviourGameObject
+                        BuildHelperUdon buildHelperUdon = data.linkedBehaviourGameObject
                             .GetUdonSharpComponent<BuildHelperUdon>();
                         
                         buildHelperUdon.UpdateProxy();
-                        buildHelperUdon.branchName = buildHelperData.currentBranch.name;
+                        buildHelperUdon.branchName = data.dataObject.CurrentBranch.name;
                         buildHelperUdon.buildDate = DateTime.Now;
 #if UNITY_ANDROID
-                        buildHelperUdon.buildNumber = buildHelperData.currentBranch.buildData.androidBuildVersion;
+                        buildHelperUdon.buildNumber = data.dataObject.CurrentBranch.buildData.androidBuildVersion;
 #else
-                        buildHelperUdon.buildNumber = buildHelperData.currentBranch.buildData.pcBuildVersion;
+                        buildHelperUdon.buildNumber = data.dataObject.CurrentBranch.buildData.pcBuildVersion;
 #endif
                         buildHelperUdon.ApplyProxyModifications();
                     }

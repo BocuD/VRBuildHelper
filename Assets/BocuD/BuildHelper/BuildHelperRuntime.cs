@@ -43,14 +43,18 @@ namespace BocuD.BuildHelper
         [SerializeField]private bool vrcSceneReady;
         [SerializeField]private RuntimeWorldCreation runtimeWorldCreation;
 
-        [SerializeField]private BuildHelperData buildHelperData;
+        [SerializeField]private BuildHelperData buildHelperBehaviour;
+        [SerializeField]private BranchStorageObject buildHelperData;
         
         [SerializeField]private BuildHelperToolsMenu buildHelperToolsMenu;
         private bool shouldAutoUpload;
 
         private void Start()
         {
-            buildHelperData = FindObjectOfType<BuildHelperData>();
+            buildHelperBehaviour = BuildHelperData.GetDataBehaviour();
+            
+            if (buildHelperBehaviour)
+                buildHelperData = buildHelperBehaviour.dataObject;
         }
 
         private int timeout = 10;
@@ -70,7 +74,7 @@ namespace BocuD.BuildHelper
                         Logger.Log("Found RuntimeWorldCreation component, initialising BuildHelperRuntime");
 
                         //apply saved camera position
-                        GameObject.Find("VRCCam").transform.SetPositionAndRotation(buildHelperData.currentBranch.camPos, buildHelperData.currentBranch.camRot);
+                        GameObject.Find("VRCCam").transform.SetPositionAndRotation(buildHelperData.CurrentBranch.camPos, buildHelperData.CurrentBranch.camRot);
 
                         //modify sdk upload panel to add world helper menu
                         Transform worldPanel = runtimeWorldCreation.transform.GetChild(0).GetChild(0).GetChild(1);
@@ -83,8 +87,8 @@ namespace BocuD.BuildHelper
 
                         buildHelperToolsMenu = RuntimeTools.GetComponent<BuildHelperToolsMenu>();
 
-                        buildHelperToolsMenu.saveCamPosition.isOn = buildHelperData.currentBranch.saveCamPos;
-                        buildHelperToolsMenu.uniqueCamPosition.isOn = buildHelperData.currentBranch.uniqueCamPos;
+                        buildHelperToolsMenu.saveCamPosition.isOn = buildHelperData.CurrentBranch.saveCamPos;
+                        buildHelperToolsMenu.uniqueCamPosition.isOn = buildHelperData.CurrentBranch.uniqueCamPos;
                     
                         if (buildHelperData.autonomousBuild.activeBuild)
                         {
@@ -109,27 +113,27 @@ namespace BocuD.BuildHelper
                 
                 if (!appliedChanges)
                 {
-                    if (buildHelperData.currentBranch.nameChanged)
-                        runtimeWorldCreation.blueprintName.text = buildHelperData.currentBranch.editedName;
-                    if (buildHelperData.currentBranch.descriptionChanged)
+                    if (buildHelperData.CurrentBranch.nameChanged)
+                        runtimeWorldCreation.blueprintName.text = buildHelperData.CurrentBranch.editedName;
+                    if (buildHelperData.CurrentBranch.descriptionChanged)
                         runtimeWorldCreation.blueprintDescription.text =
-                            buildHelperData.currentBranch.editedDescription;
-                    if (buildHelperData.currentBranch.capacityChanged)
-                        runtimeWorldCreation.worldCapacity.text = buildHelperData.currentBranch.editedCap.ToString();
-                    if (buildHelperData.currentBranch.tagsChanged)
+                            buildHelperData.CurrentBranch.editedDescription;
+                    if (buildHelperData.CurrentBranch.capacityChanged)
+                        runtimeWorldCreation.worldCapacity.text = buildHelperData.CurrentBranch.editedCap.ToString();
+                    if (buildHelperData.CurrentBranch.tagsChanged)
                         runtimeWorldCreation.userTags.text =
-                            TagListToTagString(buildHelperData.currentBranch.editedTags);
+                            TagListToTagString(buildHelperData.CurrentBranch.editedTags);
                     
                     appliedChanges = true;
                     return;
                 }
 
-                if (!appliedImageChanges && buildHelperData.currentBranch.vrcImageHasChanges)
+                if (!appliedImageChanges && buildHelperData.CurrentBranch.vrcImageHasChanges)
                 {
                     runtimeWorldCreation.shouldUpdateImageToggle.isOn = true;
                     buildHelperToolsMenu.imageSourceDropdown.value = 1;
                     buildHelperToolsMenu.imageSourceDropdown.onValueChanged.Invoke(1);
-                    buildHelperToolsMenu.OnFileSelected(Application.dataPath + "/Resources/BuildHelper/" + buildHelperData.sceneID + '_' + buildHelperData.currentBranch.branchID + "-edit.png");
+                    buildHelperToolsMenu.OnFileSelected(Application.dataPath + "/Resources/BuildHelper/" + buildHelperBehaviour.sceneID + '_' + buildHelperData.CurrentBranch.branchID + "-edit.png");
                     appliedImageChanges = true;
                     return;
                 }
@@ -147,7 +151,7 @@ namespace BocuD.BuildHelper
                     if(statusWindow.abort)
                     {
                         buildHelperData.autonomousBuild.activeBuild = false;
-                        buildHelperData.SaveToJSON();
+                        buildHelperBehaviour.SaveToJSON();
                         statusWindow.currentState = AutonomousBuildState.aborted;
                         EditorApplication.isPlaying = false;
                     }
@@ -164,7 +168,7 @@ namespace BocuD.BuildHelper
             if (statusWindow.abort)
             {
                 buildHelperData.autonomousBuild.activeBuild = false;
-                buildHelperData.SaveToJSON();
+                buildHelperBehaviour.SaveToJSON();
                 statusWindow.currentState = AutonomousBuildState.aborted;
                 EditorApplication.isPlaying = false;
             }
@@ -211,18 +215,18 @@ namespace BocuD.BuildHelper
                     }
                 }
 
-                buildHelperData.currentBranch.saveCamPos = buildHelperToolsMenu.saveCamPosition.isOn;
-                buildHelperData.currentBranch.uniqueCamPos = buildHelperToolsMenu.uniqueCamPosition.isOn;
+                buildHelperData.CurrentBranch.saveCamPos = buildHelperToolsMenu.saveCamPosition.isOn;
+                buildHelperData.CurrentBranch.uniqueCamPos = buildHelperToolsMenu.uniqueCamPosition.isOn;
             
-                if (buildHelperData.currentBranch.saveCamPos)
+                if (buildHelperData.CurrentBranch.saveCamPos)
                 {
                     GameObject vrcCam = GameObject.Find("VRCCam");
                     if (vrcCam)
                     {
-                        if (buildHelperData.currentBranch.uniqueCamPos)
+                        if (buildHelperData.CurrentBranch.uniqueCamPos)
                         {
-                            buildHelperData.currentBranch.camPos = vrcCam.transform.position;
-                            buildHelperData.currentBranch.camRot = vrcCam.transform.rotation;
+                            buildHelperData.CurrentBranch.camPos = vrcCam.transform.position;
+                            buildHelperData.CurrentBranch.camRot = vrcCam.transform.rotation;
                         }
                         else
                         {
@@ -234,8 +238,8 @@ namespace BocuD.BuildHelper
                                 b.camRot = vrcCam.transform.rotation;
                             }
                             
-                            buildHelperData.currentBranch.camPos = vrcCam.transform.position;
-                            buildHelperData.currentBranch.camRot = vrcCam.transform.rotation;
+                            buildHelperData.CurrentBranch.camPos = vrcCam.transform.position;
+                            buildHelperData.CurrentBranch.camRot = vrcCam.transform.rotation;
                         }
                     }
                 }
@@ -243,7 +247,7 @@ namespace BocuD.BuildHelper
         
             if (type == LogType.Log && logString.Contains("Asset bundle upload succeeded"))
             {
-                if (buildHelperData.currentBranch == null)
+                if (buildHelperData.CurrentBranch == null)
                 {
                     Logger.LogError("Build Helper data object doesn't exist, skipping build data update");
                     return;
@@ -285,7 +289,7 @@ namespace BocuD.BuildHelper
                     }
 
                     buildHelperData.autonomousBuild = autonomousBuild;
-                    buildHelperData.SaveToJSON();
+                    buildHelperBehaviour.SaveToJSON();
                 }
                 
                 //ExtractWorldImage();
@@ -295,10 +299,10 @@ namespace BocuD.BuildHelper
 
             if (type == LogType.Log && logString.Contains("Image upload succeeded"))
             {
-                buildHelperData.currentBranch.vrcImageHasChanges = false;
-                buildHelperData.currentBranch.vrcImageWarning = "";
-                buildHelperData.branches[buildHelperData.currentBranchIndex] = buildHelperData.currentBranch;
-                buildHelperData.SaveToJSON();
+                buildHelperData.CurrentBranch.vrcImageHasChanges = false;
+                buildHelperData.CurrentBranch.vrcImageWarning = "";
+                buildHelperData.branches[buildHelperData.currentBranch] = buildHelperData.CurrentBranch;
+                buildHelperBehaviour.SaveToJSON();
             }
 
             if (type == LogType.Error && logString.Contains("Asset bundle upload failed"))
@@ -359,10 +363,10 @@ namespace BocuD.BuildHelper
                 Directory.CreateDirectory(dirPath);
             }
 
-            string filePath = dirPath + buildHelperData.currentBranch.name + "_" + buildHelperData.currentBranch.blueprintID + ".png";
+            string filePath = dirPath + buildHelperData.CurrentBranch.name + "_" + buildHelperData.CurrentBranch.blueprintID + ".png";
             File.WriteAllBytes(filePath, worldImagePNG);
 
-            filePath = "Assets/Resources/BuildHelper/" + buildHelperData.currentBranch.name + "_" + buildHelperData.currentBranch.blueprintID + ".png";
+            filePath = "Assets/Resources/BuildHelper/" + buildHelperData.CurrentBranch.name + "_" + buildHelperData.CurrentBranch.blueprintID + ".png";
 
             // TextureImporter importer = AssetImporter.GetAtPath(filePath) as TextureImporter;
             // importer.textureType = TextureImporterType.GUI;
@@ -375,37 +379,37 @@ namespace BocuD.BuildHelper
             if (CurrentPlatform() == Platform.mobile)
             {
                 Logger.Log("Detected succesful upload for Android");
-                buildHelperData.currentBranch.buildData.androidUploadTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
-                buildHelperData.currentBranch.buildData.androidUploadedBuildVersion =
-                    buildHelperData.currentBranch.buildData.androidBuildVersion;
+                buildHelperData.CurrentBranch.buildData.androidUploadTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
+                buildHelperData.CurrentBranch.buildData.androidUploadedBuildVersion =
+                    buildHelperData.CurrentBranch.buildData.androidBuildVersion;
             }
             else
             {
                 Logger.Log("Detected succesful upload for PC");
-                buildHelperData.currentBranch.buildData.pcUploadTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
-                buildHelperData.currentBranch.buildData.pcUploadedBuildVersion =
-                    buildHelperData.currentBranch.buildData.pcBuildVersion;
+                buildHelperData.CurrentBranch.buildData.pcUploadTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
+                buildHelperData.CurrentBranch.buildData.pcUploadedBuildVersion =
+                    buildHelperData.CurrentBranch.buildData.pcBuildVersion;
             }
 
-            buildHelperData.currentBranch.nameChanged = false;
-            buildHelperData.currentBranch.descriptionChanged = false;
-            buildHelperData.currentBranch.capacityChanged = false;
-            buildHelperData.currentBranch.tagsChanged = false;
+            buildHelperData.CurrentBranch.nameChanged = false;
+            buildHelperData.CurrentBranch.descriptionChanged = false;
+            buildHelperData.CurrentBranch.capacityChanged = false;
+            buildHelperData.CurrentBranch.tagsChanged = false;
 
-            if (buildHelperData.currentBranch.blueprintID == "")
+            if (buildHelperData.CurrentBranch.blueprintID == "")
             {
-                buildHelperData.currentBranch.blueprintID = FindObjectOfType<PipelineManager>().blueprintId;
+                buildHelperData.CurrentBranch.blueprintID = FindObjectOfType<PipelineManager>().blueprintId;
             }
 
-            buildHelperData.SaveToJSON();
+            buildHelperBehaviour.SaveToJSON();
         }
 
         private void TrySavePublishedWorld()
         {
-            if (!buildHelperData.currentBranch.hasDeploymentData) return;
+            if (!buildHelperData.CurrentBranch.hasDeploymentData) return;
             
-            if (buildHelperData.currentBranch.deploymentData.deploymentPath == "") {
-                Logger.LogWarning($"Deployment folder location for {buildHelperData.currentBranch.name} is not set, no published builds will be saved.");
+            if (buildHelperData.CurrentBranch.deploymentData.deploymentPath == "") {
+                Logger.LogWarning($"Deployment folder location for {buildHelperData.CurrentBranch.name} is not set, no published builds will be saved.");
                 return;
             }
 
@@ -413,7 +417,7 @@ namespace BocuD.BuildHelper
             
             if (!File.Exists(justPublishedFilePath)) return; // Defensive check, normally the file should exist there given that a publish was just completed
 
-            string deploymentFolder = Path.GetFullPath(Application.dataPath + buildHelperData.currentBranch.deploymentData.deploymentPath);
+            string deploymentFolder = Path.GetFullPath(Application.dataPath + buildHelperData.CurrentBranch.deploymentData.deploymentPath);
             
             if (Path.GetDirectoryName(justPublishedFilePath).StartsWith(deploymentFolder))
             {
@@ -421,7 +425,7 @@ namespace BocuD.BuildHelper
                 return;
             }
 
-            string backupFileName = ComposeBackupFileName(buildHelperData.currentBranch, justPublishedFilePath);
+            string backupFileName = ComposeBackupFileName(buildHelperData.CurrentBranch, justPublishedFilePath);
             string backupPath = Path.Combine(new []{deploymentFolder, backupFileName});
 
             File.Copy(justPublishedFilePath, backupPath);
@@ -485,7 +489,7 @@ namespace BocuD.BuildHelper
             return input.Aggregate("", (current, s) => current + s.ReplaceFirst("author_tag_", "") + " ");
         }
 
-        private static Platform CurrentPlatform()
+        public static Platform CurrentPlatform()
         {
 #if UNITY_ANDROID
             return Platform.mobile;

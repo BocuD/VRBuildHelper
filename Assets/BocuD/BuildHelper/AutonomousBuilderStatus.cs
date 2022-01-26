@@ -20,7 +20,7 @@
  SOFTWARE.
 */
 
-#if UNITY_EDITOR
+#if UNITY_EDITOR && !COMPILER_UDONSHARP
 
 using System;
 using UnityEditor;
@@ -75,12 +75,6 @@ namespace BocuD.BuildHelper
             window.minSize = window.maxSize;
             window.autoRepaintOnSceneChange = true;
 
-            // if (!window.logWatcher)
-            // {
-            //     Application.logMessageReceived += window.Log;
-            //     window.logWatcher = true;
-            // }
-
             window.Show();
             window.Repaint();
 
@@ -120,7 +114,7 @@ namespace BocuD.BuildHelper
                 if (GUILayout.Button("Force close"))
                 {
                     if (EditorUtility.DisplayDialog("Autonomous Builder",
-                        "Are you sure you want to close the Autonomous Builder? Only do this if its stuck, it might continue building anyways if its not 'hanging'.",
+                        "Are you sure you want to close the Autonomous Builder? Only do this if its stuck, it will continue building anyways if its not 'hanging'.",
                         "Yes", "No"))
                     {
                         currentState = AutonomousBuildState.finished;
@@ -253,20 +247,19 @@ namespace BocuD.BuildHelper
             switch (_currentState)
             {
                 case AutonomousBuildState.aborting:
+                    BuildHelperData data = BuildHelperData.GetDataBehaviour();
+
                     //spawn new window if we still need to process the abort
-                    if (FindObjectOfType<BuildHelperData>())
+                    if (data && data.dataObject.autonomousBuild.activeBuild)
                     {
-                        if (FindObjectOfType<BuildHelperData>().autonomousBuild.activeBuild)
-                        {
-                            AutonomousBuilderStatus status = CreateInstance<AutonomousBuilderStatus>();
-                            status.ShowUtility();
-                            status.titleContent = new GUIContent("Autonomous Builder");
-                            status.log = log;
-                            status.currentPlatform = currentPlatform;
-                            status._currentState = _currentState;
-                            status.Repaint();
-                            return;
-                        }
+                        AutonomousBuilderStatus status = CreateInstance<AutonomousBuilderStatus>();
+                        status.ShowUtility();
+                        status.titleContent = new GUIContent("Autonomous Builder");
+                        status.log = log;
+                        status.currentPlatform = currentPlatform;
+                        status._currentState = _currentState;
+                        status.Repaint();
+                        return;
                     }
 
                     //spawn new window if we are still in the build process
@@ -291,18 +284,8 @@ namespace BocuD.BuildHelper
 
                 default:
                     if (EditorUtility.DisplayDialog("Autonomous Builder",
-                        "Are you sure you want to cancel your autonomous build?",
-                        "Continue build", "Abort build"))
-                    {
-                        AutonomousBuilderStatus status = CreateInstance<AutonomousBuilderStatus>();
-                        status.ShowUtility();
-                        status.titleContent = new GUIContent("Autonomous Builder");
-                        status.log = log;
-                        status.currentPlatform = currentPlatform;
-                        status._currentState = _currentState;
-                        status.Repaint();
-                    }
-                    else
+                            "Are you sure you want to cancel your autonomous build?",
+                            "Abort build", "Continue build"))
                     {
                         AutonomousBuilderStatus status = CreateInstance<AutonomousBuilderStatus>();
                         status.ShowUtility();
@@ -311,6 +294,16 @@ namespace BocuD.BuildHelper
                         status.currentPlatform = currentPlatform;
                         status.currentState = AutonomousBuildState.aborting;
                         status.abort = true;
+                    }
+                    else
+                    {
+                        AutonomousBuilderStatus status = CreateInstance<AutonomousBuilderStatus>();
+                        status.ShowUtility();
+                        status.titleContent = new GUIContent("Autonomous Builder");
+                        status.log = log;
+                        status.currentPlatform = currentPlatform;
+                        status._currentState = _currentState;
+                        status.Repaint();
                     }
 
                     break;

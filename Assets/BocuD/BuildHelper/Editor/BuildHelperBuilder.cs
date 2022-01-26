@@ -20,10 +20,9 @@
  SOFTWARE.
 */
 
-#if UNITY_EDITOR
-
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using BocuD.BuildHelper.Editor;
 using UnityEditor;
 using UnityEngine.Networking;
@@ -100,6 +99,21 @@ namespace BocuD.BuildHelper
                 Logger.LogError("You need to be logged in to publish a world");
             }
         }
+
+        public static async Task PublishLastBuildAsync(Branch targetBranch = null, Action<Branch> onSucces = null)
+        {
+            if (APIUser.CurrentUser.canPublishWorlds)
+            {
+                VRChatApiUploaderAsync uploaderAsync = new VRChatApiUploaderAsync();
+                await uploaderAsync.UploadLastBuild(targetBranch);
+                
+                onSucces?.Invoke(targetBranch);
+            }
+            else
+            {
+                Logger.LogError("You need to be logged in to publish a world");
+            }
+        }
     
         public static void PublishNewBuild()
         {
@@ -114,6 +128,33 @@ namespace BocuD.BuildHelper
                     VRC_SdkBuilder.shouldBuildUnityPackage = VRCSdkControlPanel.FutureProofPublishEnabled;
                     VRC_SdkBuilder.PreBuildBehaviourPackaging();
                     VRC_SdkBuilder.ExportAndUploadSceneBlueprint();
+                }
+                else
+                {
+                    Logger.LogError("You need to be logged in to publish a world");
+                }
+            }
+        }
+        
+        public static async void PublishNewBuildAsync(Branch targetBranch = null, Action<Branch> onSucces = null)
+        {
+            bool buildTestBlocked = !VRCBuildPipelineCallbacks.OnVRCSDKBuildRequested(VRCSDKRequestedBuildType.Scene);
+            if (!buildTestBlocked)
+            {
+                if (APIUser.CurrentUser.canPublishWorlds)
+                {
+                    EnvConfig.ConfigurePlayerSettings();
+                    EditorPrefs.SetBool("VRC.SDKBase_StripAllShaders", false);
+
+                    VRC_SdkBuilder.shouldBuildUnityPackage = VRCSdkControlPanel.FutureProofPublishEnabled;
+                    AssetExporter.CleanupUnityPackageExport();
+                    VRC_SdkBuilder.PreBuildBehaviourPackaging();
+
+                    VRC_SdkBuilder.ExportSceneResource();
+                    
+                    await PublishLastBuildAsync(targetBranch);
+                    
+                    onSucces?.Invoke(targetBranch);
                 }
                 else
                 {
@@ -153,4 +194,3 @@ namespace BocuD.BuildHelper
         }
     }
 }
-#endif

@@ -28,7 +28,7 @@
  Copyright (c) 2021 BocuD (github.com/BocuD)
 */
 
-#if UNITY_EDITOR
+#if UNITY_EDITOR && !COMPILER_UDONSHARP
 
 using System;
 

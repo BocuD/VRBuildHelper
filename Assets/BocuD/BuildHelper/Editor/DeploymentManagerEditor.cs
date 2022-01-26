@@ -54,11 +54,11 @@ namespace BocuD.BuildHelper.Editor
             window.data = data;
             window.dataIndex = dataIndex;
         
-            window.titleContent = new GUIContent($"Deployment Manager for {data.branches[dataIndex].name}");
+            window.titleContent = new GUIContent($"Deployment Manager for {data.dataObject.branches[dataIndex].name}");
             window.minSize = new Vector2(400, 200);
             window.autoRepaintOnSceneChange = true;
         
-            DeploymentManager.RefreshDeploymentData(data.branches[dataIndex]);
+            DeploymentManager.RefreshDeploymentData(data.dataObject.branches[dataIndex]);
             
             window.Show();
         }
@@ -66,7 +66,7 @@ namespace BocuD.BuildHelper.Editor
         private void OnGUI()
         {
             if (data == null) DestroyImmediate(this);
-            if (data.branches[dataIndex].deploymentData.deploymentPath == "")
+            if (data.dataObject.branches[dataIndex].deploymentData.deploymentPath == "")
             {
                 if (GUILayout.Button("Set deployment path..."))
                 {
@@ -76,7 +76,7 @@ namespace BocuD.BuildHelper.Editor
                     {
                         if (selectedFolder.StartsWith(Application.dataPath))
                         {
-                            data.branches[dataIndex].deploymentData.deploymentPath = selectedFolder.Substring(Application.dataPath.Length);
+                            data.dataObject.branches[dataIndex].deploymentData.deploymentPath = selectedFolder.Substring(Application.dataPath.Length);
                         }
                         else
                         {
@@ -90,11 +90,11 @@ namespace BocuD.BuildHelper.Editor
 
             deploymentScrollArea = EditorGUILayout.BeginScrollView(deploymentScrollArea);
 
-            if (data.branches[dataIndex].deploymentData.units.Length < 1)
+            if (data.dataObject.branches[dataIndex].deploymentData.units.Length < 1)
             {
                 if (GUILayout.Button("Force Refresh"))
                 {
-                    DeploymentManager.RefreshDeploymentData(data.branches[dataIndex]);
+                    DeploymentManager.RefreshDeploymentData(data.dataObject.branches[dataIndex]);
                 }
                 EditorGUILayout.HelpBox("No builds have been saved yet. To save a build for this branch, upload your world.", MessageType.Info);
                 EditorGUILayout.EndScrollView();
@@ -102,20 +102,20 @@ namespace BocuD.BuildHelper.Editor
             }
 
             //make sure its loaded properly
-            if(data.branches[dataIndex].deploymentData.units[0].buildDate < new DateTime(2020, 1, 1))
+            if(data.dataObject.branches[dataIndex].deploymentData.units[0].buildDate < new DateTime(2020, 1, 1))
             {
                 if(GUILayout.Button("Refresh"))
-                    DeploymentManager.RefreshDeploymentData(data.branches[dataIndex]);
+                    DeploymentManager.RefreshDeploymentData(data.dataObject.branches[dataIndex]);
                 EditorGUILayout.EndScrollView();
                 return;
             }
         
             if (GUILayout.Button("Force Refresh")) 
-                DeploymentManager.RefreshDeploymentData(data.branches[dataIndex]);
+                DeploymentManager.RefreshDeploymentData(data.dataObject.branches[dataIndex]);
 
             bool pcUploadKnown = false, androidUploadKnown = false;
         
-            foreach (DeploymentUnit deploymentUnit in data.branches[dataIndex].deploymentData.units)
+            foreach (DeploymentUnit deploymentUnit in data.dataObject.branches[dataIndex].deploymentData.units)
             {
                 if (!VRChatApiTools.worldCache.TryGetValue(deploymentUnit.pipelineID, out ApiWorld test))
                 {
@@ -127,18 +127,18 @@ namespace BocuD.BuildHelper.Editor
             
                 bool isLive = false;
                 
-                if (deploymentUnit.platform == Platform.mobile && data.branches[dataIndex].buildData.androidUploadTime.Length > 1)
+                if (deploymentUnit.platform == Platform.mobile && data.dataObject.branches[dataIndex].buildData.androidUploadTime.Length > 1)
                 {
-                    DateTime androidUploadTime = DateTime.Parse(data.branches[dataIndex].buildData.androidUploadTime, CultureInfo.InvariantCulture);
+                    DateTime androidUploadTime = DateTime.Parse(data.dataObject.branches[dataIndex].buildData.androidUploadTime, CultureInfo.InvariantCulture);
                     if (Mathf.Abs((float) (androidUploadTime - deploymentUnit.buildDate).TotalSeconds) < 300 && !androidUploadKnown)
                     {
                         androidUploadKnown = true;
                         isLive = true;
                     }
                 }
-                else if(data.branches[dataIndex].buildData.pcUploadTime.Length > 1)
+                else if(data.dataObject.branches[dataIndex].buildData.pcUploadTime.Length > 1)
                 {
-                    DateTime pcUploadTime = DateTime.Parse(data.branches[dataIndex].buildData.pcUploadTime, CultureInfo.InvariantCulture);
+                    DateTime pcUploadTime = DateTime.Parse(data.dataObject.branches[dataIndex].buildData.pcUploadTime, CultureInfo.InvariantCulture);
                     if (Mathf.Abs((float) (pcUploadTime - deploymentUnit.buildDate).TotalSeconds) < 300 && !pcUploadKnown)
                     {
                         pcUploadKnown = true;
@@ -178,13 +178,13 @@ namespace BocuD.BuildHelper.Editor
                 GUIStyle selectButtonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 60};
                 if (GUILayout.Button("Select", selectButtonStyle))
                 {
-                    EditorGUIUtility.PingObject(AssetDatabase.LoadMainAssetAtPath($"Assets/{data.branches[dataIndex].deploymentData.deploymentPath}/" +
+                    EditorGUIUtility.PingObject(AssetDatabase.LoadMainAssetAtPath($"Assets/{data.dataObject.branches[dataIndex].deploymentData.deploymentPath}/" +
                         deploymentUnit.fileName));
                 }
 
                 EditorGUILayout.EndHorizontal();
 
-                bool badID = data.branches[dataIndex].blueprintID != deploymentUnit.pipelineID;
+                bool badID = data.dataObject.branches[dataIndex].blueprintID != deploymentUnit.pipelineID;
                 if (badID)
                 {
                     GUIStyle badIDStyle = new GUIStyle(GUI.skin.label){richText = true, wordWrap = true};
@@ -211,7 +211,7 @@ namespace BocuD.BuildHelper.Editor
                         File.Delete(deploymentUnit.filePath);
                         File.Delete(deploymentUnit.filePath + ".meta");
                         AssetDatabase.Refresh();
-                        DeploymentManager.RefreshDeploymentData(data.branches[dataIndex]);
+                        DeploymentManager.RefreshDeploymentData(data.dataObject.branches[dataIndex]);
                         return;
                     }
                 }
@@ -275,7 +275,7 @@ namespace BocuD.BuildHelper.Editor
 
             EditorGUILayout.EndScrollView();
 
-            if (!VRChatApiToolsEditor.HandleLogin(this)) return;
+            if (!VRChatApiToolsGUI.HandleLogin(this)) return;
         }
     
         private static string BytesToString(long byteCount)
@@ -424,12 +424,11 @@ namespace BocuD.BuildHelper.Editor
         {
             if (state == PlayModeStateChange.EnteredEditMode)
             {
-                if (Object.FindObjectOfType<BuildHelperData>() == null) return;
-                
-                BuildHelperData buildHelperData = Object.FindObjectOfType<BuildHelperData>();
+                BuildHelperData buildHelperData = BuildHelperData.GetDataBehaviour();
+                if (buildHelperData == null) return;
                 buildHelperData.LoadFromJSON();
 
-                foreach (Branch b in buildHelperData.branches)
+                foreach (Branch b in buildHelperData.dataObject.branches)
                 {
                     if (b.hasDeploymentData)
                     {

@@ -25,6 +25,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using UdonSharpEditor;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -39,12 +40,12 @@ using VRC.Udon.Editor.ProgramSources.UdonGraphProgram.UI;
 namespace BocuD.BuildHelper.Editor
 {
     using VRChatApiTools;
+    using Logger = BuildHelper.Logger;
     
     public class BuildHelperWindow : EditorWindow
     {
         private GUIStyle styleHelpBox;
         private GUIStyle styleBox;
-        private GUIStyle styleRichTextButton;
 
         private Texture2D _iconGitHub;
         private Texture2D _iconVRChat;
@@ -55,15 +56,15 @@ namespace BocuD.BuildHelper.Editor
         private Dictionary<string, Texture2D> modifiedWorldImages = new Dictionary<string, Texture2D>();
 
         private Vector2 scrollPosition;
-        private bool settings = false;
-        private bool dirty = false;
+        private bool settings;
+        private bool dirty;
 
         private PipelineManager pipelineManager;
 
         [MenuItem("Window/VR Build Helper")]
         public static void ShowWindow()
         {
-            var window = GetWindow(typeof(BuildHelperWindow));
+            BuildHelperWindow window = GetWindow<BuildHelperWindow>();
             window.titleContent = new GUIContent("VR Build Helper");
             window.minSize = new Vector2(500, 650);
             window.Show();
@@ -71,12 +72,13 @@ namespace BocuD.BuildHelper.Editor
 
         private void OnEnable()
         {
-            buildHelperData = FindObjectOfType<BuildHelperData>();
+            buildHelperBehaviour = BuildHelperData.GetDataBehaviour();
             pipelineManager = FindObjectOfType<PipelineManager>();
 
-            if (buildHelperData)
+            if (buildHelperBehaviour)
             {
-                buildHelperData.LoadFromJSON();
+                buildHelperBehaviour.LoadFromJSON();
+                buildHelperData = buildHelperBehaviour.dataObject;
 
                 InitBranchList();
             }
@@ -95,11 +97,11 @@ namespace BocuD.BuildHelper.Editor
 
             if (DrawSettings()) return;
 
-            if (buildHelperData == null)
+            if (buildHelperBehaviour == null)
             {
                 OnEnable();
 
-                if (buildHelperData == null)
+                if (buildHelperBehaviour == null)
                 {
                     EditorGUILayout.HelpBox("Build Helper has not been set up in this scene.", MessageType.Info);
 
@@ -116,25 +118,29 @@ namespace BocuD.BuildHelper.Editor
                                 CreateSceneDescriptor();
                                 ResetData();
                             }
+                            else
+                            {
+                                ResetData();
+                            }
                         }
                     }
                     else return;
                 }
             }
 
-            if (buildHelperDataSO == null)
+            if (buildHelperData == null)
             {
                 OnEnable();
             }
             
             DrawUpgradeUI();
-
+            
             buildHelperDataSO.Update();
             branchList.DoLayoutList();
             buildHelperDataSO.ApplyModifiedProperties();
-
-            if (buildHelperData.currentBranchIndex >= buildHelperData.branches.Length)
-                buildHelperData.currentBranchIndex = 0;
+            
+            if (buildHelperData.currentBranch >= buildHelperData.branches.Length)
+                buildHelperData.currentBranch = 0;
 
             DrawSwitchBranchButton();
 
@@ -161,18 +167,21 @@ namespace BocuD.BuildHelper.Editor
         {
             if (!settings) return false;
 
-            GUIStyle labelStyle = new GUIStyle(GUI.skin.label) {richText = true};
+            GUIStyle labelStyle = new GUIStyle(GUI.skin.label) { richText = true };
             EditorGUILayout.LabelField("<b>VR Build Helper Options</b>", labelStyle);
 
-            if (buildHelperData != null)
+            if (buildHelperBehaviour != null)
             {
-                if (buildHelperData.gameObject.hideFlags == HideFlags.None)
+                EditorGUILayout.BeginVertical("Helpbox");
+                EditorGUILayout.LabelField("<b>Scene Options</b>", labelStyle);
+                
+                if (buildHelperBehaviour.gameObject.hideFlags == HideFlags.None)
                 {
                     EditorGUILayout.HelpBox("The VRBuildHelper Data object is currently not hidden.",
                         MessageType.Warning);
                     if (GUILayout.Button("Hide VRBuildHelper Data object"))
                     {
-                        buildHelperData.gameObject.hideFlags = HideFlags.HideInHierarchy;
+                        buildHelperBehaviour.gameObject.hideFlags = HideFlags.HideInHierarchy;
                         EditorApplication.RepaintHierarchyWindow();
                     }
                 }
@@ -180,48 +189,74 @@ namespace BocuD.BuildHelper.Editor
                 {
                     if (GUILayout.Button("Show VRBuildHelper Data object (Not recommended)"))
                     {
-                        buildHelperData.gameObject.hideFlags = HideFlags.None;
+                        buildHelperBehaviour.gameObject.hideFlags = HideFlags.None;
                         EditorApplication.RepaintHierarchyWindow();
                     }
                 }
-            }
-
-            if (GUILayout.Button("Remove VRBuildHelper from this scene"))
-            {
-                bool confirm = EditorUtility.DisplayDialog("Build Helper",
-                    "Are you sure you want to remove Build Helper from this scene? All stored information will be lost permanently.",
-                    "Yes",
-                    "Cancel");
-
-                if (confirm)
+                
+                if (GUILayout.Button("Remove VRBuildHelper from this scene"))
                 {
-                    if (FindObjectOfType<BuildHelperData>() != null)
+                    bool confirm = EditorUtility.DisplayDialog("Build Helper",
+                        "Are you sure you want to remove Build Helper from this scene? All stored information will be lost permanently.",
+                        "Yes",
+                        "Cancel");
+
+                    if (confirm)
                     {
-                        if (buildHelperData != null)
+                        buildHelperBehaviour = BuildHelperData.GetDataBehaviour();
+
+                        if (buildHelperBehaviour != null)
                         {
-                            buildHelperData.DeleteJSON();
+                            buildHelperBehaviour.DeleteJSON();
+                            DestroyImmediate(buildHelperBehaviour.gameObject);
                         }
-                        DestroyImmediate(FindObjectOfType<BuildHelperData>().gameObject);
                     }
                 }
+                EditorGUILayout.EndVertical();
+                GUILayout.Space(10);
             }
 
-            if (buildHelperData != null)
+            EditorGUILayout.BeginVertical("Helpbox");
+            EditorGUILayout.LabelField("<b>Global VR Build Helper Options</b>", labelStyle);
+
+            EditorGUILayout.BeginHorizontal();
+            BuildHelperEditorPrefs.AutoSave = EditorGUILayout.Toggle(BuildHelperEditorPrefs.AutoSave, GUILayout.Width(15));
+            EditorGUILayout.LabelField("Auto save");
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            bool asyncPublishTemp = BuildHelperEditorPrefs.UseAsyncPublish;
+            BuildHelperEditorPrefs.UseAsyncPublish = EditorGUILayout.Toggle(BuildHelperEditorPrefs.UseAsyncPublish, GUILayout.Width(15));
+            if (asyncPublishTemp != BuildHelperEditorPrefs.UseAsyncPublish && BuildHelperEditorPrefs.UseAsyncPublish)
             {
-                EditorGUI.BeginChangeCheck();
-                buildHelperData.autoSave = EditorGUILayout.Toggle("Auto save", buildHelperData.autoSave);
-                if (EditorGUI.EndChangeCheck())
-                {
-                    if (buildHelperData.autoSave) Save();
-                }
+                BuildHelperEditorPrefs.UseAsyncPublish = EditorUtility.DisplayDialog("Build Helper",
+                    "Async publishing is a new feature of VRChat Api Tools that lets you build and publish your world without entering playmode. This may speed up your workflow significantly depending on how large your project is. It should already fully work as expected, but has not undergone as much testing as the rest of VR Build Helper. Do you want to use Async Publishing?",
+                    "Enable", "Keep disabled");
             }
             
+            EditorGUILayout.LabelField("Use Async Publisher (beta)");
+            EditorGUILayout.EndHorizontal();
+
+            GUIContent[] versionIncrementModes =
+            {
+                new GUIContent("On build"),
+                new GUIContent("On upload")
+            };
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Increment build number");
+            BuildHelperEditorPrefs.BuildNumberMode = GUILayout.Toolbar(BuildHelperEditorPrefs.BuildNumberMode, versionIncrementModes);
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.EndVertical();
+            GUILayout.Space(10);
+
             if (GUILayout.Button("Close"))
             {
                 settings = false;
             }
-            
-            EditorGUILayout.LabelField("VR Build Helper v1.0.0rc2");
+
+            EditorGUILayout.LabelField("VR Build Helper v1.0.0");
 
             return true;
         }
@@ -236,11 +271,11 @@ namespace BocuD.BuildHelper.Editor
             Rect buttonRect = new Rect(5, buttonRectBase.y, 250, EditorGUIUtility.singleLineHeight);
 
             bool buttonDisabled = true;
-            if (buildHelperData.currentBranchIndex != branchList.index)
+            if (buildHelperData.currentBranch != branchList.index)
             {
                 buttonDisabled = false;
             }
-            else if(buildHelperData.currentBranch.blueprintID != pipelineManager.blueprintId)
+            else if(buildHelperData.CurrentBranch.blueprintID != pipelineManager.blueprintId)
             {
                 buttonDisabled = false;
             }
@@ -249,7 +284,7 @@ namespace BocuD.BuildHelper.Editor
                 
             if (GUI.Button(buttonRect, $"Switch to {buildHelperData.branches[branchList.index].name}"))
             {
-                SwitchBranch(buildHelperData, branchList.index);
+                SwitchBranch(buildHelperBehaviour, branchList.index);
             }
             
             EditorGUI.EndDisabledGroup();
@@ -257,7 +292,7 @@ namespace BocuD.BuildHelper.Editor
 
         private void DrawUpgradeUI()
         {
-            if (buildHelperData.sceneID != "") return;
+            if (buildHelperBehaviour.sceneID != "") return;
 
             EditorGUILayout.HelpBox(
                 "This scene still uses the non GUID based identifier for scene identification. You should consider upgrading using the button below.",
@@ -266,11 +301,11 @@ namespace BocuD.BuildHelper.Editor
             {
                 try
                 {
-                    buildHelperData.DeleteJSON();
-                    buildHelperData.sceneID = BuildHelperData.GetUniqueID();
-                    buildHelperData.SaveToJSON();
-                    EditorSceneManager.SaveScene(buildHelperData.gameObject.scene);
-                    Logger.Log($"Succesfully converted Build Helper data for scene {SceneManager.GetActiveScene().name} to GUID {buildHelperData.sceneID}");
+                    buildHelperBehaviour.DeleteJSON();
+                    buildHelperBehaviour.sceneID = BuildHelperData.GetUniqueID();
+                    buildHelperBehaviour.SaveToJSON();
+                    EditorSceneManager.SaveScene(buildHelperBehaviour.gameObject.scene);
+                    Logger.Log($"Succesfully converted Build Helper data for scene {SceneManager.GetActiveScene().name} to GUID {buildHelperBehaviour.sceneID}");
                 }
                 catch (Exception e)
                 {
@@ -281,9 +316,9 @@ namespace BocuD.BuildHelper.Editor
 
         private void DrawBranchUpgradeUI()
         {
-            if (buildHelperData.currentBranch == null || buildHelperData.currentBranch.branchID != "") return;
+            if (buildHelperData.CurrentBranch == null || buildHelperData.CurrentBranch.branchID != "") return;
             
-            Branch currentBranch = buildHelperData.currentBranch;
+            Branch currentBranch = buildHelperData.CurrentBranch;
 
             EditorGUILayout.HelpBox(
                 "This branch still uses the non GUID based identifier for branches and deployment data identification. You should consider upgrading using the button below. Please keep in mind that this process may not transfer over all deployment data (if any is present) perfectly.", MessageType.Warning);
@@ -323,21 +358,21 @@ namespace BocuD.BuildHelper.Editor
         {
             pipelineManager = FindObjectOfType<PipelineManager>();
 
-            if (buildHelperData.currentBranch == null) return;
+            if (buildHelperData.CurrentBranch == null) return;
 
             if (pipelineManager != null)
             {
                 //dumb check to prevent buildhelper from throwing an error when it doesn't need to
-                if (buildHelperData.currentBranch.blueprintID.Length > 1)
+                if (buildHelperData.CurrentBranch.blueprintID.Length > 1)
                 {
-                    if (pipelineManager.blueprintId != buildHelperData.currentBranch.blueprintID)
+                    if (pipelineManager.blueprintId != buildHelperData.CurrentBranch.blueprintID)
                     {
                         EditorGUILayout.HelpBox(
                             "The scene descriptor blueprint ID currently doesn't match the branch blueprint ID. VR Build Helper will not function properly.",
                             MessageType.Error);
                         if (GUILayout.Button("Auto fix"))
                         {
-                            ApplyPipelineID(buildHelperData.currentBranch.blueprintID);
+                            ApplyPipelineID(buildHelperData.CurrentBranch.blueprintID);
                         }
                     }
                 }
@@ -353,7 +388,7 @@ namespace BocuD.BuildHelper.Editor
                 if (GUILayout.Button(autoFix))
                 {
                     CreateSceneDescriptor();
-                    ApplyPipelineID(buildHelperData.currentBranch.blueprintID);
+                    ApplyPipelineID(buildHelperData.CurrentBranch.blueprintID);
                 }
             }
         }
@@ -404,7 +439,7 @@ namespace BocuD.BuildHelper.Editor
                 if (GUILayout.Button("Open VRChat Control Panel"))
                 {
                     VRCSettings.ActiveWindowPanel = 1;
-                    VRCSdkControlPanel controlPanel = GetWindow<VRCSdkControlPanel>();
+                    GetWindow<VRCSdkControlPanel>();
                 }
                 
                 if (!UpdateLayers.AreLayersSetup())
@@ -433,26 +468,28 @@ namespace BocuD.BuildHelper.Editor
         
         public static void SwitchBranch(BuildHelperData data, int targetBranch)
         {
+            BranchStorageObject storageObject = data.dataObject;
+            
             //prevent indexoutofrangeexception
-            if (data.currentBranchIndex < data.branches.Length && data.currentBranchIndex > -1)
+            if (storageObject.currentBranch < storageObject.branches.Length && storageObject.currentBranch > -1)
             {
-                if (data.branches[data.currentBranchIndex].hasOverrides)
-                    data.overrideContainers[data.currentBranchIndex].ResetStateChanges();
+                if (storageObject.branches[storageObject.currentBranch].hasOverrides)
+                    data.overrideContainers[storageObject.currentBranch].ResetStateChanges();
             }
 
-            data.currentBranchIndex = targetBranch;
+            storageObject.currentBranch = targetBranch;
             data.PrepareExcludedGameObjects();
 
             data.SaveToJSON();
 
-            if (data.branches.Length > targetBranch)
+            if (storageObject.branches.Length > targetBranch)
             {
-                if (data.branches[data.currentBranchIndex].hasOverrides)
-                    data.overrideContainers[data.currentBranchIndex].ApplyStateChanges();
+                if (storageObject.branches[storageObject.currentBranch].hasOverrides)
+                    data.overrideContainers[storageObject.currentBranch].ApplyStateChanges();
 
-                ApplyPipelineID(data.branches[data.currentBranchIndex].blueprintID);
+                ApplyPipelineID(storageObject.branches[storageObject.currentBranch].blueprintID);
             }
-            else if(data.branches.Length == 0)
+            else if(storageObject.branches.Length == 0)
             {
                 ApplyPipelineID("");
             }
@@ -468,7 +505,7 @@ namespace BocuD.BuildHelper.Editor
                 pipelineManager.blueprintId = "";
                 pipelineManager.completedSDKPipeline = false;
 
-                EditorUtility.SetDirty((UnityEngine.Object) pipelineManager);
+                EditorUtility.SetDirty(pipelineManager);
                 EditorSceneManager.MarkSceneDirty(pipelineManager.gameObject.scene);
                 EditorSceneManager.SaveScene(pipelineManager.gameObject.scene);
 
@@ -477,7 +514,7 @@ namespace BocuD.BuildHelper.Editor
                 pipelineManager.blueprintId = blueprintID;
                 pipelineManager.completedSDKPipeline = true;
 
-                EditorUtility.SetDirty((UnityEngine.Object) pipelineManager);
+                EditorUtility.SetDirty(pipelineManager);
                 EditorSceneManager.MarkSceneDirty(pipelineManager.gameObject.scene);
                 EditorSceneManager.SaveScene(pipelineManager.gameObject.scene);
 
@@ -500,11 +537,11 @@ namespace BocuD.BuildHelper.Editor
             }
         }
 
-        private bool deploymentEditor = false, gameObjectOverrides = false;
+        private bool deploymentEditor, gameObjectOverrides;
 
         private void DrawBranchEditor()
         {
-            Branch selectedBranch = buildHelperData.branches[branchList.index];
+            Branch selectedBranch = buildHelperData.CurrentBranch;
 
             GUIStyle styleRichTextLabel = new GUIStyle(GUI.skin.label) { richText = true };
             GUILayout.Label($"<b>Branch Editor</b>", styleRichTextLabel);
@@ -521,7 +558,7 @@ namespace BocuD.BuildHelper.Editor
             if (GUILayout.Button("Change", GUILayout.Width(55)))
             {
                 //spawn editor window
-                BlueprintIDEditor.SpawnEditor(buildHelperData, selectedBranch);
+                BlueprintIDEditor.SpawnEditor(buildHelperBehaviour, selectedBranch);
             }
 
             EditorGUILayout.EndHorizontal();
@@ -559,9 +596,9 @@ namespace BocuD.BuildHelper.Editor
                     "GameObject overrides are rules that can be set up for a branch to exclude GameObjects from builds for that or other branches. Exclusive GameObjects are only included on branches which have them added to the exclusive list. Excluded GameObjects are excluded for branches that have them added.",
                     MessageType.Info);
 
-                _overrideContainer = buildHelperData.overrideContainers[branchList.index];
+                _overrideContainer = buildHelperBehaviour.overrideContainers[buildHelperData.currentBranch];
 
-                if (currentGameObjectContainerIndex != branchList.index) InitGameObjectContainerLists();
+                if (currentGameObjectContainerIndex != buildHelperData.currentBranch) InitGameObjectContainerLists();
                 if (exclusiveGameObjectsList == null) InitGameObjectContainerLists();
                 if (excludedGameObjectsList == null) InitGameObjectContainerLists();
 
@@ -595,7 +632,7 @@ namespace BocuD.BuildHelper.Editor
             EditorGUI.BeginDisabledGroup(!selectedBranch.hasDeploymentData);
             if (GUILayout.Button("Open Deployment Manager", GUILayout.Width(200)))
             {
-                DeploymentManagerEditor.OpenDeploymentManager(buildHelperData, branchList.index);
+                DeploymentManagerEditor.OpenDeploymentManager(buildHelperBehaviour, buildHelperData.currentBranch);
             }
 
             EditorGUI.EndDisabledGroup();
@@ -735,11 +772,11 @@ namespace BocuD.BuildHelper.Editor
 
             EditorGUILayout.BeginHorizontal();
             selectedBranch.hasUdonLink = EditorGUILayout.Toggle("Udon Link", selectedBranch.hasUdonLink);
-            EditorGUI.BeginDisabledGroup(!selectedBranch.hasUdonLink || buildHelperData.linkedBehaviour == null);
+            EditorGUI.BeginDisabledGroup(!selectedBranch.hasUdonLink || buildHelperBehaviour.linkedBehaviour == null);
             if (GUILayout.Button("Open inspector", GUILayout.Width(200)))
             {
                 EditorApplication.ExecuteMenuItem("Window/General/Inspector");
-                Selection.objects = new UnityEngine.Object[] {buildHelperData.linkedBehaviourGameObject};
+                Selection.objects = new UnityEngine.Object[] {buildHelperBehaviour.linkedBehaviourGameObject};
             }
 
             EditorGUI.EndDisabledGroup();
@@ -747,9 +784,9 @@ namespace BocuD.BuildHelper.Editor
 
             if (selectedBranch.hasUdonLink)
             {
-                if (buildHelperData.linkedBehaviourGameObject != null)
+                if (buildHelperBehaviour.linkedBehaviourGameObject != null)
                 {
-                    buildHelperData.linkedBehaviour = buildHelperData.linkedBehaviourGameObject
+                    buildHelperBehaviour.linkedBehaviour = buildHelperBehaviour.linkedBehaviourGameObject
                         .GetUdonSharpComponent<BuildHelperUdon>();
                 }
 
@@ -762,20 +799,20 @@ namespace BocuD.BuildHelper.Editor
 
                 if (EditorGUI.EndChangeCheck())
                 {
-                    if (buildHelperData.linkedBehaviour == null)
+                    if (buildHelperBehaviour.linkedBehaviour == null)
                     {
-                        buildHelperData.linkedBehaviourGameObject = null;
+                        buildHelperBehaviour.linkedBehaviourGameObject = null;
                     }
-                    else buildHelperData.linkedBehaviourGameObject = buildHelperData.linkedBehaviour.gameObject;
+                    else buildHelperBehaviour.linkedBehaviourGameObject = buildHelperBehaviour.linkedBehaviour.gameObject;
                 }
 
-                if (buildHelperData.linkedBehaviourGameObject == null)
+                if (buildHelperBehaviour.linkedBehaviourGameObject == null)
                 {
                     if (GUILayout.Button("Create new", GUILayout.Width(100)))
                     {
                         GameObject buildHelperUdonGameObject = new GameObject("BuildHelperUdon");
                         buildHelperUdonGameObject.AddUdonSharpComponent<BuildHelperUdon>();
-                        buildHelperData.linkedBehaviourGameObject = buildHelperUdonGameObject;
+                        buildHelperBehaviour.linkedBehaviourGameObject = buildHelperUdonGameObject;
                     }
 
                     EditorGUILayout.EndHorizontal();
@@ -800,8 +837,14 @@ namespace BocuD.BuildHelper.Editor
         }
 
         private bool editMode;
+        private bool editModeChanges;
+        private string tempName;
+        private string tempDesc;
+        private int tempCap;
+        private bool applying;
+        private Branch applyBranch;
+        private List<string> tempTags;
 
-        //TODO: clean up VRC world editor to make code less messy
         private void DrawVRCWorldEditor(Branch branch)
         {
             GUILayout.BeginVertical("Helpbox");
@@ -811,11 +854,12 @@ namespace BocuD.BuildHelper.Editor
             EditorGUI.BeginDisabledGroup(Application.isPlaying);
             if (GUILayout.Button("Force Refresh", GUILayout.Width(100)))
             {
-                VRChatApiTools.RefreshData();
+                VRChatApiToolsEditor.RefreshData();
             }
+
             EditorGUI.EndDisabledGroup();
             GUILayout.EndHorizontal();
-            
+
             ApiWorld apiWorld = null;
             bool apiWorldLoaded = true;
             bool isNewWorld = false;
@@ -825,7 +869,8 @@ namespace BocuD.BuildHelper.Editor
             {
                 if (Application.isPlaying)
                 {
-                    EditorGUILayout.HelpBox("Loading world information from VRChat in playmode is not supported.", MessageType.Info);
+                    EditorGUILayout.HelpBox("Loading world information from VRChat in playmode is not supported.",
+                        MessageType.Info);
                     apiWorldLoaded = false;
                 }
                 else if (!VRChatApiTools.worldCache.TryGetValue(branch.blueprintID, out apiWorld))
@@ -838,8 +883,10 @@ namespace BocuD.BuildHelper.Editor
                 if (VRChatApiTools.invalidWorlds.Contains(branch.blueprintID))
                 {
                     loadError = true;
-                    EditorGUILayout.HelpBox("Couldn't load world information. This can happen if the blueprint ID is invalid, or if the world was deleted.", MessageType.Error);
-                } 
+                    EditorGUILayout.HelpBox(
+                        "Couldn't load world information. This can happen if the blueprint ID is invalid, or if the world was deleted.",
+                        MessageType.Error);
+                }
                 else if (!isNewWorld && apiWorld == null && !Application.isPlaying)
                 {
                     EditorGUILayout.LabelField("Loading world information...");
@@ -851,8 +898,12 @@ namespace BocuD.BuildHelper.Editor
                 isNewWorld = true;
                 apiWorldLoaded = false;
             }
-            
-            GUIStyle styleRichTextLabelBig = new GUIStyle(GUI.skin.label) { richText = true, fontSize = 20, wordWrap = true };
+
+            if (isNewWorld) branch.remoteExists = false;
+            else if (apiWorldLoaded) branch.remoteExists = true;
+
+            GUIStyle styleRichTextLabelBig = new GUIStyle(GUI.skin.label)
+                { richText = true, fontSize = 20, wordWrap = true };
 
             if (loadError)
             {
@@ -864,215 +915,276 @@ namespace BocuD.BuildHelper.Editor
             }
             else
             {
-                string headerText = apiWorldLoaded ? $"<b>{apiWorld.name}</b> by {apiWorld.authorName}" : branch.cachedName;
+                string headerText = branch.cachedName;
+
+                if (apiWorldLoaded)
+                {
+                    CacheWorldInfo(branch, apiWorld);
+                    headerText = $"<b>{apiWorld.name}</b> by {apiWorld.authorName}";
+                }
+
                 GUILayout.Label(headerText, styleRichTextLabelBig);
             }
 
             float imgWidth = 170;
             float width = position.width - imgWidth - 20;
-            
-            GUIStyle worldInfoStyle = new GUIStyle(GUI.skin.label) {wordWrap = true, fixedWidth = width, richText = true};
-            
+
+            GUIStyle worldInfoStyle = new GUIStyle(GUI.skin.label)
+                { wordWrap = true, fixedWidth = width, richText = true };
+
             GUILayout.BeginHorizontal();
-            
-            //Draw normal world editor
+
+            GUILayout.BeginVertical(GUILayout.Width(width));
+
+            string displayName = "", displayDesc = "", displayCap = "", displayTags = "", displayRelease = "";
+
+            //draw world editor
             if (!editMode)
             {
-                GUILayout.BeginVertical(GUILayout.Width(width));
-
-                //cache world information
-                if (apiWorldLoaded && !loadError)
+                if (isNewWorld)
                 {
-                    bool localDataOutdated = false;
-
-                    if (branch.cachedName != apiWorld.name)
-                    {
-                        branch.cachedName = apiWorld.name;
-                        localDataOutdated = true;
-                    }
-
-                    if (branch.cachedDescription != apiWorld.description)
-                    {
-                        branch.cachedDescription = apiWorld.description;
-                        localDataOutdated = true;
-                    }
-
-                    if (branch.cachedCap != apiWorld.capacity)
-                    {
-                        branch.cachedCap = apiWorld.capacity;
-                        localDataOutdated = true;
-                    }
-
-                    if (!branch.cachedTags.SequenceEqual(apiWorld.publicTags))
-                    {
-                        branch.cachedTags = apiWorld.publicTags.ToList();
-                        localDataOutdated = true;
-                    }
-
-                    if (branch.cachedRelease != apiWorld.releaseStatus)
-                    {
-                        branch.cachedRelease = apiWorld.releaseStatus;
-                        localDataOutdated = true;
-                    }
-
-                    if (localDataOutdated)
-                    {
-                        if (branch.editedName == "notInitialised") branch.editedName = branch.cachedName;
-                        if (branch.editedDescription == "notInitialised") branch.editedDescription = branch.cachedDescription;
-                        if (branch.editedCap == -1) branch.editedCap = branch.cachedCap;
-                        if (branch.editedTags.Count == 0) branch.editedTags = branch.cachedTags.ToList();
-                    }
-
-                    if (localDataOutdated) TrySave();
-
-                    string displayName = branch.nameChanged
+                    displayName = $"<color=gray>{branch.editedName}</color>";
+                    displayDesc = $"<color=gray>{branch.editedDescription}</color>";
+                    displayCap = $"<color=gray>{branch.editedCap}</color>";
+                    displayTags = $"<color=gray>{VRChatApiTools.DisplayTags(branch.editedTags)}</color>";
+                    displayRelease = $"<b>New world</b>";
+                }
+                else if (apiWorld != null)
+                {
+                    displayName = branch.nameChanged
                         ? $"<color=yellow>{branch.editedName}</color>"
                         : apiWorld.name;
-                    string displayDesc = branch.descriptionChanged
+                    displayDesc = branch.descriptionChanged
                         ? $"<color=yellow>{branch.editedDescription}</color>"
                         : apiWorld.description;
-                    string displayCap = branch.capacityChanged
+                    displayCap = branch.capacityChanged
                         ? $"<color=yellow>{branch.editedCap}</color>"
                         : apiWorld.capacity.ToString();
-                    string displayTags = branch.tagsChanged
-                        ? $"<color=yellow>{DisplayTags(branch.editedTags)}</color>"
-                        : DisplayTags(apiWorld.publicTags);
-
-                    EditorGUILayout.LabelField("Name: " + displayName, worldInfoStyle);
-                    EditorGUILayout.LabelField("Description: " + displayDesc, worldInfoStyle);
-                    EditorGUILayout.LabelField($"Capacity: " + displayCap, worldInfoStyle);
-                    EditorGUILayout.LabelField($"Tags: " + displayTags, worldInfoStyle);
-                    
-                    EditorGUILayout.LabelField($"Release: " + apiWorld.releaseStatus, worldInfoStyle);
-
-                    if (branch.nameChanged || branch.descriptionChanged || branch.capacityChanged || branch.tagsChanged || branch.vrcImageHasChanges)
-                    {
-                        GUIStyle infoStyle = new GUIStyle(EditorStyles.helpBox) {fixedWidth = width, richText = true};
-                        string changesWarning = branch.vrcImageWarning +
-                                                "<color=yellow>Your changes will be applied with the next upload.</color>";
-                        EditorGUILayout.LabelField(changesWarning, infoStyle);
-                    }
-
-                    EditorGUILayout.BeginHorizontal();
-                    GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 100};
-
-                    if (GUILayout.Button("Edit", buttonStyle))
-                    {
-                        editMode = true;
-                        
-                        branch.editedName = branch.nameChanged ? branch.editedName : apiWorld.name;
-                        branch.editedDescription = branch.descriptionChanged ? branch.editedDescription : apiWorld.description;
-                        branch.editedCap = branch.capacityChanged ? branch.editedCap : apiWorld.capacity;
-                        branch.editedTags = branch.tagsChanged ? branch.editedTags : apiWorld.publicTags.ToList();
-                    }
-
-                    if (!editMode)
-                    {
-                        buttonStyle.fixedWidth = 200;
-                        if (GUILayout.Button("View on VRChat website", buttonStyle))
-                        {
-                            Application.OpenURL($"https://vrchat.com/home/world/{branch.blueprintID}");
-                        }
-                    }
-
-                    EditorGUILayout.EndHorizontal();
-                }
-                else
-                {
-                    if (isNewWorld)
-                    {
-                        EditorGUILayout.LabelField("Name: ", worldInfoStyle);
-                        EditorGUILayout.LabelField("Description: ", worldInfoStyle);
-                        EditorGUILayout.LabelField($"Capacity: ", worldInfoStyle);
-                        EditorGUILayout.LabelField($"Tags: ", worldInfoStyle);
-                        EditorGUILayout.LabelField($"Release: ", worldInfoStyle);
-                    }
-                    else
-                    {
-                        EditorGUILayout.LabelField("Name: " + branch.cachedName, worldInfoStyle);
-                        EditorGUILayout.LabelField("Description: " + branch.cachedDescription, worldInfoStyle);
-                        EditorGUILayout.LabelField($"Capacity: " + branch.cachedCap, worldInfoStyle);
-                        EditorGUILayout.LabelField($"Tags: " + DisplayTags(branch.cachedTags), worldInfoStyle);
-                        EditorGUILayout.LabelField($"Release: " + branch.cachedRelease, worldInfoStyle);
-                    }
+                    displayTags = branch.tagsChanged
+                        ? $"<color=yellow>{VRChatApiTools.DisplayTags(branch.editedTags)}</color>"
+                        : VRChatApiTools.DisplayTags(apiWorld.publicTags);
+                    displayRelease = apiWorld.releaseStatus;
                 }
 
-                GUILayout.EndVertical();
+                EditorGUILayout.LabelField("Name: " + displayName, worldInfoStyle);
+                EditorGUILayout.LabelField("Description: " + displayDesc, worldInfoStyle);
+                EditorGUILayout.LabelField($"Capacity: " + displayCap, worldInfoStyle);
+                EditorGUILayout.LabelField($"Tags: " + displayTags, worldInfoStyle);
+
+                EditorGUILayout.LabelField($"Release: " + displayRelease, worldInfoStyle);
             }
-            else //Edit mode
+            else
             {
-                GUILayout.BeginVertical(GUILayout.Width(width));
-
-                branch.editedName = EditorGUILayout.TextField("Name:", branch.editedName);
+                EditorGUI.BeginChangeCheck();
+                tempName = EditorGUILayout.TextField("Name:", tempName);
                 EditorGUILayout.LabelField("Description:");
-                branch.editedDescription = EditorGUILayout.TextArea(branch.editedDescription, new GUIStyle(EditorStyles.textArea) {wordWrap = true});
-                branch.editedCap = EditorGUILayout.IntField($"Capacity:", branch.editedCap);
-                
+                tempDesc = EditorGUILayout.TextArea(tempDesc,
+                    new GUIStyle(EditorStyles.textArea) { wordWrap = true });
+                tempCap = EditorGUILayout.IntField($"Capacity:", tempCap);
+
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField("Tags:");
                 GUILayout.FlexibleSpace();
                 if (GUILayout.Button("Add tag", GUILayout.Width(70)))
                 {
-                    branch.editedTags.Add("author_tag_new tag");
+                    tempTags.Add("author_tag_new tag");
                 }
+
                 EditorGUILayout.EndHorizontal();
-                
-                for (int i = 0; i < branch.editedTags.Count; i++)
+
+                for (int i = 0; i < tempTags.Count; i++)
                 {
                     EditorGUILayout.BeginHorizontal();
                     //don't expose the user to author_tag_
-                    branch.editedTags[i] = "author_tag_" + EditorGUILayout.TextField(branch.editedTags[i].Substring(11));
-                    
+                    tempTags[i] = "author_tag_" + EditorGUILayout.TextField(tempTags[i].Substring(11));
+
                     if (GUILayout.Button("Delete", GUILayout.Width(70)))
                     {
-                        branch.editedTags.RemoveAt(i);
+                        tempTags.RemoveAt(i);
                     }
+
                     EditorGUILayout.EndHorizontal();
                 }
 
-                EditorGUILayout.LabelField(apiWorldLoaded ? $"Release: " + apiWorld.releaseStatus : branch.cachedRelease, worldInfoStyle);
+                if (EditorGUI.EndChangeCheck()) editModeChanges = true;
 
-                if (branch.vrcImageHasChanges)
+                EditorGUILayout.LabelField(
+                    apiWorldLoaded ? $"Release: " + apiWorld.releaseStatus : $"Release: " + branch.cachedRelease,
+                    worldInfoStyle);
+            }
+
+            if (branch.nameChanged || branch.descriptionChanged || branch.capacityChanged || branch.tagsChanged ||
+                branch.vrcImageHasChanges)
+            {
+                GUIStyle infoStyle = new GUIStyle(EditorStyles.helpBox) { fixedWidth = width, richText = true };
+                string changesWarning = branch.vrcImageWarning +
+                                        "<color=yellow>Your changes will be applied automatically with the next upload. You can also apply changes directly by clicking [Apply Changes to World].</color>";
+                EditorGUILayout.LabelField(changesWarning, infoStyle);
+            }
+
+            GUILayout.EndVertical();
+
+            //draw image
+            if (branch.vrcImageHasChanges)
+            {
+                if (!modifiedWorldImages.ContainsKey(branch.branchID))
                 {
-                    GUIStyle infoStyle = new GUIStyle(EditorStyles.helpBox) {fixedWidth = width, richText = true};
-                    EditorGUILayout.LabelField(branch.vrcImageWarning, infoStyle);
+                    modifiedWorldImages.Add(branch.branchID,
+                        AssetDatabase.LoadAssetAtPath<Texture2D>(
+                            ImageTools.GetImageAssetPath(buildHelperBehaviour.sceneID, branch.branchID)));
                 }
 
-                GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 100};
+                if (modifiedWorldImages.ContainsKey(branch.branchID))
+                {
+                    GUILayout.BeginVertical();
+                    GUILayout.Box(modifiedWorldImages[branch.branchID], GUILayout.Width(imgWidth),
+                        GUILayout.Height(imgWidth / 4 * 3));
+                    GUILayout.Space(8);
+                    GUILayout.EndVertical();
+                }
+            }
+            else
+            {
+                if (apiWorldLoaded && !loadError)
+                {
+                    if (VRChatApiTools.ImageCache.ContainsKey(apiWorld.id))
+                    {
+                        GUILayout.BeginVertical();
+                        GUILayout.Box(VRChatApiTools.ImageCache[apiWorld.id], GUILayout.Width(imgWidth),
+                            GUILayout.Height(imgWidth / 4 * 3));
+                        GUILayout.Space(8);
+                        GUILayout.EndVertical();
+                    }
+                }
+            }
 
-                EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button("Save", buttonStyle))
+            GUILayout.EndHorizontal();
+
+            //draw buttons
+            EditorGUILayout.BeginHorizontal();
+            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { fixedWidth = 100, richText = true };
+
+            if (!editMode)
+            {
+                if (GUILayout.Button("Edit", buttonStyle))
+                {
+                    editMode = true;
+                    editModeChanges = false;
+
+                    if (!isNewWorld)
+                    {
+                        tempName = branch.nameChanged ? branch.editedName : apiWorld.name;
+                        tempDesc = branch.descriptionChanged ? branch.editedDescription : apiWorld.description;
+                        tempCap = branch.capacityChanged ? branch.editedCap : apiWorld.capacity;
+                        tempTags = branch.tagsChanged ? branch.editedTags.ToList() : apiWorld.publicTags.ToList();
+                    }
+                    else
+                    {
+                        tempName = branch.editedName;
+                        tempDesc = branch.editedDescription;
+                        tempCap = branch.editedCap;
+                        tempTags = branch.editedTags.ToList();
+                    }
+                }
+
+                buttonStyle.fixedWidth = 170;
+                if (GUILayout.Button("View on VRChat website", buttonStyle))
+                {
+                    Application.OpenURL($"https://vrchat.com/home/world/{branch.blueprintID}");
+                }
+
+                if (!isNewWorld && apiWorldLoaded && branch.HasVRCDataChanges())
+                {
+                    EditorGUI.BeginDisabledGroup(applying);
+
+                    if (GUILayout.Button(
+                            applying ? "Applying changes..." : "<color=yellow>Apply Changes to World</color>",
+                            buttonStyle))
+                    {
+                        if (EditorUtility.DisplayDialog("Applying Changes to VRChat World",
+                                "Applying changes will immediately apply any changes you made here without reuploading the world. Are you sure you want to continue?",
+                                "Yes", "No"))
+                        {
+                            ApplyBranchChanges(branch, apiWorld);
+                        }
+                    }
+
+                    EditorGUI.EndDisabledGroup();
+                }
+            }
+            else
+            {
+                if (GUILayout.Button(editModeChanges ? "Save" : "Cancel", buttonStyle))
                 {
                     editMode = false;
 
-                    branch.nameChanged = branch.editedName != apiWorld.name;
-                    branch.descriptionChanged = branch.editedDescription != apiWorld.description;
-                    branch.capacityChanged = branch.editedCap != apiWorld.capacity;
-                    branch.tagsChanged = !branch.editedTags.SequenceEqual(apiWorld.publicTags);
-                    
-                    TrySave();
+                    if (editModeChanges)
+                    {
+                        branch.editedName = tempName;
+                        branch.editedDescription = tempDesc;
+                        branch.editedCap = tempCap;
+                        branch.editedTags = tempTags.ToList();
+
+                        if (isNewWorld)
+                        {
+                            branch.nameChanged = branch.editedName != "New VRChat World";
+                            branch.descriptionChanged = branch.editedDescription != "Fancy description for your world";
+                            branch.capacityChanged = branch.editedCap != 16;
+                            branch.tagsChanged = !branch.editedTags.SequenceEqual(new List<string>());
+                        }
+                        else
+                        {
+                            branch.nameChanged = branch.editedName != apiWorld.name;
+                            branch.descriptionChanged = branch.editedDescription != apiWorld.description;
+                            branch.capacityChanged = branch.editedCap != apiWorld.capacity;
+                            branch.tagsChanged = !branch.editedTags.SequenceEqual(apiWorld.publicTags);
+                        }
+
+                        TrySave();
+                    }
                 }
 
-                if (GUILayout.Button("Revert", buttonStyle))
+                EditorGUI.BeginDisabledGroup(!editModeChanges && isNewWorld);
+                if (GUILayout.Button(
+                        editModeChanges
+                            ? new GUIContent("Revert")
+                            : new GUIContent("Revert All",
+                                isNewWorld ? "There is nothing to revert to on new worlds." : ""), buttonStyle))
                 {
-                    branch.editedName = apiWorld.name;
-                    branch.editedDescription = apiWorld.description;
-                    branch.editedCap = apiWorld.capacity;
-                    branch.editedTags = apiWorld.publicTags.ToList();
-                    
-                    branch.nameChanged = false;
-                    branch.descriptionChanged = false;
-                    branch.capacityChanged = false;
-                    branch.tagsChanged = false;
-                    
-                    editMode = false;
+                    if (!editModeChanges)
+                    {
+                        if (EditorUtility.DisplayDialog("Reverting all changes",
+                                "You don't seem to have made any text changes while in edit mode. Clicking revert will reset all previously edited text to what is currently stored on VRChat's servers. Do you want to proceed?",
+                                "Proceed", "Cancel"))
+                        {
+                            branch.editedName = branch.cachedName;
+                            branch.editedDescription = branch.cachedDescription;
+                            branch.editedCap = branch.cachedCap;
+                            branch.editedTags = branch.cachedTags.ToList();
 
-                    TrySave();
+                            branch.nameChanged = false;
+                            branch.descriptionChanged = false;
+                            branch.capacityChanged = false;
+                            branch.tagsChanged = false;
+
+                            editMode = false;
+
+                            TrySave();
+                        }
+                    }
+                    else
+                    {
+                        editMode = false;
+
+                        TrySave();
+                    }
                 }
+
+                EditorGUI.EndDisabledGroup();
 
                 if (GUILayout.Button("Replace image", buttonStyle))
                 {
-                    string[] allowedFileTypes = {"png"};
+                    string[] allowedFileTypes = { "png" };
                     imageBranch = branch;
                     NativeFilePicker.PickFile(OnImageSelected, allowedFileTypes);
                 }
@@ -1086,7 +1198,7 @@ namespace BocuD.BuildHelper.Editor
 
                         modifiedWorldImages.Remove(branch.branchID);
 
-                        string oldImagePath = ImageTools.GetImageAssetPath(buildHelperData.sceneID, branch.branchID);
+                        string oldImagePath = ImageTools.GetImageAssetPath(buildHelperBehaviour.sceneID, branch.branchID);
 
                         Texture2D oldImage =
                             AssetDatabase.LoadAssetAtPath(oldImagePath, typeof(Texture2D)) as Texture2D;
@@ -1097,64 +1209,99 @@ namespace BocuD.BuildHelper.Editor
                         }
                     }
                 }
-
-                EditorGUILayout.EndHorizontal();
-                GUILayout.EndVertical();
             }
 
-            if (branch.vrcImageHasChanges)
-            {
-                if (!modifiedWorldImages.ContainsKey(branch.branchID))
-                {
-                    modifiedWorldImages.Add(
-                        branch.branchID,
-                        AssetDatabase.LoadAssetAtPath<Texture2D>(ImageTools.GetImageAssetPath(buildHelperData.sceneID, branch.branchID)));
-                }
-
-                if (modifiedWorldImages.ContainsKey(branch.branchID))
-                {
-                    GUILayout.BeginVertical();
-                    GUILayout.Box(modifiedWorldImages[branch.branchID], GUILayout.Width(imgWidth), GUILayout.Height(imgWidth / 4 * 3));
-                    GUILayout.Space(8);
-                    GUILayout.EndVertical();
-                }
-            }
-            else
-            {
-                if (apiWorldLoaded && !loadError)
-                {
-                    if (VRChatApiTools.ImageCache.ContainsKey(apiWorld.id))
-                    {
-                        GUILayout.BeginVertical();
-                        GUILayout.Box(VRChatApiTools.ImageCache[apiWorld.id], GUILayout.Width(imgWidth), GUILayout.Height(imgWidth/4*3));
-                        GUILayout.Space(8);
-                        GUILayout.EndVertical();
-                    }
-                }
-            }
-            GUILayout.EndHorizontal();
+            EditorGUILayout.EndHorizontal();
 
             GUILayout.EndVertical();
         }
 
-        private static string DisplayTags(List<string> tags)
+        private async void ApplyBranchChanges(Branch branch, ApiWorld apiWorld)
         {
-            string output = "";
-            
-            foreach (string tag in tags)
+            applyBranch = branch;
+            applying = true;
+
+            apiWorld.name = branch.editedName;
+            apiWorld.description = branch.editedDescription;
+            apiWorld.capacity = branch.editedCap;
+            apiWorld.tags = branch.editedTags.ToList();
+
+            if (branch.vrcImageHasChanges)
             {
-                output += tag.ReplaceFirst("author_tag_", "") + ", ";
+                VRChatApiUploaderAsync uploaderAsync = new VRChatApiUploaderAsync();
+                apiWorld.imageUrl = await uploaderAsync.UploadImage(apiWorld.imageUrl,
+                    VRChatApiTools.GetFriendlyWorldFileName("Image", apiWorld), branch.overrideImagePath);
+                branch.vrcImageHasChanges = false;
             }
 
-            if (output.Contains(", "))
-                output = output.Substring(0, output.Length - 2);
-            
-            return output;
+            apiWorld.Save(c =>
+            {
+                applyBranch.nameChanged = false;
+                applyBranch.descriptionChanged = false;
+                applyBranch.capacityChanged = false;
+                applyBranch.tagsChanged = false;
+
+                VRChatApiToolsEditor.RefreshData();
+                applying = false;
+                Logger.Log($"Succesfully applied changed to {branch.name}");
+            }, c =>
+            {
+                EditorUtility.DisplayDialog("Build Helper",
+                    $"Couldn't apply changes to target branch: {c.Error}", "Ok");
+
+                VRChatApiToolsEditor.RefreshData();
+                applying = false;
+            });
+        }
+
+        private void CacheWorldInfo(Branch branch, ApiWorld apiWorld)
+        {
+            bool localDataOutdated = false;
+
+            if (branch.cachedName != apiWorld.name)
+            {
+                branch.cachedName = apiWorld.name;
+                localDataOutdated = true;
+            }
+
+            if (branch.cachedDescription != apiWorld.description)
+            {
+                branch.cachedDescription = apiWorld.description;
+                localDataOutdated = true;
+            }
+
+            if (branch.cachedCap != apiWorld.capacity)
+            {
+                branch.cachedCap = apiWorld.capacity;
+                localDataOutdated = true;
+            }
+
+            if (!branch.cachedTags.SequenceEqual(apiWorld.publicTags))
+            {
+                branch.cachedTags = apiWorld.publicTags.ToList();
+                localDataOutdated = true;
+            }
+
+            if (branch.cachedRelease != apiWorld.releaseStatus)
+            {
+                branch.cachedRelease = apiWorld.releaseStatus;
+                localDataOutdated = true;
+            }
+
+            if (localDataOutdated)
+            {
+                if (branch.editedName == "notInitialised") branch.editedName = branch.cachedName;
+                if (branch.editedDescription == "notInitialised") branch.editedDescription = branch.cachedDescription;
+                if (branch.editedCap == -1) branch.editedCap = branch.cachedCap;
+                if (branch.editedTags.Count == 0) branch.editedTags = branch.cachedTags.ToList();
+            }
+
+            if (localDataOutdated) TrySave();
         }
 
         private Branch imageBranch;
 
-        public void OnImageSelected(string filePath)
+        private void OnImageSelected(string filePath)
         {
             if (File.Exists(filePath))
             {
@@ -1164,9 +1311,16 @@ namespace BocuD.BuildHelper.Editor
                     Texture2D overrideImage = new Texture2D(2, 2);
                     
                     overrideImage.LoadImage(fileData); //..this will auto-resize the texture dimensions.
-
+                    overrideImage.Apply();
+                    
                     //check aspect ratio and resolution
                     imageBranch.vrcImageWarning = ImageTools.GenerateImageFeedback(overrideImage.width, overrideImage.height);
+
+                    //resize image if needed (for some reason i can just upload 8k images to 
+                    if (overrideImage.width != 1200 || overrideImage.height != 900)
+                    {
+                        overrideImage = ImageTools.Resize(overrideImage, 1200, 900);
+                    }
 
                     //encode image as PNG
                     byte[] worldImagePNG = overrideImage.EncodeToPNG();
@@ -1178,9 +1332,9 @@ namespace BocuD.BuildHelper.Editor
                     }
                     
                     //write image
-                    File.WriteAllBytes(ImageTools.GetImagePath(buildHelperData.sceneID, imageBranch.branchID), worldImagePNG);
+                    File.WriteAllBytes(ImageTools.GetImagePath(buildHelperBehaviour.sceneID, imageBranch.branchID), worldImagePNG);
 
-                    string savePath = ImageTools.GetImageAssetPath(buildHelperData.sceneID, imageBranch.branchID);
+                    string savePath = ImageTools.GetImageAssetPath(buildHelperBehaviour.sceneID, imageBranch.branchID);
 
                     AssetDatabase.WriteImportSettingsIfDirty(savePath);
                     AssetDatabase.ImportAsset(savePath);
@@ -1195,6 +1349,9 @@ namespace BocuD.BuildHelper.Editor
                     AssetDatabase.ImportAsset(savePath);
 
                     imageBranch.vrcImageHasChanges = true;
+                    imageBranch.overrideImagePath = savePath;
+
+                    editModeChanges = true;
 
                     TrySave();
                 }
@@ -1208,7 +1365,7 @@ namespace BocuD.BuildHelper.Editor
                 Logger.LogError("Null filepath was passed to image processor, skipping process steps");
             }
         }
-
+        
         private void DisplayBuildInformation(Branch branch)
         {
             BuildData buildData = branch.buildData;
@@ -1226,9 +1383,11 @@ namespace BocuD.BuildHelper.Editor
             Rect BuildStatusTextRect = new Rect(buildRect.x + 37, buildRect.y - 51, position.width,
                 EditorGUIUtility.singleLineHeight);
 
-            GUIStyle buildStatusStyle = new GUIStyle(GUI.skin.label);
-            buildStatusStyle.wordWrap = false;
-            buildStatusStyle.fixedWidth = 400;
+            GUIStyle buildStatusStyle = new GUIStyle(GUI.skin.label)
+            {
+                wordWrap = false,
+                fixedWidth = 400
+            };
 
             GUI.Label(BuildStatusTextRect,
                 $"Last PC build: {(buildData.pcBuildVersion == -1 ? "Unknown" : $"build {buildData.pcBuildVersion} ({buildData.pcBuildTime})")}",
@@ -1310,15 +1469,7 @@ namespace BocuD.BuildHelper.Editor
                 return;
             }
             
-            if (!VRChatApiToolsEditor.HandleLogin(this, false)) return;
-
-            if (branchList.index != buildHelperData.currentBranchIndex)
-            {
-                EditorGUILayout.HelpBox(
-                    "Please select the current branch before building or switch to the desired branch.",
-                    MessageType.Error);
-                return;
-            }
+            if (!VRChatApiToolsGUI.HandleLogin(this, false)) return;
 
             DrawBuildTargetSwitcher();
 
@@ -1356,7 +1507,7 @@ namespace BocuD.BuildHelper.Editor
                     : "Equivalent to the (Last build) Build & Test option in the VRChat SDK");
             if (GUILayout.Button(lastBuildTextTest, buttonStyle))
             {
-                if (CheckLastBuildBranch())
+                if (CheckLastBuiltBranch())
                 {
                     if (CheckLastBuild())
                     {
@@ -1390,7 +1541,7 @@ namespace BocuD.BuildHelper.Editor
                     : "Equivalent to using the (Last build) Enable World Reload option in the VRChat SDK with number of clients set to 0");
             if (GUILayout.Button(lastBuildTextReload, buttonStyle))
             {
-                if (CheckLastBuildBranch())
+                if (CheckLastBuiltBranch())
                 {
                     if (CheckLastBuild())
                     {
@@ -1409,7 +1560,7 @@ namespace BocuD.BuildHelper.Editor
             }
             
             EditorGUI.EndDisabledGroup();
-
+            
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.EndVertical();
             
@@ -1424,7 +1575,7 @@ namespace BocuD.BuildHelper.Editor
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Publish to VRChat");
 
-            bool lastBuildPublishBlocked = !CheckLastBuildPlatform();
+            bool lastBuildPublishBlocked = !CheckLastBuildPlatform() || buildHelperData.lastBuiltBranch != buildHelperData.CurrentBranch.branchID;
             
             EditorGUI.BeginDisabledGroup(lastBuildPublishBlocked);
             
@@ -1432,14 +1583,31 @@ namespace BocuD.BuildHelper.Editor
                 !CheckLastBuildPlatform()
                     ? $"Your last build was for a different target platform ({buildHelperData.lastBuiltPlatform}). Your current platform is {GetCurrentPlatform()}."
                     : "Equivalent to (Last build) Build & Publish in the VRChat SDK");
-            
+
+            if (lastBuildPublishBlocked && CheckLastBuildPlatform())
+                lastBuildPublish.tooltip = "Your last build was for a different branch.";
+
             if (GUILayout.Button(lastBuildPublish, buttonStyle))
             {
-                if (CheckLastBuildBranch())
-                {
-                    if (CheckAccount())
+                if (CheckLastBuiltBranch())
+                {               
+                    Branch targetBranch = buildHelperData.CurrentBranch;
+
+                    bool canPublish = true;
+                    if (!targetBranch.remoteExists && !targetBranch.HasVRCDataChanges())
                     {
-                        BuildHelperBuilder.PublishLastBuild();
+                        canPublish = EditorUtility.DisplayDialog("Build Helper",
+                            $"You are about to publish a new world, but you haven't edited any world details. The async publisher doesn't enter playmode, so your world will be uploaded as '{targetBranch.editedName}'. Do you want to continue?",
+                            "Continue", "Cancel");
+                    }
+
+                    if (canPublish && CheckAccount())
+                    {
+                        if (BuildHelperEditorPrefs.UseAsyncPublish)
+                        {
+                            Task publishTask = BuildHelperBuilder.PublishLastBuildAsync(buildHelperData.CurrentBranch, OnSuccesfulPublish);
+                        }
+                        else BuildHelperBuilder.PublishLastBuild();
                     }
                 }
             }
@@ -1449,49 +1617,44 @@ namespace BocuD.BuildHelper.Editor
 
             if (GUILayout.Button(newBuildPublish, buttonStyle))
             {
-                if (CheckAccount())
+                Branch targetBranch = buildHelperData.CurrentBranch;
+                
+                bool canPublish = true;
+                if (!targetBranch.remoteExists && !targetBranch.HasVRCDataChanges())
                 {
-                    BuildHelperBuilder.PublishNewBuild();
+                    canPublish = EditorUtility.DisplayDialog("Build Helper",
+                        $"You are about to publish a new world, but you haven't edited any world details. The async publisher doesn't enter playmode, so your world will be uploaded as '{targetBranch.editedName}'. Do you want to continue?",
+                        "Continue", "Cancel");
+                }
+
+                if (canPublish && CheckAccount())
+                {
+                    if (BuildHelperEditorPrefs.UseAsyncPublish)
+                    {
+                        BuildHelperBuilder.PublishNewBuildAsync(buildHelperData.CurrentBranch, OnSuccesfulPublish);
+                    }
+                    else BuildHelperBuilder.PublishNewBuild();
                 }
             }
 
             EditorGUILayout.EndHorizontal();
-
-            EditorGUILayout.Space();
-
-            GUILayout.Label("<b>Autonomous build</b>", styleRichTextLabel);
-            EditorGUILayout.HelpBox(
-                "Autonomous build can be used to publish your world for both PC and Android automatically with one button press.",
-                MessageType.Info);
-
+            
             EditorGUILayout.BeginHorizontal();
-            GUIStyle autoButtonStyle = new GUIStyle(GUI.skin.button) {fixedHeight = 40};
-            string platform = EditorUserBuildSettings.activeBuildTarget == BuildTarget.Android ? "Android" : "PC";
-            if (GUILayout.Button($"Build and publish for {platform}", autoButtonStyle))
-            {
-                if (CheckAccount())
-                {
-                    if (InitAutonomousBuild(true))
-                    {
-                        buildHelperData.SaveToJSON();
+            EditorGUILayout.LabelField("Autonomous Builder");
 
-                        AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
-                        statusWindow.AddLog("Initiating autonomous builder...");
-                        statusWindow.currentPlatform = buildHelperData.autonomousBuild.initialTarget;
-                        statusWindow.currentState = AutonomousBuildState.building;
+            GUIStyle autoButtonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 283};
 
-                        BuildHelperBuilder.PublishNewBuild();
-                    }
-                }
-            }
+            bool autonomousPublishBlocked = !buildHelperData.CurrentBranch.remoteExists;
 
-            if (GUILayout.Button("Build and publish for PC and Android", autoButtonStyle))
+            GUIContent autonomousBuilderButton = new GUIContent("Build and publish for PC and Android", autonomousPublishBlocked ? "The autonomous builder is not supported for new worlds." : "");
+            
+            if (GUILayout.Button(autonomousBuilderButton, autoButtonStyle))
             {
                 if (CheckAccount())
                 {
                     if (InitAutonomousBuild(false))
                     {
-                        buildHelperData.SaveToJSON();
+                        buildHelperBehaviour.SaveToJSON();
 
                         AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
                         statusWindow.AddLog("Initiating autonomous builder...");
@@ -1506,6 +1669,61 @@ namespace BocuD.BuildHelper.Editor
             EditorGUILayout.EndHorizontal();
             
             EditorGUILayout.EndVertical();
+        }
+
+        private async void OnSuccesfulPublish(Branch target)
+        {
+            Logger.Log($"Detected succesful publish for {target.name}");
+
+            target.blueprintID = VRChatApiTools.FindPipelineManager().blueprintId;
+
+            ApiWorld world = await VRChatApiTools.FetchApiWorldAsync(target.blueprintID);
+
+            target.editedName = world.name;
+            target.editedDescription = world.name;
+            target.editedCap = world.capacity;
+            target.editedTags = world.publicTags.ToList();
+
+            target.nameChanged = false;
+            target.descriptionChanged = false;
+            target.capacityChanged = false;
+            target.tagsChanged = false;
+            
+            CacheWorldInfo(target, world);
+            
+            if (BuildHelperRuntime.CurrentPlatform() == Platform.mobile)
+            {
+                target.buildData.androidUploadTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
+                target.buildData.androidUploadedBuildVersion = target.buildData.androidBuildVersion;
+            }
+            else
+            {
+                target.buildData.pcUploadTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
+                target.buildData.pcUploadedBuildVersion = target.buildData.pcBuildVersion;
+            }
+
+            if (target.blueprintID == "")
+            {
+                target.blueprintID = FindObjectOfType<PipelineManager>().blueprintId;
+            }
+            
+            if (target.vrcImageHasChanges)
+            {
+                AssetDatabase.DeleteAsset(target.overrideImagePath);
+                target.vrcImageHasChanges = false;
+                target.vrcImageWarning = "";
+            }
+            
+            VRChatApiToolsEditor.RefreshData();
+            
+            TrySave();
+
+            for (int index = 0; index < buildHelperData.branches.Length; index++)
+            {
+                Branch b = buildHelperData.branches[index];
+                if (b.branchID == target.branchID)
+                    buildHelperData.branches[index] = target;
+            }
         }
 
         private static void DrawBuildTargetSwitcher()
@@ -1543,7 +1761,7 @@ namespace BocuD.BuildHelper.Editor
 
         private bool CheckLastBuild()
         {
-            if (CheckLastBuildBranch())
+            if (CheckLastBuiltBranch())
             {
                 if (buildHelperData.lastBuiltPlatform == Platform.mobile)
                 {
@@ -1561,21 +1779,13 @@ namespace BocuD.BuildHelper.Editor
             return true;
         }
 
-        private bool CheckLastBuildBranch()
+        private bool CheckLastBuiltBranch()
         {
-            if (buildHelperData.lastBuiltBranch != buildHelperData.currentBranchIndex)
-            {
-                if (EditorUtility.DisplayDialog("Build Helper",
-                    "The last detected build was for a different branch. Are you sure you want to continue? The build for the other branch will be used instead.",
-                    "Yes", "No"))
-                {
-                    return true;
-                }
-
-                return false;
-            }
-
-            return true;
+            if (buildHelperData.lastBuiltBranch == buildHelperData.CurrentBranch.branchID) return true;
+            
+            return EditorUtility.DisplayDialog("Build Helper",
+                "The last detected build was for a different branch. Are you sure you want to continue? The build for the other branch will be used instead.",
+                "Yes", "No");
         }
 
         private bool CheckLastBuildPlatform()
@@ -1593,13 +1803,12 @@ namespace BocuD.BuildHelper.Editor
         //TODO: make this static
         private bool CheckAccount()
         {
-            if (buildHelperData.currentBranch.blueprintID == "")
+            if (buildHelperData.CurrentBranch.blueprintID == "")
             {
                 return true;
             }
 
-            ApiWorld apiWorld;
-            if (VRChatApiTools.worldCache.TryGetValue(buildHelperData.currentBranch.blueprintID, out apiWorld))
+            if (VRChatApiTools.worldCache.TryGetValue(buildHelperData.CurrentBranch.blueprintID, out ApiWorld apiWorld))
             {
                 if (APIUser.CurrentUser.id != apiWorld.authorId)
                 {
@@ -1627,7 +1836,7 @@ namespace BocuD.BuildHelper.Editor
 
         private bool InitAutonomousBuild(bool singleTarget)
         {
-            if (buildHelperData.currentBranch.blueprintID == "")
+            if (buildHelperData.CurrentBranch.blueprintID == "")
             {
                 Logger.LogError("Publishing with the autonomous builder for new worlds is currently not supported.");
                 return false;
@@ -1635,8 +1844,8 @@ namespace BocuD.BuildHelper.Editor
                 //     "You are trying to use the autonomous builder with an unpublished build. Are you sure you want to continue?",
                 //     "Yes", "No"))
                 // {
-                //     if (buildHelperData.currentBranch.vrcDataHasChanges &&
-                //         buildHelperData.currentBranch.editedName != "" && buildHelperData.currentBranch.editedCap != -1)
+                //     if (buildHelperData.CurrentBranch.vrcDataHasChanges &&
+                //         buildHelperData.CurrentBranch.editedName != "" && buildHelperData.CurrentBranch.editedCap != -1)
                 //     {
                 //         return true;
                 //     }
@@ -1681,31 +1890,31 @@ namespace BocuD.BuildHelper.Editor
 
         private void ResetData()
         {
-            if (FindObjectOfType<BuildHelperData>() != null)
+            BuildHelperData data = BuildHelperData.GetDataBehaviour();
+            if (data != null)
             {
-                DestroyImmediate(FindObjectOfType<BuildHelperData>().gameObject);
+                DestroyImmediate(data.gameObject);
             }
 
             GameObject dataObj = new GameObject("BuildHelperData");
 
-            buildHelperData = dataObj.AddComponent<BuildHelperData>();
-            buildHelperData.sceneID = BuildHelperData.GetUniqueID();
+            buildHelperBehaviour = dataObj.AddComponent<BuildHelperData>();
             buildHelperData.branches = new Branch[0];
-            buildHelperData.overrideContainers = new OverrideContainer[0];
+            buildHelperBehaviour.overrideContainers = new OverrideContainer[0];
 
             dataObj.AddComponent<BuildHelperRuntime>();
             dataObj.hideFlags = HideFlags.HideInHierarchy;
             dataObj.tag = "EditorOnly";
-            buildHelperData.SaveToJSON();
-            EditorSceneManager.SaveScene(buildHelperData.gameObject.scene);
+            buildHelperBehaviour.SaveToJSON();
+            EditorSceneManager.SaveScene(buildHelperBehaviour.gameObject.scene);
             OnEnable();
         }
 
         private void LogPlayModeState(PlayModeStateChange state)
         {
             if (state == PlayModeStateChange.EnteredEditMode)
-                if (buildHelperData)
-                    buildHelperData.LoadFromJSON();
+                if (buildHelperBehaviour)
+                    buildHelperBehaviour.LoadFromJSON();
         }
 
         private void OnDestroy()
@@ -1715,7 +1924,7 @@ namespace BocuD.BuildHelper.Editor
 
         private void TrySave()
         {
-            if (buildHelperData.autoSave)
+            if (BuildHelperEditorPrefs.AutoSave)
             {
                 Save();
             }
@@ -1728,102 +1937,105 @@ namespace BocuD.BuildHelper.Editor
         private void Save()
         {
             if (buildHelperData != null)
-                buildHelperData.SaveToJSON();
+                buildHelperBehaviour.SaveToJSON();
             else Logger.LogError("Error while saving, Data Object not found");
         }
 
         #region Reorderable list initialisation
 
-        private BuildHelperData buildHelperData = null;
+        private BuildHelperData buildHelperBehaviour;
+        private BranchStorageObject buildHelperData;
 
-        private SerializedObject buildHelperDataSO = null;
-        private ReorderableList branchList = null;
+        private SerializedObject buildHelperDataSO;
+        private ReorderableList branchList;
 
         private void InitBranchList()
         {
-            buildHelperDataSO = new SerializedObject(buildHelperData);
+            buildHelperDataSO = new SerializedObject(buildHelperBehaviour);
 
-            branchList = new ReorderableList(buildHelperDataSO, buildHelperDataSO.FindProperty("branches"), true,
-                true, true, true);
-
-            branchList.drawHeaderCallback = (rect) =>
+            branchList = new ReorderableList(buildHelperDataSO, buildHelperDataSO.FindProperty("dataObject").FindPropertyRelative("branches"), true,
+                true, true, true)
             {
-                EditorGUI.LabelField(rect, "World branches");
-            };
-            branchList.drawElementCallback = (Rect rect, int index, bool isActive, bool isFocused) =>
-            {
-                SerializedProperty property = branchList.serializedProperty.GetArrayElementAtIndex(index);
+                drawHeaderCallback = rect => { EditorGUI.LabelField(rect, "World branches"); },
 
-                SerializedProperty branchName = property.FindPropertyRelative("name");
-                SerializedProperty worldID = property.FindPropertyRelative("blueprintID");
-
-                Rect nameRect = new Rect(rect)
-                    {y = rect.y + 1.5f, width = 110, height = EditorGUIUtility.singleLineHeight};
-                Rect blueprintIDRect = new Rect(rect)
+                drawElementCallback = (rect, index, isActive, isFocused) =>
                 {
-                    x = 115, y = rect.y + 1.5f, width = EditorGUIUtility.currentViewWidth - 115,
-                    height = EditorGUIUtility.singleLineHeight
-                };
-                Rect selectedRect = new Rect(rect)
+                    SerializedProperty property = branchList.serializedProperty.GetArrayElementAtIndex(index);
+
+                    SerializedProperty branchName = property.FindPropertyRelative("name");
+                    SerializedProperty worldID = property.FindPropertyRelative("blueprintID");
+                    
+                    Rect nameRect = new Rect(rect)
+                        { y = rect.y + 1.5f, width = 110, height = EditorGUIUtility.singleLineHeight };
+                    Rect blueprintIDRect = new Rect(rect)
+                    {
+                        x = 115, y = rect.y + 1.5f, width = EditorGUIUtility.currentViewWidth - 115,
+                        height = EditorGUIUtility.singleLineHeight
+                    };
+                    Rect selectedRect = new Rect(rect)
+                    {
+                        x = EditorGUIUtility.currentViewWidth - 95, y = rect.y + 1.5f, width = 90,
+                        height = EditorGUIUtility.singleLineHeight
+                    };
+
+                    EditorGUI.LabelField(nameRect, branchName.stringValue);
+                    EditorGUI.LabelField(blueprintIDRect, worldID.stringValue);
+
+                    if (buildHelperData.currentBranch == index)
+                        EditorGUI.LabelField(selectedRect, "current branch");
+                },
+                onAddCallback = list =>
                 {
-                    x = EditorGUIUtility.currentViewWidth - 95, y = rect.y + 1.5f, width = 90,
-                    height = EditorGUIUtility.singleLineHeight
-                };
+                    Undo.RecordObject(buildHelperBehaviour, "Create new branch");
+                    Branch newBranch = new Branch
+                        { name = "new branch", buildData = new BuildData(), branchID = BuildHelperData.GetUniqueID() };
+                    ArrayUtility.Add(ref buildHelperData.branches, newBranch);
 
-                EditorGUI.LabelField(nameRect, branchName.stringValue);
-                EditorGUI.LabelField(blueprintIDRect, worldID.stringValue);
+                    OverrideContainer newContainer = new OverrideContainer
+                        { ExclusiveGameObjects = new GameObject[0], ExcludedGameObjects = new GameObject[0] };
+                    ArrayUtility.Add(ref buildHelperBehaviour.overrideContainers, newContainer);
 
-                if (buildHelperData.currentBranchIndex == index)
-                    EditorGUI.LabelField(selectedRect, "current branch");
-            };
-            branchList.onAddCallback = (UnityEditorInternal.ReorderableList list) =>
-            {
-                Undo.RecordObject(buildHelperData, "Create new branch");
-                Branch newBranch = new Branch {name = "new branch", buildData = new BuildData(), branchID = BuildHelperData.GetUniqueID()};
-                ArrayUtility.Add(ref buildHelperData.branches, newBranch);
-
-                OverrideContainer newContainer = new OverrideContainer
-                    {ExclusiveGameObjects = new GameObject[0], ExcludedGameObjects = new GameObject[0]};
-                ArrayUtility.Add(ref buildHelperData.overrideContainers, newContainer);
-
-                list.index = Array.IndexOf(buildHelperData.branches, newBranch);
-                TrySave();
-            };
-            branchList.onRemoveCallback = (UnityEditorInternal.ReorderableList list) =>
-            {
-                string branchName = buildHelperData.branches[list.index].name;
-                if (EditorUtility.DisplayDialog("Build Helper",
-                    $"Are you sure you want to delete the branch '{branchName}'? This can not be undone.", "Yes", "No"))
+                    list.index = Array.IndexOf(buildHelperData.branches, newBranch);
+                    TrySave();
+                },
+                onRemoveCallback = list =>
                 {
-                    ArrayUtility.RemoveAt(ref buildHelperData.branches, list.index);
-                }
+                    string branchName = buildHelperData.branches[list.index].name;
+                    if (EditorUtility.DisplayDialog("Build Helper",
+                            $"Are you sure you want to delete the branch '{branchName}'? This can not be undone.", "Yes",
+                            "No"))
+                    {
+                        ArrayUtility.RemoveAt(ref buildHelperData.branches, list.index);
+                    }
+
+                    SwitchBranch(buildHelperBehaviour, 0);
+                    list.index = 0;
+                    TrySave();
+                },
                 
-                SwitchBranch(buildHelperData, 0);
-                list.index = 0;
-                TrySave();
+                index = buildHelperData.currentBranch
             };
-
-            branchList.index = buildHelperData.currentBranchIndex;
         }
 
         private OverrideContainer _overrideContainer;
         private int currentGameObjectContainerIndex;
-        private ReorderableList excludedGameObjectsList = null;
-        private ReorderableList exclusiveGameObjectsList = null;
+        private ReorderableList excludedGameObjectsList;
+        private ReorderableList exclusiveGameObjectsList;
 
         private void InitGameObjectContainerLists()
         {
-            if (buildHelperData)
+            if (!buildHelperBehaviour) return;
+            
+            //setup exclusive list
+            exclusiveGameObjectsList = new ReorderableList(buildHelperDataSO,
+                buildHelperDataSO.FindProperty("overrideContainers")
+                    .GetArrayElementAtIndex(buildHelperData.currentBranch)
+                    .FindPropertyRelative("ExclusiveGameObjects"), true,
+                true, true, true)
             {
-                //setup exclusive list
-                exclusiveGameObjectsList = new ReorderableList(buildHelperDataSO,
-                    buildHelperDataSO.FindProperty("overrideContainers").GetArrayElementAtIndex(branchList.index)
-                        .FindPropertyRelative("ExclusiveGameObjects"), true,
-                    true, true, true);
+                drawHeaderCallback = (rect) => EditorGUI.LabelField(rect, "Exclusive GameObjects"),
 
-                exclusiveGameObjectsList.drawHeaderCallback =
-                    (rect) => EditorGUI.LabelField(rect, "Exclusive GameObjects");
-                exclusiveGameObjectsList.drawElementCallback = (Rect rect, int index, bool isActive, bool isFocused) =>
+                drawElementCallback = (rect, index, isActive, isFocused) =>
                 {
                     SerializedProperty property =
                         exclusiveGameObjectsList.serializedProperty.GetArrayElementAtIndex(index);
@@ -1831,25 +2043,25 @@ namespace BocuD.BuildHelper.Editor
                     EditorGUI.PropertyField(rect, property);
                     if (EditorGUI.EndChangeCheck())
                     {
-                        Undo.RecordObject(buildHelperData, "Modify GameObject list");
+                        Undo.RecordObject(buildHelperBehaviour, "Modify GameObject list");
                         TrySave();
                     }
-                };
-                exclusiveGameObjectsList.onAddCallback = (UnityEditorInternal.ReorderableList list) =>
+                },
+                onAddCallback = list =>
                 {
-                    Undo.RecordObject(buildHelperData, "Add GameObject to list");
+                    Undo.RecordObject(buildHelperBehaviour, "Add GameObject to list");
                     ArrayUtility.Add(ref _overrideContainer.ExclusiveGameObjects, null);
                     TrySave();
-                };
-                exclusiveGameObjectsList.onRemoveCallback = (UnityEditorInternal.ReorderableList list) =>
+                },
+                onRemoveCallback = list =>
                 {
-                    Undo.RecordObject(buildHelperData, "Remove GameObject from list");
+                    Undo.RecordObject(buildHelperBehaviour, "Remove GameObject from list");
 
                     GameObject toRemove = _overrideContainer.ExclusiveGameObjects[exclusiveGameObjectsList.index];
 
                     bool existsInOtherList = false;
 
-                    foreach (OverrideContainer container in buildHelperData.overrideContainers)
+                    foreach (OverrideContainer container in buildHelperBehaviour.overrideContainers)
                     {
                         if (container == _overrideContainer) continue;
                         if (container.ExclusiveGameObjects.Contains(toRemove)) existsInOtherList = true;
@@ -1857,19 +2069,22 @@ namespace BocuD.BuildHelper.Editor
 
                     if (!existsInOtherList) OverrideContainer.EnableGameObject(toRemove);
 
-                    ArrayUtility.RemoveAt(ref _overrideContainer.ExclusiveGameObjects, exclusiveGameObjectsList.index);
+                    ArrayUtility.RemoveAt(ref _overrideContainer.ExclusiveGameObjects,
+                        exclusiveGameObjectsList.index);
                     TrySave();
-                };
+                }
+            };
 
-                //setup exclude list
-                excludedGameObjectsList = new ReorderableList(buildHelperDataSO,
-                    buildHelperDataSO.FindProperty("overrideContainers").GetArrayElementAtIndex(branchList.index)
-                        .FindPropertyRelative("ExcludedGameObjects"), true,
-                    true, true, true);
+            //setup exclude list
+            excludedGameObjectsList = new ReorderableList(buildHelperDataSO,
+                buildHelperDataSO.FindProperty("overrideContainers")
+                    .GetArrayElementAtIndex(buildHelperData.currentBranch)
+                    .FindPropertyRelative("ExcludedGameObjects"), true,
+                true, true, true)
+            {
+                drawHeaderCallback = (rect) => EditorGUI.LabelField(rect, "Excluded GameObjects"),
 
-                excludedGameObjectsList.drawHeaderCallback =
-                    (rect) => EditorGUI.LabelField(rect, "Excluded GameObjects");
-                excludedGameObjectsList.drawElementCallback = (Rect rect, int index, bool isActive, bool isFocused) =>
+                drawElementCallback = (rect, index, isActive, isFocused) =>
                 {
                     SerializedProperty property =
                         excludedGameObjectsList.serializedProperty.GetArrayElementAtIndex(index);
@@ -1877,30 +2092,30 @@ namespace BocuD.BuildHelper.Editor
                     EditorGUI.PropertyField(rect, property);
                     if (EditorGUI.EndChangeCheck())
                     {
-                        Undo.RecordObject(buildHelperData, "Modify GameObject list");
+                        Undo.RecordObject(buildHelperBehaviour, "Modify GameObject list");
                         TrySave();
                     }
-                };
-                excludedGameObjectsList.onAddCallback = (UnityEditorInternal.ReorderableList list) =>
+                },
+                onAddCallback = list =>
                 {
-                    Undo.RecordObject(buildHelperData, "Add GameObject to list");
+                    Undo.RecordObject(buildHelperBehaviour, "Add GameObject to list");
                     ArrayUtility.Add(ref _overrideContainer.ExcludedGameObjects, null);
                     TrySave();
-                };
-                excludedGameObjectsList.onRemoveCallback = (UnityEditorInternal.ReorderableList list) =>
+                },
+                onRemoveCallback = list =>
                 {
                     GameObject toRemove = _overrideContainer.ExcludedGameObjects[excludedGameObjectsList.index];
 
-                    Undo.RecordObject(buildHelperData, "Remove GameObject from list");
+                    Undo.RecordObject(buildHelperBehaviour, "Remove GameObject from list");
 
                     OverrideContainer.EnableGameObject(toRemove);
 
                     ArrayUtility.RemoveAt(ref _overrideContainer.ExclusiveGameObjects, excludedGameObjectsList.index);
                     TrySave();
-                };
+                }
+            };
 
-                currentGameObjectContainerIndex = branchList.index;
-            }
+            currentGameObjectContainerIndex = buildHelperData.currentBranch;
         }
 
         #endregion
@@ -1913,13 +2128,12 @@ namespace BocuD.BuildHelper.Editor
             styleHelpBox.padding = new RectOffset(0, 0, styleHelpBox.padding.top, styleHelpBox.padding.bottom + 3);
 
             // GUI
-            styleBox = new GUIStyle(GUI.skin.box);
-            styleBox.padding = new RectOffset(GUI.skin.box.padding.left * 2, GUI.skin.box.padding.right * 2,
-                GUI.skin.box.padding.top * 2, GUI.skin.box.padding.bottom * 2);
-            styleBox.margin = new RectOffset(0, 0, 4, 4);
-
-            styleRichTextButton = new GUIStyle(GUI.skin.button);
-            styleRichTextButton.richText = true;
+            styleBox = new GUIStyle(GUI.skin.box)
+            {
+                padding = new RectOffset(GUI.skin.box.padding.left * 2, GUI.skin.box.padding.right * 2,
+                    GUI.skin.box.padding.top * 2, GUI.skin.box.padding.bottom * 2),
+                margin = new RectOffset(0, 0, 4, 4)
+            };
         }
 
         private void GetUIAssets()
@@ -1942,7 +2156,7 @@ namespace BocuD.BuildHelper.Editor
 
             float iconSize = EditorGUIUtility.singleLineHeight;
 
-            if (dirty && !buildHelperData.autoSave)
+            if (dirty && !BuildHelperEditorPrefs.AutoSave)
             {
                 if (GUILayout.Button("Save Changes"))
                 {

@@ -45,13 +45,13 @@ namespace BocuD.BuildHelper.Editor
         {
             if (requestedBuildType == VRCSDKRequestedBuildType.Avatar) return true;
 
-            BuildHelperData buildHelperData;
+            BuildHelperData buildHelperData = BuildHelperData.GetDataBehaviour();
             BuildData buildData;
             
-            if (UnityEngine.Object.FindObjectOfType<BuildHelperData>())
+            if (buildHelperData)
             {
-                buildHelperData = UnityEngine.Object.FindObjectOfType<BuildHelperData>();
-                buildData = buildHelperData.currentBranch.buildData;
+                buildHelperData.LoadFromJSON();
+                buildData = buildHelperData.dataObject.CurrentBranch.buildData;
             }
             else
             {
@@ -59,146 +59,166 @@ namespace BocuD.BuildHelper.Editor
             }
 
             buildHelperData.PrepareExcludedGameObjects();
-            buildHelperData.overrideContainers[buildHelperData.currentBranchIndex].ApplyStateChanges();
+            buildHelperData.overrideContainers[buildHelperData.dataObject.currentBranch].ApplyStateChanges();
             
-#if UNITY_ANDROID //Platform is Android
-            buildData.androidBuildTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
+            AutonomousBuildInformation buildInformation = buildHelperData.dataObject.autonomousBuild;
 
-            //if we are doing an autonomous build for both platforms we know the build numbers should match
-            if (buildHelperData.autonomousBuild.activeBuild && !buildHelperData.autonomousBuild.singleTarget)
+            //todo: make this less of a mess
+            
+            //Platform is mobile
+            if (BuildHelperRuntime.CurrentPlatform() == Platform.mobile)
             {
-                //this is the first build of the autonomousbuild process, make sure it gets a new number
-                if(buildHelperData.autonomousBuild.progress == AutonomousBuildInformation.Progress.PreInitialBuild && buildHelperData.autonomousBuild.initialTarget == Platform.mobile)
-                    buildData.androidBuildVersion = buildData.pcBuildVersion + 1;
-                //this is the second build, we want the build number to match that of the first
-                else if(buildHelperData.autonomousBuild.progress == AutonomousBuildInformation.Progress.PreSecondaryBuild && buildHelperData.autonomousBuild.secondaryTarget == Platform.mobile)
-                    buildData.androidBuildVersion = buildData.pcBuildVersion;
-            }
-            else
-            {
-                //we are building for android. if the *last* pc version is newer then this android version, we need to figure out if the android version is going to be equivalent or newer
-                if (buildData.pcBuildVersion > buildData.androidBuildVersion && buildData.pcBuildVersion != -1)
+                buildData.androidBuildTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
+
+                //if we are doing an autonomous build for both platforms we know the build numbers should match
+                if (buildInformation.activeBuild && !buildInformation.singleTarget)
                 {
-                    //we have never built for this platform before, so assume its a new build
-                    if (buildData.androidBuildVersion == -1)
-                    {
+                    //this is the first build of the autonomousbuild process, make sure it gets a new number
+                    if (buildInformation.progress ==
+                        AutonomousBuildInformation.Progress.PreInitialBuild &&
+                        buildInformation.initialTarget == Platform.mobile)
                         buildData.androidBuildVersion = buildData.pcBuildVersion + 1;
-                    }
-                    else
+                    //this is the second build, we want the build number to match that of the first
+                    else if (buildInformation.progress ==
+                             AutonomousBuildInformation.Progress.PreSecondaryBuild &&
+                             buildInformation.secondaryTarget == Platform.mobile)
+                        buildData.androidBuildVersion = buildData.pcBuildVersion;
+                }
+                else
+                {
+                    //we are building for android. if the *last* pc version is newer then this android version, we need to figure out if the android version is going to be equivalent or newer
+                    if (buildData.pcBuildVersion > buildData.androidBuildVersion && buildData.pcBuildVersion != -1)
                     {
-                        //if the time between the two builds is short, that probably means the user is uploading for both at the same time right now
-                        DateTime pcBuildTime = DateTime.Parse(buildData.pcBuildTime, CultureInfo.InvariantCulture);
-                        if ((DateTime.Now - pcBuildTime).TotalMinutes > 5)
+                        //we have never built for this platform before, so assume its a new build
+                        if (buildData.androidBuildVersion == -1)
                         {
-                            if (buildHelperData.autonomousBuild.activeBuild)
+                            buildData.androidBuildVersion = buildData.pcBuildVersion + 1;
+                        }
+                        else
+                        {
+                            //if the time between the two builds is short, that probably means the user is uploading for both at the same time right now
+                            DateTime pcBuildTime = DateTime.Parse(buildData.pcBuildTime, CultureInfo.InvariantCulture);
+                            if ((DateTime.Now - pcBuildTime).TotalMinutes > 5)
                             {
-                                buildData.androidBuildVersion = buildData.pcBuildVersion + 1;
-                            }
-                            else
-                            {
-                                bool newBuild = EditorUtility.DisplayDialog("Build Helper",
-                                    $"Your last build for PC (build {buildData.pcBuildVersion}, {buildData.pcBuildTime}) is significantly older than the Android build you are about to do, but your last Android build is even older. Should Build Helper mark your current Android build as a newer build, or as equivalent to your last PC build? Marking them equivalent will make the version numbers match.",
-                                    "New build", "Equivalent build");
-
-                                if (newBuild)
+                                if (buildInformation.activeBuild)
                                 {
                                     buildData.androidBuildVersion = buildData.pcBuildVersion + 1;
                                 }
                                 else
                                 {
-                                    buildData.androidBuildVersion = buildData.pcBuildVersion;
+                                    bool newBuild = EditorUtility.DisplayDialog("Build Helper",
+                                        $"Your last build for PC (build {buildData.pcBuildVersion}, {buildData.pcBuildTime}) is significantly older than the Android build you are about to do, but your last Android build is even older. Should Build Helper mark your current Android build as a newer build, or as equivalent to your last PC build? Marking them equivalent will make the version numbers match.",
+                                        "New build", "Equivalent build");
+
+                                    if (newBuild)
+                                    {
+                                        buildData.androidBuildVersion = buildData.pcBuildVersion + 1;
+                                    }
+                                    else
+                                    {
+                                        buildData.androidBuildVersion = buildData.pcBuildVersion;
+                                    }
                                 }
                             }
-                        }
-                        else //in an autonomous build we don't want to ask the user about this, because it should be unattended, so assume a new version
-                        {
-                            buildData.androidBuildVersion = buildData.pcBuildVersion + 1;
+                            else //in an autonomous build we don't want to ask the user about this, because it should be unattended, so assume a new version
+                            {
+                                buildData.androidBuildVersion = buildData.pcBuildVersion + 1;
+                            }
                         }
                     }
+                    else buildData.androidBuildVersion++;
                 }
-                else buildData.androidBuildVersion++;
             }
-#else //Platform is PC
-            buildData.pcBuildTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
-
-            //if we are doing an autonomous build for both platforms we know the build numbers should match
-            if (buildHelperData.autonomousBuild.activeBuild && !buildHelperData.autonomousBuild.singleTarget)
-            {
-                //this is the first build of the autonomousbuild process, make sure it gets a new number
-                if(buildHelperData.autonomousBuild.progress == AutonomousBuildInformation.Progress.PreInitialBuild && buildHelperData.autonomousBuild.initialTarget == Platform.PC)
-                    buildData.pcBuildVersion = buildData.androidBuildVersion + 1;
-                //this is the second build, we want the build number to match that of the first
-                else if(buildHelperData.autonomousBuild.progress == AutonomousBuildInformation.Progress.PreSecondaryBuild && buildHelperData.autonomousBuild.secondaryTarget == Platform.PC)
-                    buildData.pcBuildVersion = buildData.androidBuildVersion;
-            }
+            
+            //Platform is PC
             else
             {
-                //if the version we are about to build is *older* than the existing build for the other platform, 
-                if (buildData.androidBuildVersion > buildData.pcBuildVersion && buildData.androidBuildVersion != -1)
-                {
-                    //we have never built for this platform before, so assume its a new build
-                    if (buildData.pcBuildVersion == -1)
-                    {
-                        buildData.pcBuildVersion = buildData.androidBuildVersion + 1;
-                    }
-                    else
-                    {
-                        DateTime androidBuildTime =
-                            DateTime.Parse(buildData.androidBuildTime, CultureInfo.InvariantCulture);
-                        if ((DateTime.Now - androidBuildTime).TotalMinutes > 5 &&
-                            !buildHelperData.autonomousBuild.activeBuild)
-                        {
-                            if (buildHelperData.autonomousBuild.activeBuild)
-                            {
-                                buildData.pcBuildVersion = buildData.androidBuildVersion + 1;
-                            }
-                            else
-                            {
-                                bool newBuild = EditorUtility.DisplayDialog("Build Helper",
-                                    $"Your last build for Android (build {buildData.androidBuildVersion}, {buildData.androidBuildTime}) is significantly older than the PC build you are about to do, but your last PC build is even older. Should Build Helper mark your current PC build as a newer build, or as equivalent to your last Android build? Marking them equivalent will make the version numbers match.",
-                                    "New build",
-                                    "Equivalent build");
+                buildData.pcBuildTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
 
-                                if (newBuild)
+                //if we are doing an autonomous build for both platforms we know the build numbers should match
+                if (buildInformation.activeBuild && !buildInformation.singleTarget)
+                {
+                    //this is the first build of the autonomousbuild process, make sure it gets a new number
+                    if (buildInformation.progress ==
+                        AutonomousBuildInformation.Progress.PreInitialBuild &&
+                        buildInformation.initialTarget == Platform.PC)
+                        buildData.pcBuildVersion = buildData.androidBuildVersion + 1;
+                    //this is the second build, we want the build number to match that of the first
+                    else if (buildInformation.progress ==
+                             AutonomousBuildInformation.Progress.PreSecondaryBuild &&
+                             buildInformation.secondaryTarget == Platform.PC)
+                        buildData.pcBuildVersion = buildData.androidBuildVersion;
+                }
+                else
+                {
+                    //if the version we are about to build is *older* than the existing build for the other platform, 
+                    if (buildData.androidBuildVersion > buildData.pcBuildVersion && buildData.androidBuildVersion != -1)
+                    {
+                        //we have never built for this platform before, so assume its a new build
+                        if (buildData.pcBuildVersion == -1)
+                        {
+                            buildData.pcBuildVersion = buildData.androidBuildVersion + 1;
+                        }
+                        else
+                        {
+                            DateTime androidBuildTime =
+                                DateTime.Parse(buildData.androidBuildTime, CultureInfo.InvariantCulture);
+                            if ((DateTime.Now - androidBuildTime).TotalMinutes > 5 &&
+                                !buildInformation.activeBuild)
+                            {
+                                if (buildInformation.activeBuild)
                                 {
                                     buildData.pcBuildVersion = buildData.androidBuildVersion + 1;
                                 }
                                 else
                                 {
-                                    buildData.pcBuildVersion = buildData.androidBuildVersion;
+                                    bool newBuild = EditorUtility.DisplayDialog("Build Helper",
+                                        $"Your last build for Android (build {buildData.androidBuildVersion}, {buildData.androidBuildTime}) is significantly older than the PC build you are about to do, but your last PC build is even older. Should Build Helper mark your current PC build as a newer build, or as equivalent to your last Android build? Marking them equivalent will make the version numbers match.",
+                                        "New build",
+                                        "Equivalent build");
+
+                                    if (newBuild)
+                                    {
+                                        buildData.pcBuildVersion = buildData.androidBuildVersion + 1;
+                                    }
+                                    else
+                                    {
+                                        buildData.pcBuildVersion = buildData.androidBuildVersion;
+                                    }
                                 }
                             }
-                        }
-                        else //in an autonomous build we don't want to ask the user about this, because it should be unattended, so assume a new version
-                        {
-                            buildData.pcBuildVersion = buildData.androidBuildVersion + 1;
+                            else //in an autonomous build we don't want to ask the user about this, because it should be unattended, so assume a new version
+                            {
+                                buildData.pcBuildVersion = buildData.androidBuildVersion + 1;
+                            }
                         }
                     }
+                    else buildData.pcBuildVersion++;
                 }
-                else buildData.pcBuildVersion++;
             }
 
-
-#endif
-            buildHelperData.lastBuiltBranch = buildHelperData.currentBranchIndex;
-            buildHelperData.lastBuiltPlatform = (EditorUserBuildSettings.activeBuildTarget == BuildTarget.Android)
+            buildHelperData.dataObject.lastBuiltBranch = buildHelperData.dataObject.CurrentBranch.branchID;
+            buildHelperData.dataObject.lastBuiltPlatform = (EditorUserBuildSettings.activeBuildTarget == BuildTarget.Android)
                 ? Platform.mobile
                 : Platform.PC;
             buildHelperData.SaveToJSON();
 
-            if (buildHelperData.currentBranch.hasUdonLink && buildHelperData.linkedBehaviourGameObject != null)
+            if (buildHelperData.dataObject.CurrentBranch.hasUdonLink && buildHelperData.linkedBehaviourGameObject != null)
             {
                 BuildHelperUdon linkedUdon = buildHelperData.linkedBehaviourGameObject.GetUdonSharpComponent<BuildHelperUdon>();
                 linkedUdon.UpdateProxy();
-                linkedUdon.branchName = buildHelperData.currentBranch.name;
+                linkedUdon.branchName = buildHelperData.dataObject.CurrentBranch.name;
+                
+                if(BuildHelperRuntime.CurrentPlatform() == Platform.mobile)
+                    linkedUdon.buildNumber = buildData.androidBuildVersion;
+
 #if UNITY_ANDROID
-                linkedUdon.buildNumber = buildData.androidBuildVersion;
 #else
                 linkedUdon.buildNumber = buildData.pcBuildVersion;
 #endif
                 linkedUdon.buildDate = DateTime.Now;
                 linkedUdon.ApplyProxyModifications();
-            } else if (!buildHelperData.currentBranch.hasUdonLink)
+            } else if (!buildHelperData.dataObject.CurrentBranch.hasUdonLink)
             {
                 Scene currentScene = SceneManager.GetActiveScene();
                 List<BuildHelperUdon> foundBehaviours = new List<BuildHelperUdon>();

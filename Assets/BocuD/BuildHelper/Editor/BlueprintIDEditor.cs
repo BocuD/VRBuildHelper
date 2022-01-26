@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
@@ -63,18 +62,20 @@ namespace BocuD.BuildHelper.Editor
             {
                 branch.blueprintID = newID;
                 
-                //make sure these get cached again
-                branch.cachedName = "";
+                branch.cachedName = "Unpublished VRChat world";
                 branch.cachedDescription = "";
-                branch.cachedCap = -1;
+                branch.cachedCap = 16;
+                branch.cachedRelease = "private";
                 branch.cachedTags = new List<string>();
+
+                branch.nameChanged = false;
+                branch.descriptionChanged = false;
+                branch.capacityChanged = false;
+                branch.tagsChanged = false;
+
+                BuildHelperWindow.SwitchBranch(data, Array.IndexOf(data.dataObject.branches, branch));
                 
-                branch.editedName = "notInitialised";
-                branch.editedDescription = "notInitialised";
-                branch.editedCap = -1;
-                branch.editedTags = new List<string>();
-                
-                BuildHelperWindow.SwitchBranch(data, Array.IndexOf(data.branches, branch));
+                Close();
             }
 
             EditorGUI.EndDisabledGroup();
@@ -85,17 +86,17 @@ namespace BocuD.BuildHelper.Editor
 
         private void DisplayWorldList()
         {
-            if (!VRChatApiToolsEditor.HandleLogin()) return;
+            if (!VRChatApiToolsGUI.HandleLogin()) return;
             
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("VRChat World List", EditorStyles.boldLabel);
             
             if (VRChatApiTools.uploadedWorlds == null)
             {
-                EditorCoroutine.Start(VRChatApiTools.FetchUploadedData());
+                EditorCoroutine.Start(VRChatApiToolsEditor.FetchUploadedData());
             }
 
-            if (VRChatApiTools.fetchingWorlds != null)
+            if (VRChatApiToolsEditor.fetchingWorlds != null)
             {
                 GUILayout.FlexibleSpace();
                 EditorGUILayout.LabelField("Fetching data from VRChat Api");
@@ -105,7 +106,7 @@ namespace BocuD.BuildHelper.Editor
                 GUILayout.FlexibleSpace();
                 if (GUILayout.Button("Refresh", GUILayout.Width(120)))
                 {
-                    VRChatApiTools.RefreshData();
+                    VRChatApiToolsEditor.RefreshData();
                 }
             }
             EditorGUILayout.EndHorizontal();

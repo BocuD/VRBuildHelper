@@ -20,17 +20,12 @@
  SOFTWARE.
 */
 
-#if UNITY_EDITOR
-
 using System;
 using System.Threading.Tasks;
 using UnityEditor;
-using UnityEngine;
-using VRC.Core;
 using UnityEditor.Build;
-using Object = UnityEngine.Object;
+using VRC.Core;
 using static BocuD.BuildHelper.AutonomousBuildInformation;
-using UnityEditor.Callbacks;
 
 namespace BocuD.BuildHelper
 {
@@ -38,16 +33,15 @@ namespace BocuD.BuildHelper
     {
         public static void SetPlatformWindows()
         {
-            Logger.Log($"Switching platform to Windows");
+            Logger.Log("Switching platform to Windows");
 
             EditorUserBuildSettings.selectedBuildTargetGroup = BuildTargetGroup.Standalone;
-            EditorUserBuildSettings.SwitchActiveBuildTargetAsync(BuildTargetGroup.Standalone,
-                BuildTarget.StandaloneWindows64);
+            EditorUserBuildSettings.SwitchActiveBuildTargetAsync(BuildTargetGroup.Standalone, BuildTarget.StandaloneWindows64);
         }
 
         public static void SetPlatformAndroid()
         {
-            Logger.Log($"Switching platform to Windows");
+            Logger.Log("Switching platform to Windows");
 
             EditorUserBuildSettings.selectedBuildTargetGroup = BuildTargetGroup.Android;
             EditorUserBuildSettings.SwitchActiveBuildTargetAsync(BuildTargetGroup.Android, BuildTarget.Android);
@@ -55,53 +49,55 @@ namespace BocuD.BuildHelper
 
         public static void EnteredEditMode()
         {
-            if (Object.FindObjectOfType<BuildHelperData>() == null) return;
+            BuildHelperData data = BuildHelperData.GetDataBehaviour();
+            if (!data) return;
+            data.LoadFromJSON();
+            AutonomousBuildInformation buildInfo = data.dataObject.autonomousBuild;
 
-            BuildHelperData buildHelperData = Object.FindObjectOfType<BuildHelperData>();
-            buildHelperData.LoadFromJSON();
-
-            if (!buildHelperData.autonomousBuild.activeBuild) return;
+            if (buildInfo == null) return;
+            
+            if (!buildInfo.activeBuild) return;
             
             AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
 
             if (statusWindow.abort)
             {
-                buildHelperData.autonomousBuild.activeBuild = false;
-                buildHelperData.SaveToJSON();
+                buildInfo.activeBuild = false;
+                data.SaveToJSON();
                 statusWindow.currentState = AutonomousBuildState.aborted;
                 return;
             }
 
-            if (buildHelperData.autonomousBuild.singleTarget)
+            if (buildInfo.singleTarget)
             {
-                if (buildHelperData.autonomousBuild.progress == Progress.PostInitialBuild)
+                if (buildInfo.progress == Progress.PostInitialBuild)
                 {
-                    buildHelperData.autonomousBuild.activeBuild = false;
+                    buildInfo.activeBuild = false;
 
                     if (statusWindow.currentState != AutonomousBuildState.failed)
                     {
-                        buildHelperData.autonomousBuild.progress = Progress.Finished;
+                        buildInfo.progress = Progress.Finished;
                         Logger.Log("Autonomous publish succeeded");
                         statusWindow.currentState = AutonomousBuildState.finished;
                     }
 
-                    buildHelperData.SaveToJSON();
+                    data.SaveToJSON();
                 }
             }
             else
             {
-                switch (buildHelperData.autonomousBuild.progress)
+                switch (buildInfo.progress)
                 {
                     case Progress.PostInitialBuild:
-                        if (buildHelperData.autonomousBuild.secondaryTarget == Platform.mobile)
-                            AutonomousBuilder.SetPlatformAndroid();
-                        else AutonomousBuilder.SetPlatformWindows();
+                        if (buildInfo.secondaryTarget == Platform.mobile)
+                            SetPlatformAndroid();
+                        else SetPlatformWindows();
                         break;
 
                     case Progress.PostSecondaryBuild:
-                        if (buildHelperData.autonomousBuild.initialTarget == Platform.mobile)
-                            AutonomousBuilder.SetPlatformAndroid();
-                        else AutonomousBuilder.SetPlatformWindows();
+                        if (buildInfo.initialTarget == Platform.mobile)
+                            SetPlatformAndroid();
+                        else SetPlatformWindows();
                         break;
                 }
             }
@@ -110,15 +106,13 @@ namespace BocuD.BuildHelper
         public static void BuildTargetUpdate(BuildTarget newTarget)
         {
             Logger.Log("Switched build target to " + newTarget);
-
-            if (!Object.FindObjectOfType<BuildHelperData>()) return;
             
-            BuildHelperData buildHelperData = Object.FindObjectOfType<BuildHelperData>();
-            buildHelperData.LoadFromJSON();
+            BuildHelperData data = BuildHelperData.GetDataBehaviour();
+            if (!data) return;
+            data.LoadFromJSON();
+            AutonomousBuildInformation buildInfo = data.dataObject.autonomousBuild;
 
-            AutonomousBuildInformation autonomousBuild = buildHelperData.autonomousBuild;
-
-            if (!autonomousBuild.activeBuild) return;
+            if (!buildInfo.activeBuild) return;
             
             Platform currentPlatform;
 
@@ -136,22 +130,22 @@ namespace BocuD.BuildHelper
                     return;
             }
 
-            switch (autonomousBuild.progress)
+            switch (buildInfo.progress)
             {
                 case Progress.PostInitialBuild:
-                    if (currentPlatform == autonomousBuild.secondaryTarget)
+                    if (currentPlatform == buildInfo.secondaryTarget)
                     {
                         AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
                         if (statusWindow.abort)
                         {
-                            buildHelperData.autonomousBuild.activeBuild = false;
-                            buildHelperData.SaveToJSON();
+                            buildInfo.activeBuild = false;
+                            data.SaveToJSON();
                             statusWindow.currentState = AutonomousBuildState.aborted;
                         }
                         else
                         {
-                            autonomousBuild.progress = Progress.PostPlatformSwitch;
-                            buildHelperData.SaveToJSON();
+                            buildInfo.progress = Progress.PostPlatformSwitch;
+                            data.SaveToJSON();
                                 
                             if (!APIUser.IsLoggedIn)
                             {
@@ -159,32 +153,32 @@ namespace BocuD.BuildHelper
                                     
                                 if (statusWindow.abort)
                                 {
-                                    buildHelperData.autonomousBuild.activeBuild = false;
-                                    buildHelperData.SaveToJSON();
+                                    buildInfo.activeBuild = false;
+                                    data.SaveToJSON();
                                     statusWindow.currentState = AutonomousBuildState.aborted;
                                 }
                                 else if (statusWindow.currentState != AutonomousBuildState.waitingForApi)
                                 {
                                     statusWindow.currentState = AutonomousBuildState.waitingForApi;
-                                    LoginStateChecker(buildHelperData);
+                                    LoginStateChecker(data);
                                 }
-                            } else StartSecondaryBuild(buildHelperData);
+                            } else StartSecondaryBuild(data);
                         }
                     }
 
                     break;
 
                 case Progress.PostSecondaryBuild:
-                    if (currentPlatform == autonomousBuild.initialTarget)
+                    if (currentPlatform == buildInfo.initialTarget)
                     {
-                        autonomousBuild.activeBuild = false;
-                        autonomousBuild.progress = Progress.Finished;
+                        buildInfo.activeBuild = false;
+                        buildInfo.progress = Progress.Finished;
                         Logger.Log("<color=green>Autonomous publish succeeded</color>");
 
                         AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
                         statusWindow.currentState = AutonomousBuildState.finished;
 
-                        buildHelperData.SaveToJSON();
+                        data.SaveToJSON();
                     }
                     break;
             }
@@ -194,9 +188,9 @@ namespace BocuD.BuildHelper
         {
             AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
 
-            data.autonomousBuild.progress = Progress.PreSecondaryBuild;
+            data.dataObject.autonomousBuild.progress = Progress.PreSecondaryBuild;
             data.SaveToJSON();
-            statusWindow.currentPlatform = data.autonomousBuild.secondaryTarget;
+            statusWindow.currentPlatform = data.dataObject.autonomousBuild.secondaryTarget;
             statusWindow.currentState = AutonomousBuildState.building;
             BuildHelperBuilder.PublishNewBuild();
         }
@@ -211,7 +205,7 @@ namespace BocuD.BuildHelper
                 {
                     if (statusWindow.abort)
                     {
-                        data.autonomousBuild.activeBuild = false;
+                        data.dataObject.autonomousBuild.activeBuild = false;
                         data.SaveToJSON();
                         statusWindow.currentState = AutonomousBuildState.aborted;
                     }
@@ -226,7 +220,7 @@ namespace BocuD.BuildHelper
             }
 
             //reset build state
-            data.autonomousBuild.activeBuild = false;
+            data.dataObject.autonomousBuild.activeBuild = false;
             data.SaveToJSON();
             
             statusWindow.failReason = "Timed out waiting for VRChat Api login";
@@ -264,5 +258,3 @@ namespace BocuD.BuildHelper
         }
     }
 }
-
-#endif

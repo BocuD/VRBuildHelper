@@ -20,7 +20,7 @@
  SOFTWARE.
 */
 
-#if UNITY_EDITOR
+#if UNITY_EDITOR && !COMPILER_UDONSHARP
 
 using System;
 using System.Collections.Generic;
@@ -34,19 +34,13 @@ namespace BocuD.BuildHelper
     [ExecuteInEditMode]
     public class BuildHelperData : MonoBehaviour
     {
-        public string sceneID = "";
-        
-        //TODO: make this use branch ID instead
-        public int currentBranchIndex;
-        public int lastBuiltBranch;
-        public Platform lastBuiltPlatform;
-        public bool autoSave = true;
-        public Branch[] branches;
-        public AutonomousBuildInformation autonomousBuild;
+        public string sceneID;
         public OverrideContainer[] overrideContainers;
         public BuildHelperUdon linkedBehaviour;
         public GameObject linkedBehaviourGameObject;
 
+        public BranchStorageObject dataObject;
+        
         private void Awake()
         {
             LoadFromJSON();
@@ -56,22 +50,40 @@ namespace BocuD.BuildHelper
             #endif
         }
 
-        public Branch currentBranch
+        private void Reset()
         {
-            get
+            sceneID = GetUniqueID();
+            
+            dataObject = new BranchStorageObject
             {
-                if (currentBranchIndex >= 0 && currentBranchIndex < branches.Length)
-                    return branches[currentBranchIndex];
-                
-                return null;
-            }
+                branches = new Branch[0],
+                autonomousBuild = new AutonomousBuildInformation()
+            };
+
+            overrideContainers = new OverrideContainer[0];
+        }
+
+        private static BuildHelperData dataBehaviour;
+        
+        public static BuildHelperData GetDataBehaviour()
+        {
+            if (dataBehaviour) return dataBehaviour;
+            
+            dataBehaviour = FindObjectOfType<BuildHelperData>();
+            return dataBehaviour;
+        }
+
+        public static BranchStorageObject GetDataObject()
+        {
+            BuildHelperData data = GetDataBehaviour();
+            return data ? data.dataObject : null;
         }
 
         public void PrepareExcludedGameObjects()
         {
-            for (int i = 0; i < branches.Length; i++)
+            for (int i = 0; i < dataObject.branches.Length; i++)
             {
-                if (!branches[i].hasOverrides) continue;
+                if (!dataObject.branches[i].hasOverrides) continue;
             
                 OverrideContainer container = overrideContainers[i];
                 foreach (GameObject obj in container.ExclusiveGameObjects)
@@ -84,17 +96,12 @@ namespace BocuD.BuildHelper
 
         public void SaveToJSON()
         {
-            BranchStorageObject storageObject = new BranchStorageObject
-            {
-                branches = branches, currentBranch = currentBranchIndex, autoSave = autoSave, lastBuiltBranch = lastBuiltBranch, autonomousBuild = autonomousBuild
-            };
-
-            if (storageObject.branches == null) storageObject.branches = new Branch[0];
+            if (dataObject.branches == null) dataObject.branches = new Branch[0];
 
             string savePath = GetSavePath(sceneID);
             CheckIfFileExists(savePath);
-            
-            string json = JsonUtility.ToJson(storageObject, true);
+
+            string json = JsonUtility.ToJson(dataObject, true);
             File.WriteAllText(savePath, json);
         }
 
@@ -104,39 +111,7 @@ namespace BocuD.BuildHelper
             CheckIfFileExists(savePath);
             
             string json = File.ReadAllText(savePath);
-            BranchStorageObject storageObject = JsonUtility.FromJson<BranchStorageObject>(json);
-
-            if (storageObject.branches == null)
-                storageObject.branches = new Branch[0];
-
-            if (storageObject.autonomousBuild == null)
-                storageObject.autonomousBuild = new AutonomousBuildInformation();
-            
-            branches = storageObject.branches;
-            currentBranchIndex = storageObject.currentBranch;
-            autoSave = storageObject.autoSave;
-            lastBuiltBranch = storageObject.lastBuiltBranch;
-            autonomousBuild = storageObject.autonomousBuild;
-
-            if (overrideContainers == null)
-            {
-                overrideContainers = new OverrideContainer[branches.Length];
-                foreach (OverrideContainer container in overrideContainers)
-                {
-                    container.ExclusiveGameObjects = new GameObject[0];
-                    container.ExcludedGameObjects = new GameObject[0];
-                }
-            }
-            else
-            {
-                foreach (OverrideContainer container in overrideContainers)
-                {
-                    if (container.ExclusiveGameObjects == null)
-                        container.ExclusiveGameObjects = new GameObject[0];
-                    if (container.ExcludedGameObjects == null)
-                        container.ExcludedGameObjects = new GameObject[0];
-                }
-            }
+            dataObject = JsonUtility.FromJson<BranchStorageObject>(json);
         }
 
         private static void CheckIfFileExists(string savePath)
@@ -204,9 +179,21 @@ namespace BocuD.BuildHelper
     public class BranchStorageObject
     {
         public int currentBranch;
-        public int lastBuiltBranch;
-        public bool autoSave = true;
+        public string lastBuiltBranch;
+        public Platform lastBuiltPlatform;
+
         public Branch[] branches;
+        public Branch CurrentBranch
+        {
+            get
+            {
+                if (currentBranch >= 0 && currentBranch < branches.Length)
+                    return branches[currentBranch];
+                
+                return null;
+            }
+        }
+        
         public AutonomousBuildInformation autonomousBuild;
     }
 
@@ -218,17 +205,18 @@ namespace BocuD.BuildHelper
         public bool hasOverrides = false;
         public string blueprintID = "";
         public string branchID = "";
+        public bool remoteExists = false;
 
         //VRC World Data overrides
         public string cachedName = "Unpublished VRChat world";
         public string cachedDescription = "";
         public int cachedCap = 16;
-        public string cachedRelease = "private";
+        public string cachedRelease = "New world";
         public List<string> cachedTags = new List<string>();
 
-        public string editedName = "notInitialised";
-        public string editedDescription = "notInitialised";
-        public int editedCap = -1;
+        public string editedName = "New VRChat World";
+        public string editedDescription = "Fancy description for your world";
+        public int editedCap = 16;
         public List<string> editedTags = new List<string>();
         
         public bool nameChanged = false;
@@ -236,6 +224,7 @@ namespace BocuD.BuildHelper
         public bool capacityChanged = false;
         public bool tagsChanged = false;
         public bool vrcImageHasChanges = false;
+        public string overrideImagePath = "";
         public string vrcImageWarning = "";
     
         //VRCCam state
@@ -250,6 +239,11 @@ namespace BocuD.BuildHelper
         public DeploymentData deploymentData;
 
         public bool hasUdonLink = false;
+
+        public bool HasVRCDataChanges()
+        {
+            return nameChanged || descriptionChanged || capacityChanged || tagsChanged || vrcImageHasChanges;
+        }
     }
 
     [Serializable]
@@ -299,6 +293,12 @@ namespace BocuD.BuildHelper
         public GameObject[] ExclusiveGameObjects;
         public GameObject[] ExcludedGameObjects;
 
+        public OverrideContainer()
+        {
+            ExclusiveGameObjects = new GameObject[0];
+            ExcludedGameObjects = new GameObject[0];
+        }
+        
         public void ApplyStateChanges()
         {
             foreach (GameObject obj in ExclusiveGameObjects)
