@@ -15,7 +15,10 @@ namespace BocuD.VRChatApiTools
             if (loginInProgress) return;
 
             if (!ApiCredentials.Load())
+            {
                 Logger.LogError("You are currently not logged in. Please log in using the VRChat SDK Control panel.");
+                loginInProgress = false;
+            }
             else
             {
                 loginInProgress = true;
@@ -27,7 +30,7 @@ namespace BocuD.VRChatApiTools
                     },
                     c =>
                     {
-                        onError(c);
+                        onError(c ?? new ApiModelContainer<APIUser> { Error = "Please try logging in through the VRChat control panel" });
                         loginInProgress = false;
                     }
                 );
