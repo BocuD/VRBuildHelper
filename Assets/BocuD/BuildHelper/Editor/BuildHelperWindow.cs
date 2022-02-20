@@ -473,6 +473,7 @@ namespace BocuD.BuildHelper.Editor
             //prevent indexoutofrangeexception
             if (storageObject.currentBranch < storageObject.branches.Length && storageObject.currentBranch > -1)
             {
+                //reverse override container state
                 if (storageObject.branches[storageObject.currentBranch].hasOverrides)
                     data.overrideContainers[storageObject.currentBranch].ResetStateChanges();
             }
@@ -487,7 +488,7 @@ namespace BocuD.BuildHelper.Editor
                 if (storageObject.branches[storageObject.currentBranch].hasOverrides)
                     data.overrideContainers[storageObject.currentBranch].ApplyStateChanges();
 
-                ApplyPipelineID(storageObject.branches[storageObject.currentBranch].blueprintID);
+                ApplyPipelineID(storageObject.CurrentBranch.blueprintID);
             }
             else if(storageObject.branches.Length == 0)
             {
