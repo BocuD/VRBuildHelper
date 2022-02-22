@@ -43,7 +43,6 @@ namespace BocuD.BuildHelper
         
         private void Awake()
         {
-            LoadFromJSON();
             #if UNITY_EDITOR
             if (linkedBehaviourGameObject != null)
                 linkedBehaviour = linkedBehaviourGameObject.GetUdonSharpComponent<BuildHelperUdon>();
@@ -352,6 +351,8 @@ namespace BocuD.BuildHelper
         public bool singleTarget;
         public Platform initialTarget;
         public Platform secondaryTarget;
+        public string initialBuildPath;
+        public string secondaryBuildPath;
         public Progress progress;
 
         public AutonomousBuildInformation()

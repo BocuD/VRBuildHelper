@@ -77,13 +77,10 @@ namespace BocuD.BuildHelper.Editor
 
             if (buildHelperBehaviour)
             {
-                buildHelperBehaviour.LoadFromJSON();
                 buildHelperData = buildHelperBehaviour.dataObject;
 
                 InitBranchList();
             }
-
-            EditorApplication.playModeStateChanged += LogPlayModeState;
         }
 
         private void OnGUI()
@@ -1229,8 +1226,10 @@ namespace BocuD.BuildHelper.Editor
 
             if (branch.vrcImageHasChanges)
             {
-                VRChatApiUploaderAsync uploaderAsync = new VRChatApiUploaderAsync();
-                apiWorld.imageUrl = await uploaderAsync.UploadImage(apiWorld.imageUrl,
+                VRChatApiUploaderAsync uploader = new VRChatApiUploaderAsync();
+                uploader.UseStatusWindow();
+                
+                apiWorld.imageUrl = await uploader.UploadImage(apiWorld.imageUrl,
                     VRChatApiTools.GetFriendlyWorldFileName("Image", apiWorld), branch.overrideImagePath);
                 branch.vrcImageHasChanges = false;
             }
@@ -1658,11 +1657,10 @@ namespace BocuD.BuildHelper.Editor
                         buildHelperBehaviour.SaveToJSON();
 
                         AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
-                        statusWindow.AddLog("Initiating autonomous builder...");
+                        Logger.Log("Initiating autonomous builder...");
                         statusWindow.currentPlatform = buildHelperData.autonomousBuild.initialTarget;
-                        statusWindow.currentState = AutonomousBuildState.building;
 
-                        BuildHelperBuilder.PublishNewBuild();
+                        AutonomousBuilder.StartNewBuild();
                     }
                 }
             }
@@ -1909,13 +1907,6 @@ namespace BocuD.BuildHelper.Editor
             buildHelperBehaviour.SaveToJSON();
             EditorSceneManager.SaveScene(buildHelperBehaviour.gameObject.scene);
             OnEnable();
-        }
-
-        private void LogPlayModeState(PlayModeStateChange state)
-        {
-            if (state == PlayModeStateChange.EnteredEditMode)
-                if (buildHelperBehaviour)
-                    buildHelperBehaviour.LoadFromJSON();
         }
 
         private void OnDestroy()

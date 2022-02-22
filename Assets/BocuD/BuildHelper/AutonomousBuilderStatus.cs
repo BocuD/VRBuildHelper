@@ -204,38 +204,48 @@ namespace BocuD.BuildHelper
 
         private void Log(string logString, string stackTrace, LogType type)
         {
-            if (type == LogType.Error)
+            switch (type)
             {
-                AddLog($"<color=red>{logString}</color>");
-            }
+                case LogType.Error:
+                    AddLog($"<color=red>{logString}</color>");
 
-            if (type == LogType.Error && logString.Contains("Building AssetBundles was canceled.") &&
-                _currentState != AutonomousBuildState.failed)
-            {
-                failReason = "Build was cancelled";
-                currentState = AutonomousBuildState.failed;
-            }
+                    if (logString.Contains("Building AssetBundles was canceled.") &&
+                        _currentState != AutonomousBuildState.failed)
+                    {
+                        failReason = "Build was cancelled";
+                        currentState = AutonomousBuildState.failed;
+                    }
 
-            if (type == LogType.Error && logString.Contains("Error building Player") &&
-                _currentState != AutonomousBuildState.failed)
-            {
-                failReason = "Error building Player";
-                currentState = AutonomousBuildState.failed;
+                    if (logString.Contains("Error building Player") &&
+                        _currentState != AutonomousBuildState.failed)
+                    {
+                        failReason = "Error building Player";
+                        currentState = AutonomousBuildState.failed;
+                    }
+            
+                    if (logString.Contains("AndroidPlayer") &&
+                        _currentState != AutonomousBuildState.failed)
+                    {
+                        failReason = "Couldn't switch platform to Android";
+                        currentState = AutonomousBuildState.failed;
+                    }
+
+                    if (logString.Contains("Export Exception") &&
+                        _currentState != AutonomousBuildState.failed)
+                    {
+                        failReason = "Export Exception";
+                        currentState = AutonomousBuildState.failed;
+                    }
+                    break;
+                
+                case LogType.Warning:
+                    break;
+                
+                case LogType.Log:
+                    AddLog(logString);
+                    break;
             }
             
-            if (type == LogType.Error && logString.Contains("AndroidPlayer") &&
-                _currentState != AutonomousBuildState.failed)
-            {
-                failReason = "Couldn't switch platform to Android";
-                currentState = AutonomousBuildState.failed;
-            }
-
-            if (type == LogType.Error && logString.Contains("Export Exception") &&
-                _currentState != AutonomousBuildState.failed)
-            {
-                failReason = "Export Exception";
-                currentState = AutonomousBuildState.failed;
-            }
 
             logScroll.y += 1000;
         }

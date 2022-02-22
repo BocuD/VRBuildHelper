@@ -23,6 +23,22 @@ namespace BocuD.VRChatApiTools
 
             return window;
         }
+        
+        public static VRChatApiToolsUploadStatus GetNew()
+        {
+            VRChatApiToolsUploadStatus window = CreateInstance<VRChatApiToolsUploadStatus>();
+            window.ShowUtility();
+
+            window.titleContent = new GUIContent("VRChat Api Tools Uploader");
+            window.maxSize = new Vector2(400, 200);
+            window.minSize = window.maxSize;
+            window.autoRepaintOnSceneChange = true;
+
+            window.Show();
+            window.Repaint();
+
+            return window;
+        }
 
         private Vector2 logScroll;
         private string log;
@@ -152,7 +168,7 @@ namespace BocuD.VRChatApiTools
             Repaint();
         }
 
-        public void SetStatus(string header, float progress, string status = null, string subStatus = null)
+        public void SetProgress(string header, float progress, string status = null, string subStatus = null)
         {
             if (header != _header || status != _status || subStatus != _subStatus)
             {

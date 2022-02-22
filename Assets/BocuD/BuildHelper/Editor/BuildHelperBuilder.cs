@@ -50,7 +50,7 @@ namespace BocuD.BuildHelper
             {
                 EnvConfig.ConfigurePlayerSettings();
                 VRC_SdkBuilder.shouldBuildUnityPackage = false;
-                AssetExporter.CleanupUnityPackageExport(); // force unity package rebuild on next publish
+                AssetExporter.CleanupUnityPackageExport();
                 VRC_SdkBuilder.PreBuildBehaviourPackaging();
 
                 VRC_SdkBuilder.ExportSceneResourceAndRun();
@@ -71,17 +71,18 @@ namespace BocuD.BuildHelper
             }
         }
 
-        public static void ReloadNewBuild()
+        public static void ReloadNewBuild(Action onSuccess = null)
         {
             bool buildTestBlocked = !VRCBuildPipelineCallbacks.OnVRCSDKBuildRequested(VRCSDKRequestedBuildType.Scene);
             if (!buildTestBlocked)
             {
                 EnvConfig.ConfigurePlayerSettings();
                 VRC_SdkBuilder.shouldBuildUnityPackage = false;
-                AssetExporter.CleanupUnityPackageExport(); // force unity package rebuild on next publish
+                AssetExporter.CleanupUnityPackageExport();
                 VRC_SdkBuilder.PreBuildBehaviourPackaging();
 
                 VRC_SdkBuilder.ExportSceneResource();
+                onSuccess?.Invoke();
             }
         }
     
@@ -105,6 +106,8 @@ namespace BocuD.BuildHelper
             if (APIUser.CurrentUser.canPublishWorlds)
             {
                 VRChatApiUploaderAsync uploaderAsync = new VRChatApiUploaderAsync();
+                uploaderAsync.UseStatusWindow();
+                
                 await uploaderAsync.UploadLastBuild(targetBranch);
                 
                 onSucces?.Invoke(targetBranch);

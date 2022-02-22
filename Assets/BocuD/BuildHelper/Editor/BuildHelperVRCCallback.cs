@@ -50,7 +50,6 @@ namespace BocuD.BuildHelper.Editor
             
             if (buildHelperData)
             {
-                buildHelperData.LoadFromJSON();
                 buildData = buildHelperData.dataObject.CurrentBranch.buildData;
             }
             else

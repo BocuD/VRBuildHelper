@@ -20,10 +20,12 @@
  SOFTWARE.
 */
 
-using System;
+using System.IO;
 using System.Threading.Tasks;
+using BocuD.VRChatApiTools;
 using UnityEditor;
 using UnityEditor.Build;
+using UnityEngine;
 using VRC.Core;
 using static BocuD.BuildHelper.AutonomousBuildInformation;
 
@@ -31,220 +33,179 @@ namespace BocuD.BuildHelper
 {
     public static class AutonomousBuilder
     {
-        public static void SetPlatformWindows()
+        private static async void SwitchPlatform(Platform newTarget)
         {
-            Logger.Log("Switching platform to Windows");
+            AutonomousBuilderStatus status = AutonomousBuilderStatus.ShowStatus();
+            status.currentPlatform = newTarget;
+            status.currentState = AutonomousBuildState.switchingPlatform;
+            await Task.Delay(500);
 
-            EditorUserBuildSettings.selectedBuildTargetGroup = BuildTargetGroup.Standalone;
-            EditorUserBuildSettings.SwitchActiveBuildTargetAsync(BuildTargetGroup.Standalone, BuildTarget.StandaloneWindows64);
+            switch (newTarget)
+            {
+                case Platform.PC:
+                    Logger.Log("Switching platform to Windows");
+
+                    EditorUserBuildSettings.selectedBuildTargetGroup = BuildTargetGroup.Standalone;
+                    EditorUserBuildSettings.SwitchActiveBuildTargetAsync(BuildTargetGroup.Standalone, BuildTarget.StandaloneWindows64);
+                    break;
+                
+                case Platform.mobile:
+                    Logger.Log("Switching platform to Android");
+
+                    EditorUserBuildSettings.selectedBuildTargetGroup = BuildTargetGroup.Android;
+                    EditorUserBuildSettings.SwitchActiveBuildTargetAsync(BuildTargetGroup.Android, BuildTarget.Android);
+                    break;
+            }
         }
-
-        public static void SetPlatformAndroid()
+        
+        public static void FinishedBuild()
         {
-            Logger.Log("Switching platform to Windows");
+            string lastVRCPath = EditorPrefs.GetString("lastVRCPath");
+            Logger.Log($"Detected successful build at {lastVRCPath}");
 
-            EditorUserBuildSettings.selectedBuildTargetGroup = BuildTargetGroup.Android;
-            EditorUserBuildSettings.SwitchActiveBuildTargetAsync(BuildTargetGroup.Android, BuildTarget.Android);
-        }
-
-        public static void EnteredEditMode()
-        {
             BuildHelperData data = BuildHelperData.GetDataBehaviour();
             if (!data) return;
-            data.LoadFromJSON();
-            AutonomousBuildInformation buildInfo = data.dataObject.autonomousBuild;
 
-            if (buildInfo == null) return;
-            
+            AutonomousBuildInformation buildInfo = data.dataObject.autonomousBuild;
             if (!buildInfo.activeBuild) return;
             
-            AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
-
-            if (statusWindow.abort)
+            switch(buildInfo.progress)
             {
-                buildInfo.activeBuild = false;
-                data.SaveToJSON();
-                statusWindow.currentState = AutonomousBuildState.aborted;
-                return;
-            }
+                case Progress.PreInitialBuild:
+                    buildInfo.progress = Progress.PostInitialBuild;
+                    buildInfo.initialBuildPath = lastVRCPath;
+                    
+                    Logger.Log("Preparing for second build...");
 
-            if (buildInfo.singleTarget)
-            {
-                if (buildInfo.progress == Progress.PostInitialBuild)
-                {
-                    buildInfo.activeBuild = false;
+                    SwitchPlatform(buildInfo.secondaryTarget);
+                    break;
+                
+                case Progress.PreSecondaryBuild:
+                    buildInfo.progress = Progress.PostSecondaryBuild;
+                    buildInfo.secondaryBuildPath = lastVRCPath; 
+                    Logger.Log("Preparing for upload...");
 
-                    if (statusWindow.currentState != AutonomousBuildState.failed)
-                    {
-                        buildInfo.progress = Progress.Finished;
-                        Logger.Log("Autonomous publish succeeded");
-                        statusWindow.currentState = AutonomousBuildState.finished;
-                    }
-
-                    data.SaveToJSON();
-                }
-            }
-            else
-            {
-                switch (buildInfo.progress)
-                {
-                    case Progress.PostInitialBuild:
-                        if (buildInfo.secondaryTarget == Platform.mobile)
-                            SetPlatformAndroid();
-                        else SetPlatformWindows();
-                        break;
-
-                    case Progress.PostSecondaryBuild:
-                        if (buildInfo.initialTarget == Platform.mobile)
-                            SetPlatformAndroid();
-                        else SetPlatformWindows();
-                        break;
-                }
+                    UploadTask(data.dataObject);
+                    break;
             }
         }
 
         public static void BuildTargetUpdate(BuildTarget newTarget)
         {
-            Logger.Log("Switched build target to " + newTarget);
-            
             BuildHelperData data = BuildHelperData.GetDataBehaviour();
             if (!data) return;
-            data.LoadFromJSON();
-            AutonomousBuildInformation buildInfo = data.dataObject.autonomousBuild;
 
+            AutonomousBuildInformation buildInfo = data.dataObject.autonomousBuild;
             if (!buildInfo.activeBuild) return;
             
-            Platform currentPlatform;
-
-            BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
-            switch (target)
-            {
-                case BuildTarget.Android:
-                    currentPlatform = Platform.mobile;
-                    break;
-                case BuildTarget.StandaloneWindows:
-                case BuildTarget.StandaloneWindows64:
-                    currentPlatform = Platform.PC;
-                    break;
-                default:
-                    return;
-            }
-
             switch (buildInfo.progress)
             {
                 case Progress.PostInitialBuild:
-                    if (currentPlatform == buildInfo.secondaryTarget)
-                    {
-                        AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
-                        if (statusWindow.abort)
-                        {
-                            buildInfo.activeBuild = false;
-                            data.SaveToJSON();
-                            statusWindow.currentState = AutonomousBuildState.aborted;
-                        }
-                        else
-                        {
-                            buildInfo.progress = Progress.PostPlatformSwitch;
-                            data.SaveToJSON();
-                                
-                            if (!APIUser.IsLoggedIn)
-                            {
-                                EditorApplication.ExecuteMenuItem("VRChat SDK/Show Control Panel");
-                                    
-                                if (statusWindow.abort)
-                                {
-                                    buildInfo.activeBuild = false;
-                                    data.SaveToJSON();
-                                    statusWindow.currentState = AutonomousBuildState.aborted;
-                                }
-                                else if (statusWindow.currentState != AutonomousBuildState.waitingForApi)
-                                {
-                                    statusWindow.currentState = AutonomousBuildState.waitingForApi;
-                                    LoginStateChecker(data);
-                                }
-                            } else StartSecondaryBuild(data);
-                        }
-                    }
-
-                    break;
-
-                case Progress.PostSecondaryBuild:
-                    if (currentPlatform == buildInfo.initialTarget)
-                    {
-                        buildInfo.activeBuild = false;
-                        buildInfo.progress = Progress.Finished;
-                        Logger.Log("<color=green>Autonomous publish succeeded</color>");
-
-                        AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
-                        statusWindow.currentState = AutonomousBuildState.finished;
-
-                        data.SaveToJSON();
-                    }
+                    buildInfo.progress = Progress.PreSecondaryBuild;
+                    StartNewBuild();
                     break;
             }
         }
-        
-        public static void StartSecondaryBuild(BuildHelperData data)
-        {
-            AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
 
-            data.dataObject.autonomousBuild.progress = Progress.PreSecondaryBuild;
-            data.SaveToJSON();
-            statusWindow.currentPlatform = data.dataObject.autonomousBuild.secondaryTarget;
-            statusWindow.currentState = AutonomousBuildState.building;
-            BuildHelperBuilder.PublishNewBuild();
-        }
-        
-        private static async void LoginStateChecker(BuildHelperData data)
+        public static async void StartNewBuild()
         {
-            AutonomousBuilderStatus statusWindow = AutonomousBuilderStatus.ShowStatus();
-            
-            for (int attempt = 0; attempt < 30; attempt++)
+            AutonomousBuilderStatus status = AutonomousBuilderStatus.ShowStatus();
+            status.currentState = AutonomousBuildState.waitingForApi;
+
+            if (await VRChatApiTools.VRChatApiTools.TryAutoLoginAsync())
             {
-                if (APIUser.IsLoggedIn)
+                status.currentState = AutonomousBuildState.building;
+                await Task.Delay(500);
+                BuildHelperBuilder.ReloadNewBuild(FinishedBuild);
+            }
+            else
+            {
+                status.currentState = AutonomousBuildState.failed;
+                status.failReason = "Login failed";
+            }
+        }
+
+        public static async void UploadTask(BranchStorageObject data)
+        {
+            AutonomousBuilderStatus status = AutonomousBuilderStatus.ShowStatus();
+
+            VRChatApiTools.VRChatApiTools.ClearCaches();
+            await Task.Delay(100);
+            if (!await VRChatApiTools.VRChatApiTools.TryAutoLoginAsync()) return;
+            
+            PipelineManager pipelineManager = VRChatApiTools.VRChatApiTools.FindPipelineManager();
+            if (pipelineManager == null)
+            {
+                Logger.LogError("Couldn't find Pipeline Manager");
+                return;
+            }
+
+            pipelineManager.user = APIUser.CurrentUser;
+
+            bool isUpdate = true;
+            bool wait = true;
+            
+            ApiWorld apiWorld = new ApiWorld
+            {
+                id = pipelineManager.blueprintId
+            };
+            
+            apiWorld.Fetch(null,
+                (c) =>
                 {
-                    if (statusWindow.abort)
-                    {
-                        data.dataObject.autonomousBuild.activeBuild = false;
-                        data.SaveToJSON();
-                        statusWindow.currentState = AutonomousBuildState.aborted;
-                    }
-                    else
-                    {
-                        StartSecondaryBuild(data);
-                    }
-                    return;
-                }
+                    Logger.Log("Found world record");
+                    apiWorld = c.Model as ApiWorld;
+                    pipelineManager.completedSDKPipeline = !string.IsNullOrEmpty(apiWorld.authorId);
+                    isUpdate = true;
+                    wait = false;
+                },
+                (c) =>
+                {
+                    Logger.Log("World record not found, creating a new world.");
+                    apiWorld = new ApiWorld { capacity = 16 };
+                    pipelineManager.completedSDKPipeline = false;
+                    apiWorld.id = pipelineManager.blueprintId;
+                    isUpdate = false;
+                    wait = false;
+                });
 
-                await Task.Delay(TimeSpan.FromSeconds(1));
-            }
+            while (wait) await Task.Delay(100);
 
-            //reset build state
-            data.dataObject.autonomousBuild.activeBuild = false;
-            data.SaveToJSON();
-            
-            statusWindow.failReason = "Timed out waiting for VRChat Api login";
-            statusWindow.currentState = AutonomousBuildState.failed;
-
-            Logger.LogError("Timed out waiting for login");
-        }
-    }
-
-    [InitializeOnLoad]
-    public static class AutonomousBuilderPlaymodeStateWatcher
-    {
-        // register an event handler when the class is initialized
-        static AutonomousBuilderPlaymodeStateWatcher()
-        {
-            EditorApplication.playModeStateChanged += PlayModeStateUpdate;
-        }
-
-        private static void PlayModeStateUpdate(PlayModeStateChange state)
-        {
-            if (state == PlayModeStateChange.EnteredEditMode)
+            if (apiWorld == null)
             {
-                AutonomousBuilder.EnteredEditMode();
+                Logger.LogError("Couldn't get world record");
+                return;
             }
+            
+            //Assign a new blueprint ID if this is a new world
+            if (string.IsNullOrEmpty(apiWorld.id))
+            {
+                pipelineManager.AssignId();
+                apiWorld.id = pipelineManager.blueprintId;
+            }
+
+            status.currentPlatform = data.autonomousBuild.initialTarget;
+            status.currentState = AutonomousBuildState.uploading;
+            await UploadBuild(data.autonomousBuild.initialBuildPath, data.CurrentBranch, apiWorld, data.autonomousBuild.initialTarget, isUpdate);
+            
+            status.currentPlatform = data.autonomousBuild.secondaryTarget;
+            status.currentState = AutonomousBuildState.uploading;
+            await UploadBuild(data.autonomousBuild.secondaryBuildPath, data.CurrentBranch, apiWorld, data.autonomousBuild.secondaryTarget, true);
+
+            status.currentState = AutonomousBuildState.finished;
+        }
+
+        private static async Task UploadBuild(string buildPath, Branch targetBranch, ApiWorld apiWorld, Platform platform, bool isUpdate)
+        {
+            //Prepare asset bundle
+            string blueprintId = apiWorld.id;
+            int version = Mathf.Max(1, apiWorld.version + 1);
+
+            string uploadVrcPath = VRChatApiUploaderAsync.PrepareVRCPathForS3(buildPath, blueprintId, version, platform, ApiWorld.VERSION);
+
+            VRChatApiUploaderAsync uploader = new VRChatApiUploaderAsync();
+            uploader.UseStatusWindow();
+            await uploader.UploadWorldData(apiWorld, "", uploadVrcPath, isUpdate, targetBranch);
         }
     }
 
