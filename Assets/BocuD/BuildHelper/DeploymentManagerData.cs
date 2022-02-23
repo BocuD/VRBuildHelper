@@ -31,6 +31,7 @@
 #if UNITY_EDITOR && !COMPILER_UDONSHARP
 
 using System;
+using static BocuD.VRChatApiTools.VRChatApiTools;
 
 namespace BocuD.BuildHelper
 {

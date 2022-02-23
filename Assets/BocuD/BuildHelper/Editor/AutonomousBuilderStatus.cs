@@ -25,6 +25,7 @@
 using System;
 using UnityEditor;
 using UnityEngine;
+using static BocuD.VRChatApiTools.VRChatApiTools;
 
 namespace BocuD.BuildHelper
 {
@@ -34,8 +35,8 @@ namespace BocuD.BuildHelper
         private string log;
         public string failReason;
         private Vector2 logScroll;
-        private BuildHelperData buildHelperData;
         public bool abort = false;
+        public AutonomousBuilder.AutonomousBuildInformation buildInfo;
 
         public AutonomousBuildState currentState
         {
@@ -260,7 +261,7 @@ namespace BocuD.BuildHelper
                     BuildHelperData data = BuildHelperData.GetDataBehaviour();
 
                     //spawn new window if we still need to process the abort
-                    if (data && data.dataObject.autonomousBuild.activeBuild)
+                    if (data && AutonomousBuilder.buildInfo.activeBuild)
                     {
                         AutonomousBuilderStatus status = CreateInstance<AutonomousBuilderStatus>();
                         status.ShowUtility();

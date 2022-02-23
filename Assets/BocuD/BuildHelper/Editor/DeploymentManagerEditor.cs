@@ -36,11 +36,11 @@ using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 using VRC.Core;
-using Object = UnityEngine.Object;
+using static BocuD.VRChatApiTools.VRChatApiTools;
 
 namespace BocuD.BuildHelper.Editor
 {
-    using BocuD.VRChatApiTools;
+    using VRChatApiTools;
     
     public class DeploymentManagerEditor : EditorWindow
     {
@@ -407,35 +407,7 @@ namespace BocuD.BuildHelper.Editor
             string worldPattern = "(?:wrld_)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
             if (Regex.IsMatch(fileName, worldPattern))
                 return Regex.Match(fileName, worldPattern).ToString();
-            else return "";
-        }
-    }
-
-    [InitializeOnLoad]
-    public static class DeploymentManagerPlaymodeStateWatcher
-    {
-        // register an event handler when the class is initialized
-        static DeploymentManagerPlaymodeStateWatcher()
-        {
-            EditorApplication.playModeStateChanged += PlayModeStateUpdate;
-        }
-
-        private static void PlayModeStateUpdate(PlayModeStateChange state)
-        {
-            if (state == PlayModeStateChange.EnteredEditMode)
-            {
-                BuildHelperData buildHelperData = BuildHelperData.GetDataBehaviour();
-                if (buildHelperData == null) return;
-                buildHelperData.LoadFromJSON();
-
-                foreach (Branch b in buildHelperData.dataObject.branches)
-                {
-                    if (b.hasDeploymentData)
-                    {
-                        DeploymentManager.RefreshDeploymentData(b);
-                    }
-                }
-            }
+            return "";
         }
     }
 }

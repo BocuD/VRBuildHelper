@@ -37,6 +37,24 @@ namespace BocuD.BuildHelper
     
     public static class BuildHelperBuilder
     {
+        public static string ExportAssetBundle()
+        {
+            bool buildTestBlocked = !VRCBuildPipelineCallbacks.OnVRCSDKBuildRequested(VRCSDKRequestedBuildType.Scene);
+            
+            if (!buildTestBlocked)
+            {
+                EnvConfig.ConfigurePlayerSettings();
+                VRC_SdkBuilder.shouldBuildUnityPackage = false;
+                AssetExporter.CleanupUnityPackageExport();
+                VRC_SdkBuilder.PreBuildBehaviourPackaging();
+
+                VRC_SdkBuilder.ExportSceneResource();
+                return EditorPrefs.GetString("currentBuildingAssetBundlePath");
+            }
+
+            return "";
+        }
+        
         public static void TestLastBuild()
         {
             VRC_SdkBuilder.shouldBuildUnityPackage = false;
@@ -101,16 +119,16 @@ namespace BocuD.BuildHelper
             }
         }
 
-        public static async Task PublishLastBuildAsync(Branch targetBranch = null, Action<Branch> onSucces = null)
+        public static async Task PublishLastBuildAsync(VRChatApiTools.WorldInfo worldInfo = null, Action<VRChatApiTools.WorldInfo> onSucces = null)
         {
             if (APIUser.CurrentUser.canPublishWorlds)
             {
                 VRChatApiUploaderAsync uploaderAsync = new VRChatApiUploaderAsync();
                 uploaderAsync.UseStatusWindow();
                 
-                await uploaderAsync.UploadLastBuild(targetBranch);
+                await uploaderAsync.UploadLastBuild(worldInfo);
                 
-                onSucces?.Invoke(targetBranch);
+                onSucces?.Invoke(worldInfo);
             }
             else
             {
@@ -139,7 +157,7 @@ namespace BocuD.BuildHelper
             }
         }
         
-        public static async void PublishNewBuildAsync(Branch targetBranch = null, Action<Branch> onSucces = null)
+        public static async void PublishNewBuildAsync(VRChatApiTools.WorldInfo targetBranch = null, Action<VRChatApiTools.WorldInfo> onSucces = null)
         {
             bool buildTestBlocked = !VRCBuildPipelineCallbacks.OnVRCSDKBuildRequested(VRCSDKRequestedBuildType.Scene);
             if (!buildTestBlocked)

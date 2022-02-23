@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using BocuD.BuildHelper;
 using JetBrains.Annotations;
 using UnityEditor;
 using UnityEngine;
@@ -55,7 +56,7 @@ namespace BocuD.VRChatApiTools
             VRCLogin.AttemptLogin(
                 c =>
                 {
-                    Logger.Log("Succesfully logged in as user: " + ((APIUser) c.Model).displayName);
+                    Logger.Log($"Succesfully logged in as user: {((APIUser)c.Model).displayName}");
                 },
                         
                 c =>
@@ -241,7 +242,7 @@ namespace BocuD.VRChatApiTools
                     VRCLogin.AttemptLogin(
                         c =>
                         {
-                            Logger.Log("Succesfully logged in as user: " + ((APIUser) c.Model).displayName);
+                            Logger.Log($"Succesfully logged in as user: {((APIUser)c.Model).displayName}");
                             onSucces?.Invoke();
                         },
                         
@@ -270,7 +271,7 @@ namespace BocuD.VRChatApiTools
                     VRCLogin.AttemptLogin(
                         c =>
                         {
-                            Logger.Log("Succesfully logged in as user: " + ((APIUser) c.Model).displayName);
+                            Logger.Log($"Succesfully logged in as user: {((APIUser)c.Model).displayName}");
                             succes = true;
                             wait = false;
                         },
@@ -364,7 +365,7 @@ namespace BocuD.VRChatApiTools
             
             foreach (string tag in tags)
             {
-                output += tag.ReplaceFirst("author_tag_", "") + ", ";
+                output += $"{tag.ReplaceFirst("author_tag_", "")}, ";
             }
 
             if (output.Contains(", "))
@@ -382,16 +383,62 @@ namespace BocuD.VRChatApiTools
             }
             return text.Substring(0, pos) + replace + text.Substring(pos + search.Length);
         }
-
-        public static string GetFriendlyAvatarFileName(string type, string blueprintID)
+        
+        [Serializable]
+        public class WorldInfo
         {
-            return "Avatar - " + blueprintID + " - " + type + " - " + Application.unityVersion + "_" + ApiWorld.VERSION.ApiVersion +
-                   "_" + Tools.Platform + "_" + API.GetServerEnvironmentForApiUrl();
+            public string name = "";
+            public string description = "";
+            public List<string> tags = new List<string>();
+            public int capacity;
+
+            public string blueprintID = "";
+
+            public string newImagePath = "";
+        }
+        
+        public enum Platform
+        {
+            PC,
+            mobile,
+            unknown
         }
 
-        public static string GetFriendlyWorldFileName(string type, ApiWorld apiWorld) => 
-            $"World - {apiWorld.name} - {type} - " +
-            $"{Application.unityVersion}_{ApiWorld.VERSION.ApiVersion}_{Tools.Platform}_{API.GetServerEnvironmentForApiUrl()}";
+        public static Platform CurrentPlatform()
+        {
+            BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
+            switch (target)
+            {
+                case BuildTarget.Android:
+                    return Platform.mobile;
+                
+                case BuildTarget.StandaloneWindows:
+                case BuildTarget.StandaloneWindows64:
+                    return Platform.PC;
+                
+                default:
+                    return Platform.unknown;
+            }
+        }
+
+        public static string ToApiString(this Platform input)
+        {
+            switch (input)
+            {
+                case Platform.PC:
+                    return "standalonewindows";
+                case Platform.mobile:
+                    return "android";
+                default:
+                    return "unknownplatform";
+            }
+        }
+
+        public static string GetFriendlyAvatarFileName(string type, string blueprintID, Platform platform) =>
+            $"Avatar - {blueprintID} - {type} - {Application.unityVersion}_{ApiWorld.VERSION.ApiVersion}_{platform.ToApiString()}_{API.GetServerEnvironmentForApiUrl()}";
+
+        public static string GetFriendlyWorldFileName(string type, ApiWorld apiWorld, Platform platform) =>
+            $"World - {apiWorld.name} - {type} - {Application.unityVersion}_{ApiWorld.VERSION.ApiVersion}_{platform.ToApiString()}_{API.GetServerEnvironmentForApiUrl()}";
     }
 }
 

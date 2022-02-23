@@ -25,10 +25,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UdonSharpEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-
+using static BocuD.VRChatApiTools.VRChatApiTools;
 namespace BocuD.BuildHelper
 {
     [ExecuteInEditMode]
@@ -56,7 +57,6 @@ namespace BocuD.BuildHelper
             dataObject = new BranchStorageObject
             {
                 branches = new Branch[0],
-                autonomousBuild = new AutonomousBuildInformation()
             };
 
             overrideContainers = new OverrideContainer[0];
@@ -174,6 +174,24 @@ namespace BocuD.BuildHelper
         }
     }
 
+    public static class ApiToolsExtensions
+    {
+        public static WorldInfo ToWorldInfo(this Branch branch)
+        {
+            return new WorldInfo()
+            {
+                name = branch.nameChanged ? branch.editedName : branch.cachedName,
+                description = branch.descriptionChanged ? branch.editedDescription : branch.cachedDescription,
+                tags = branch.tagsChanged ? branch.editedTags.ToList() : branch.cachedTags.ToList(),
+                capacity = branch.capacityChanged ? branch.editedCap : branch.cachedCap,
+                
+                blueprintID = branch.blueprintID,
+                
+                newImagePath = branch.vrcImageHasChanges ? branch.overrideImagePath : ""
+            };
+        }
+    }
+
     [Serializable]
     public class BranchStorageObject
     {
@@ -192,8 +210,6 @@ namespace BocuD.BuildHelper
                 return null;
             }
         }
-        
-        public AutonomousBuildInformation autonomousBuild;
     }
 
     [Serializable]
@@ -279,12 +295,6 @@ namespace BocuD.BuildHelper
             androidUploadedBuildVersion = -1;
         }
     }
-    
-    public enum Platform
-    {
-        PC,
-        mobile
-    }
 
     [Serializable]
     public class OverrideContainer
@@ -341,34 +351,6 @@ namespace BocuD.BuildHelper
                     obj.tag = "EditorOnly";
                 }
             }
-        }
-    }
-    
-    [Serializable]
-    public class AutonomousBuildInformation
-    {
-        public bool activeBuild;
-        public bool singleTarget;
-        public Platform initialTarget;
-        public Platform secondaryTarget;
-        public string initialBuildPath;
-        public string secondaryBuildPath;
-        public Progress progress;
-
-        public AutonomousBuildInformation()
-        {
-            activeBuild = false;
-            singleTarget = false;
-        }
-
-        public enum Progress
-        {
-            PreInitialBuild,
-            PostInitialBuild,
-            PostPlatformSwitch,
-            PreSecondaryBuild,
-            PostSecondaryBuild,
-            Finished
         }
     }
 }

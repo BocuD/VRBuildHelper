@@ -97,7 +97,7 @@ namespace BocuD.VRChatApiTools
                 OnError = c => { result = c; wait = false; }
             };
             
-            API.SendPutRequest(uploadStatus.Endpoint + "?partNumber=" + partNumber, apiDictContainer);
+            API.SendPutRequest($"{uploadStatus.Endpoint}?partNumber={partNumber}", apiDictContainer);
 
             while (wait)
             {

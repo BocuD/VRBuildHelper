@@ -29,10 +29,11 @@ using UnityEditor.Callbacks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using VRC.SDKBase.Editor.BuildPipeline;
+using static BocuD.VRChatApiTools.VRChatApiTools;
+using static BocuD.BuildHelper.AutonomousBuilder;
 
 namespace BocuD.BuildHelper.Editor
 {
-    
     /*TODO: use [PostProcessBuildAttribute(0)] public static void OnPostprocessBuild(BuildTarget target, string pathToBuiltProject) {}
      in combination with IVRCSDKBuildRequestedCallback instead of only relying on one; using PostProcessBuildAttribute lets us verify
      if the build was actually succesful
@@ -60,7 +61,7 @@ namespace BocuD.BuildHelper.Editor
             buildHelperData.PrepareExcludedGameObjects();
             buildHelperData.overrideContainers[buildHelperData.dataObject.currentBranch].ApplyStateChanges();
             
-            AutonomousBuildInformation buildInformation = buildHelperData.dataObject.autonomousBuild;
+            AutonomousBuildInformation buildInformation = AutonomousBuilder.buildInfo;
 
             //todo: make this less of a mess
             
@@ -70,7 +71,7 @@ namespace BocuD.BuildHelper.Editor
                 buildData.androidBuildTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
 
                 //if we are doing an autonomous build for both platforms we know the build numbers should match
-                if (buildInformation.activeBuild && !buildInformation.singleTarget)
+                if (buildInformation.activeBuild)
                 {
                     //this is the first build of the autonomousbuild process, make sure it gets a new number
                     if (buildInformation.progress ==
@@ -135,7 +136,7 @@ namespace BocuD.BuildHelper.Editor
                 buildData.pcBuildTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
 
                 //if we are doing an autonomous build for both platforms we know the build numbers should match
-                if (buildInformation.activeBuild && !buildInformation.singleTarget)
+                if (buildInformation.activeBuild)
                 {
                     //this is the first build of the autonomousbuild process, make sure it gets a new number
                     if (buildInformation.progress ==

@@ -187,7 +187,7 @@ namespace BocuD.VRChatApiTools
             SetUploadState(UploadState.failed);
             _header = header;
             _status = details;
-            AddLog(details);
+            AddLog($"<color=red>{details}</color>");
             Repaint();
         }
 

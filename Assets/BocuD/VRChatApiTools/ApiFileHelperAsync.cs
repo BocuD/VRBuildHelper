@@ -7,17 +7,40 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using librsync.net;
+using UnityEditor;
 using UnityEngine;
-using VRC;
 using VRC.Core;
 using VRC.Udon.Serialization.OdinSerializer.Utilities;
 
 using static VRC.Core.ApiFileHelper;
+using Tools = VRC.Tools;
 
 namespace BocuD.VRChatApiTools
 { 
     public class ApiFileHelperAsync
     {
+        //test
+        [MenuItem("Tools/TestThing")]
+        private static async void RunTest()
+        {
+            ApiFileHelperAsync helper = new ApiFileHelperAsync();
+
+            ApiWorld apiWorld = await VRChatApiTools.FetchApiWorldAsync("wrld_5c3543ae-52cb-466c-947e-ca2aafb9f6c5");
+            
+            string fileId = ApiFile.ParseFileIdFromFileAPIUrl(apiWorld.assetUrl);
+
+            ApiFile apiFile = await helper.FetchRecord(
+                "C:/Users/BocuD/AppData/LocalLow/VRChat/VRChat/Worlds/scene-StandaloneWindows64-New Scene.vrcw",
+                fileId,
+                VRChatApiTools.GetFriendlyWorldFileName("Asset bundle", apiWorld, VRChatApiTools.CurrentPlatform()),
+                (error, moreinfo) => { }, (status, subStatus, progress) => { }, () => false);
+            
+            if (apiFile == null)
+                return;
+
+            Logger.Log($"Fetched record succesfully: {apiFile.name}");
+        }
+
         //constants from the sdk
         private const int kMultipartUploadChunkSize = 50 * 1024 * 1024; // 50 MB <- is 100MB in the SDK, modified here because 25MB makes more sense
         private const int SERVER_PROCESSING_WAIT_TIMEOUT_CHUNK_SIZE = 50 * 1024 * 1024;
@@ -67,7 +90,7 @@ namespace BocuD.VRChatApiTools
             if (!await InitRemoteConfig(onError)) return;
             
             bool deltaCompression = ConfigManager.RemoteConfig.GetBool("sdkEnableDeltaCompression");
-            Logger.Log(deltaCompression ? "Using delta compression" : "Delta compression disabled");
+            //Logger.Log(deltaCompression ? "Using delta compression" : "Delta compression disabled");
 
             //Check filename
             if (!CheckFile(filename, onProgress, onError)) return;
@@ -79,7 +102,7 @@ namespace BocuD.VRChatApiTools
             if (apiFile == null)
                 return;
 
-            Logger.Log("Fetched record succesfully");
+            Logger.Log($"Fetched record succesfully: {apiFile.name}");
 
             if (apiFile.HasQueuedOperation(deltaCompression))
             {
@@ -263,6 +286,8 @@ namespace BocuD.VRChatApiTools
             string uploadFileName = uploadDeltaFile ? deltaFilename : filename;
             string uploadMD5 = uploadDeltaFile ? deltaMD5Base64 : fileMD5Base64;
             long uploadFileSize = uploadDeltaFile ? deltaFileSize : fullFileSize;
+            
+            Logger.Log($"ApiFile name: {apiFile.name}");
 
             switch (uploadDeltaFile)
             {
@@ -614,8 +639,6 @@ namespace BocuD.VRChatApiTools
                     CleanupTempFiles(apiFile.id);
                     return true;
                 }
-
-                Logger.Log("MD5 of new file matches remote MD5");
                 
                 //the previous upload wasn't succesful
                 isPreviousUploadRetry = true;
@@ -643,22 +666,22 @@ namespace BocuD.VRChatApiTools
                 }
 
                 ApiFile.Version version = apiFile.GetLatestVersion();
-                Logger.Log("Version: " + version.version);
-                Logger.Log("Version status: " + version.status);
-                if (version.file != null)
-                {
-                    Logger.Log("Version file status: " + version.file.status);
-                }
-
-                if (version.delta != null)
-                {
-                    Logger.Log("Version delta status: " + version.delta.status);
-                }
-                
-                if (version.signature != null)
-                {
-                    Logger.Log("Version delta status: " + version.signature.status);
-                }
+                Logger.Log($"Version: {version.version}");
+                // Logger.Log("Version status: " + version.status);
+                // if (version.file != null)
+                // {
+                //     Logger.Log("Version file status: " + version.file.status);
+                // }
+                //
+                // if (version.delta != null)
+                // {
+                //     Logger.Log("Version delta status: " + version.delta.status);
+                // }
+                //
+                // if (version.signature != null)
+                // {
+                //     Logger.Log("Version signature status: " + version.signature.status);
+                // }
                 
                 //we are clear for upload
                 return false;
@@ -711,6 +734,8 @@ namespace BocuD.VRChatApiTools
         private async Task<ApiFile> FetchRecord(string filename, string existingFileId, string friendlyName,
             UploadError onError, UploadProgress onProgress, Func<bool> cancelQuery)
         {
+            Logger.Log($"Fetching API Record for filename: {filename}, Existing file id: {existingFileId}, Friendly name: {friendlyName}");
+            
             string extension = Path.GetExtension(filename);
             string mimeType = GetMimeTypeFromExtension(extension);
 
@@ -731,7 +756,7 @@ namespace BocuD.VRChatApiTools
                 if (string.IsNullOrEmpty(existingFileId))
                     ApiFile.Create(friendlyName, mimeType, extension, FileSuccess, FileFailure);
                 else
-                    API.Fetch<ApiFile>(existingFileId, FileSuccess, FileFailure);
+                    API.Fetch<ApiFile>(existingFileId, FileSuccess, FileFailure, true);
 
                 while (wait)
                 {
@@ -751,8 +776,7 @@ namespace BocuD.VRChatApiTools
                         continue;
                     }
 
-                    onError?.Invoke(
-                        string.IsNullOrEmpty(existingFileId)
+                    onError?.Invoke(string.IsNullOrEmpty(existingFileId)
                             ? "Failed to create file record."
                             : "Failed to get file record.", errorStr);
 
@@ -962,15 +986,6 @@ namespace BocuD.VRChatApiTools
 
             onSuccess?.Invoke();
         }
-
-        /*private static void Error(UploadError onError, ApiFile apiFile, string error, string moreInfo = "")
-        {
-            if (apiFile == null)
-                apiFile = new ApiFile();
-            
-            Logger.LogError($"Error: {error}\n{moreInfo}");
-            onError?.Invoke(apiFile, $"{error}: {moreInfo}");
-        }*/
 
         private static void CleanupTempFiles(string subFolderName)
         {
@@ -1280,7 +1295,7 @@ namespace BocuD.VRChatApiTools
                         },
                         (c) =>
                         {
-                            errorStr = "Couldn't verify upload status: " + c.Error;
+                            errorStr = $"Couldn't verify upload status: {c.Error}";
                             wait = false;
                             if (c.Code == 400)
                                 worthRetry = true;
