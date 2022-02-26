@@ -33,6 +33,7 @@ using UnityEngine;
 using VRC.Core;
 using VRCSDK2;
 using static BocuD.VRChatApiTools.VRChatApiTools;
+using Debug = UnityEngine.Debug;
 
 namespace BocuD.BuildHelper
 {
@@ -176,7 +177,7 @@ namespace BocuD.BuildHelper
 
                 //ExtractWorldImage();
                 ExtractBuildInfo();
-                TrySavePublishedWorld();
+                DeploymentManager.TrySaveBuild(buildHelperData.CurrentBranch, EditorPrefs.GetString("lastVRCPath"));
             }
 
             if (type == LogType.Log && logString.Contains("Image upload succeeded"))
@@ -190,126 +191,14 @@ namespace BocuD.BuildHelper
 
         private void ExtractBuildInfo()
         {
-            if (CurrentPlatform() == Platform.mobile)
-            {
-                Logger.Log("Detected succesful upload for Android");
-                buildHelperData.CurrentBranch.buildData.androidUploadTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
-                buildHelperData.CurrentBranch.buildData.androidUploadedBuildVersion =
-                    buildHelperData.CurrentBranch.buildData.androidBuildVersion;
-            }
-            else
-            {
-                Logger.Log("Detected succesful upload for PC");
-                buildHelperData.CurrentBranch.buildData.pcUploadTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
-                buildHelperData.CurrentBranch.buildData.pcUploadedBuildVersion =
-                    buildHelperData.CurrentBranch.buildData.pcBuildVersion;
-            }
+            Logger.Log("Detected succesful upload");
 
-            buildHelperData.CurrentBranch.nameChanged = false;
-            buildHelperData.CurrentBranch.descriptionChanged = false;
-            buildHelperData.CurrentBranch.capacityChanged = false;
-            buildHelperData.CurrentBranch.tagsChanged = false;
-
-            if (buildHelperData.CurrentBranch.blueprintID == "")
-            {
-                buildHelperData.CurrentBranch.blueprintID = FindObjectOfType<PipelineManager>().blueprintId;
-            }
-
-            buildHelperBehaviour.SaveToJSON();
-        }
-
-        private void TrySavePublishedWorld()
-        {
-            if (!buildHelperData.CurrentBranch.hasDeploymentData) return;
-            
-            if (buildHelperData.CurrentBranch.deploymentData.deploymentPath == "") {
-                Logger.LogWarning($"Deployment folder location for {buildHelperData.CurrentBranch.name} is not set, no published builds will be saved.");
-                return;
-            }
-
-            string justPublishedFilePath = EditorPrefs.GetString("lastVRCPath");
-            
-            if (!File.Exists(justPublishedFilePath)) return; // Defensive check, normally the file should exist there given that a publish was just completed
-
-            string deploymentFolder = Path.GetFullPath(Application.dataPath + buildHelperData.CurrentBranch.deploymentData.deploymentPath);
-            
-            if (Path.GetDirectoryName(justPublishedFilePath).StartsWith(deploymentFolder))
-            {
-                Logger.Log("Not saving build as the published build was already located within the deployments folder. This probably means the published build was an existing (older) build.");
-                return;
-            }
-
-            string backupFileName = ComposeBackupFileName(buildHelperData.CurrentBranch, justPublishedFilePath);
-            string backupPath = Path.Combine(new []{deploymentFolder, backupFileName});
-
-            File.Copy(justPublishedFilePath, backupPath);
-            Logger.Log("Completed a backup: " + backupFileName);
-        }
-        
-        private string ComposeBackupFileName(Branch branch, string justPublishedFilePath)
-        {
-            string buildDate = File.GetLastWriteTime(justPublishedFilePath).ToString("yyyy'-'MM'-'dd HH'-'mm'-'ss");
-            string autoUploader = "";
-            string buildNumber =
-                $"build{(CurrentPlatform() == Platform.PC ? branch.buildData.pcBuildVersion.ToString() : branch.buildData.androidBuildVersion.ToString())}";
-            string platform = CurrentPlatform().ToString();
-            string gitHash = TryGetGitHashDiscardErrorsSilently();
-            if (branch.branchID == "")
-            {
-                return $"[{buildDate}]_{autoUploader}{branch.deploymentData.initialBranchName}_{buildNumber}_{branch.blueprintID}_{platform}_{gitHash}.vrcw";
-            }
-            return $"[{buildDate}]_{autoUploader}{branch.branchID}_{buildNumber}_{branch.blueprintID}_{platform}_{gitHash}.vrcw";
-        }
-        
-        private static string TryGetGitHashDiscardErrorsSilently()
-        {
-            try
-            {
-                var process = new Process
-                {
-                    StartInfo = new ProcessStartInfo()
-                    {
-                        FileName = "git",
-                        WorkingDirectory = Application.dataPath,
-                        UseShellExecute = false,
-                        RedirectStandardError = true,
-                        RedirectStandardInput = true,
-                        RedirectStandardOutput = true,
-                        CreateNoWindow = true,
-                        Arguments = "rev-parse --short HEAD"
-                    }
-                };
-                process.Start();
-                var output = process.StandardOutput.ReadToEnd();
-                process.WaitForExit();
-                var trimmedOutput = output.Trim().ToLowerInvariant();
-                if (trimmedOutput.Length != 8)
-                {
-                    Logger.Log("Could not retrieve git hash: " + trimmedOutput);
-                    return "@nohash";
-                }
-
-                return trimmedOutput;
-            }
-            catch (Exception e)
-            {
-                Logger.Log("Could not retrieve git hash: " + e.Message);
-                return "@nohash";
-            }
+            RuntimeEditorPrefs.SaveUploadData(buildHelperData.CurrentBranch);
         }
         
         private static string TagListToTagString(IEnumerable<string> input)
         {
             return input.Aggregate("", (current, s) => current + s.ReplaceFirst("author_tag_", "") + " ");
-        }
-
-        public static Platform CurrentPlatform()
-        {
-#if UNITY_ANDROID
-            return Platform.mobile;
-#else
-            return Platform.PC;
-#endif
         }
 
         private void OnEnable()
@@ -319,10 +208,71 @@ namespace BocuD.BuildHelper
 
         private void OnDisable()
         {
-            if (vrcSceneReady)
-                Application.logMessageReceived -= Log;
+            Application.logMessageReceived -= Log;
+        }
+    }
+
+    public static class RuntimeEditorPrefs
+    {
+        public const string branchIDPath = "BuildHelperRuntimeBranchID";
+        public const string uploadVersionPath = "BuildHelperRuntimeUploadVersion";
+        public const string uploadTimePath = "BuildHelperRuntimeUploadTime";
+        public const string blueprintIDPath = "BuildHelperRuntimeBlueprintID";
+        
+        public static void SaveUploadData(Branch branch)
+        {
+            EditorPrefs.SetString(branchIDPath, branch.branchID);
+            EditorPrefs.SetInt(uploadVersionPath, branch.buildData.CurrentPlatformBuildData().buildVersion);
+            EditorPrefs.SetString(uploadTimePath, DateTime.Now.ToString(CultureInfo.InvariantCulture));
+            EditorPrefs.SetString(blueprintIDPath, FindPipelineManager().blueprintId);
+        }
+
+        public static async void ExtractUploadData()
+        {
+            string branchID = EditorPrefs.GetString(branchIDPath);
+            int uploadVersion = EditorPrefs.GetInt(uploadVersionPath);
+            DateTime.TryParse(EditorPrefs.GetString(uploadTimePath), out DateTime uploadTime);
+            string blueprintID = EditorPrefs.GetString(blueprintIDPath);
+
+            if (string.IsNullOrEmpty(branchID)) return;
+            
+            BuildHelperData data = BuildHelperData.GetDataBehaviour();
+
+            if (data == null) return;
+            
+            Branch targetBranch = data.dataObject?.branches.FirstOrDefault(b => b.branchID == branchID);
+
+            if (targetBranch == null) return;
+            
+            WorldInfo info = targetBranch.ToWorldInfo();
+            info.blueprintID = blueprintID;
+
+            await data.OnSuccesfulPublish(info, uploadTime, uploadVersion);
+
+            //clear everything so this doesn't get loaded again
+            EditorPrefs.SetString(branchIDPath, "");
+            EditorPrefs.SetInt(uploadVersionPath, -1);
+            EditorPrefs.SetString(uploadTimePath, "");
+            EditorPrefs.SetString(branchIDPath, "");
+        }
+    }
+
+    //when exiting playmode, read and clear editorprefs that are set in playmode
+    [InitializeOnLoadAttribute]
+    public static class RuntimePlaymodeStateWatcher
+    {
+        static RuntimePlaymodeStateWatcher()
+        {
+            EditorApplication.playModeStateChanged += LogPlayModeState;
+        }
+
+        private static void LogPlayModeState(PlayModeStateChange state)
+        {
+            if (state == PlayModeStateChange.EnteredEditMode)
+            {
+                RuntimeEditorPrefs.ExtractUploadData();
+            }
         }
     }
 }
-
 #endif

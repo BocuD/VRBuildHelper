@@ -157,7 +157,7 @@ namespace BocuD.BuildHelper
             }
         }
         
-        public static async void PublishNewBuildAsync(VRChatApiTools.WorldInfo targetBranch = null, Action<VRChatApiTools.WorldInfo> onSucces = null)
+        public static async void PublishNewBuildAsync(VRChatApiTools.WorldInfo worldInfo = null, Action<VRChatApiTools.WorldInfo> onSucces = null)
         {
             bool buildTestBlocked = !VRCBuildPipelineCallbacks.OnVRCSDKBuildRequested(VRCSDKRequestedBuildType.Scene);
             if (!buildTestBlocked)
@@ -173,9 +173,9 @@ namespace BocuD.BuildHelper
 
                     VRC_SdkBuilder.ExportSceneResource();
                     
-                    await PublishLastBuildAsync(targetBranch);
+                    await PublishLastBuildAsync(worldInfo);
                     
-                    onSucces?.Invoke(targetBranch);
+                    onSucces?.Invoke(worldInfo);
                 }
                 else
                 {

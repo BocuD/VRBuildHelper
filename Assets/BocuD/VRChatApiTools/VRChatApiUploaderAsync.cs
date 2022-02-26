@@ -20,12 +20,16 @@ namespace BocuD.VRChatApiTools
         public delegate void SetProgressFunc(string header, float progress, string status = null, string subStatus = null);
         public delegate void SetUploadStateFunc(VRChatApiToolsUploadStatus.UploadState state);
         public delegate void SetErrorStateFunc(string header, string details);
+        public delegate void LoggerFunc(string contents);
 
         public SetProgressFunc OnProgress = (header, progress, status, subStatus) => { };
         public SetUploadStateFunc OnUploadState = state => { };
         public SetErrorStateFunc OnError = (header, details) => { };
+        public LoggerFunc Log = contents => Logger.Log(contents);
+        public LoggerFunc LogWarning = contents => Logger.LogWarning(contents);
+        public LoggerFunc LogError = contents => Logger.LogError(contents);
 
-        public Func<bool> cancelQueue = () => false;
+        public Func<bool> cancelQuery = () => false;
 
         public void UseStatusWindow()
         {
@@ -34,7 +38,7 @@ namespace BocuD.VRChatApiTools
             OnProgress = uploadStatus.SetProgress;
             OnUploadState = uploadStatus.SetUploadState;
             OnError = uploadStatus.SetErrorState;
-            cancelQueue = () => uploadStatus.cancelRequested;
+            cancelQuery = () => uploadStatus.cancelRequested;
         }
 
         public void SetupAvatarImageUpdate(ApiAvatar apiAvatar, Texture2D newImage)
@@ -62,7 +66,7 @@ namespace BocuD.VRChatApiTools
             avatar.Save(
                 c => { AnalyticsSDK.AvatarUploaded(avatar, true); doneUploading = true; },
                 c => {
-                    Logger.LogError(c.Error);
+                    LogError(c.Error);
                     doneUploading = true;
                 });
 
@@ -83,7 +87,7 @@ namespace BocuD.VRChatApiTools
 
         public async Task<string> UploadImage(string existingFileUrl, string friendlyFileName, string newImagePath)
         {
-            Logger.Log($"Preparing image upload for {newImagePath}...");
+            Log($"Preparing image upload for {newImagePath}...");
             
             string newUrl = null;
 
@@ -112,7 +116,7 @@ namespace BocuD.VRChatApiTools
             PipelineManager pipelineManager = VRChatApiTools.FindPipelineManager();
             if (pipelineManager == null)
             {
-                Logger.LogError("Couldn't find Pipeline Manager");
+                LogError("Couldn't find Pipeline Manager");
                 return;
             }
 
@@ -131,7 +135,7 @@ namespace BocuD.VRChatApiTools
             apiWorld.Fetch(null,
                 (c) =>
                 {
-                    Logger.Log("Updating an existing world.");
+                    Log("Updating an existing world.");
                     apiWorld = c.Model as ApiWorld;
                     pipelineManager.completedSDKPipeline = !string.IsNullOrEmpty(apiWorld.authorId);
                     isUpdate = true;
@@ -139,7 +143,7 @@ namespace BocuD.VRChatApiTools
                 },
                 (c) =>
                 {
-                    Logger.Log("World record not found, creating a new world.");
+                    Log("World record not found, creating a new world.");
                     apiWorld = new ApiWorld { capacity = 16 };
                     pipelineManager.completedSDKPipeline = false;
                     apiWorld.id = pipelineManager.blueprintId;
@@ -151,7 +155,7 @@ namespace BocuD.VRChatApiTools
 
             if (apiWorld == null)
             {
-                Logger.LogError("Couldn't get world record");
+                LogError("Couldn't get world record");
                 return;
             }
 
@@ -249,7 +253,7 @@ namespace BocuD.VRChatApiTools
             }, c =>
             {
                 applied = true; 
-                Logger.LogError(c.Error);
+                LogError(c.Error);
                 OnError("Applying blueprint changes failed", c.Error);
                 success = false;
             });
@@ -267,7 +271,7 @@ namespace BocuD.VRChatApiTools
             PipelineManager pipelineManager = VRChatApiTools.FindPipelineManager();
             if (pipelineManager == null)
             {
-                Logger.LogError("Couldn't find Pipeline Manager");
+                LogError("Couldn't find Pipeline Manager");
                 OnError("Creating blueprint failed", "Couldn't find Pipeline Manager");
                 return false;
             }
@@ -341,11 +345,11 @@ namespace BocuD.VRChatApiTools
             
             if (string.IsNullOrEmpty(filename))
             {
-                Logger.LogError("Null file passed to UploadFileAsync");
+                LogError("Null file passed to UploadFileAsync");
                 return newFileUrl;
             }
 
-            Logger.Log($"Uploading {fileType}({filename}) ...");
+            Log($"Uploading {fileType}({filename}) ...");
 
             OnProgress($"Uploading {fileType}...", 0);
 
@@ -359,17 +363,17 @@ namespace BocuD.VRChatApiTools
                 (apiFile, message) =>
                 {
                     newFileUrl = apiFile.GetFileURL();
-                    Logger.Log($"<color=green>{fileType} upload succeeded: {message}</color>");
+                    Log($"<color=green>{fileType} upload succeeded: {message}</color>");
                     stopwatch.Stop();
                     OnProgress("Upload Succesful", 1, $"Finished upload in {stopwatch.Elapsed:mm\\:ss}");
                 },
                 (error, details) =>
                 {
                     OnError(error, details);
-                    Logger.LogError($"{fileType} upload failed: {error} ({filename}): {details}");
+                    LogError($"{fileType} upload failed: {error} ({filename}): {details}");
                 },
                 (status, subStatus, progress) => OnProgress(status, progress, subStatus),
-                cancelQueue
+                cancelQuery
             );
 
             return newFileUrl;

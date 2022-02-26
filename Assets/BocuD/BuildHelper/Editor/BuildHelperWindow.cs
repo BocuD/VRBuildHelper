@@ -697,9 +697,9 @@ namespace BocuD.BuildHelper.Editor
 
                         bool isLive = false;
 
-                        if (deploymentUnit.platform == Platform.mobile)
+                        if (deploymentUnit.platform == Platform.Android)
                         {
-                            if (selectedBranch.buildData.androidUploadedBuildVersion != -1)
+                            if (selectedBranch.buildData.androidUploadVersion != -1)
                             {
                                 DateTime androidUploadTime = DateTime.Parse(selectedBranch.buildData.androidUploadTime,
                                     CultureInfo.InvariantCulture);
@@ -714,7 +714,7 @@ namespace BocuD.BuildHelper.Editor
                         }
                         else
                         {
-                            if (selectedBranch.buildData.pcUploadedBuildVersion != -1)
+                            if (selectedBranch.buildData.pcUploadVersion != -1)
                             {
                                 DateTime pcUploadTime = DateTime.Parse(selectedBranch.buildData.pcUploadTime,
                                     CultureInfo.InvariantCulture);
@@ -734,7 +734,7 @@ namespace BocuD.BuildHelper.Editor
                         GUI.backgroundColor = backgroundColor;
 
                         EditorGUILayout.BeginHorizontal();
-                        GUIContent icon = EditorGUIUtility.IconContent(deploymentUnit.platform == Platform.PC
+                        GUIContent icon = EditorGUIUtility.IconContent(deploymentUnit.platform == Platform.Windows
                             ? "BuildSettings.Metro On"
                             : "BuildSettings.Android On");
                         EditorGUILayout.LabelField(icon, GUILayout.Width(20));
@@ -1426,20 +1426,19 @@ namespace BocuD.BuildHelper.Editor
                 fixedWidth = 400
             };
 
-            GUI.Label(BuildStatusTextRect,
-                $"Last PC build: {(buildData.pcBuildVersion == -1 ? "Unknown" : $"build {buildData.pcBuildVersion} ({buildData.pcBuildTime})")}",
+            PlatformBuildInfo pcBuild = buildData.pcData;
+            PlatformBuildInfo androidBuild = buildData.androidData;
+            
+            GUI.Label(BuildStatusTextRect, $"Last PC build: {(pcBuild.buildVersion == -1 ? "Unknown" : $"build {pcBuild.buildVersion} ({pcBuild.BuildTime})")}",
                 buildStatusStyle);
             BuildStatusTextRect.y += EditorGUIUtility.singleLineHeight * 1f;
-            GUI.Label(BuildStatusTextRect,
-                $"Last Android build: {(buildData.androidBuildVersion == -1 ? "Unknown" : $"build {buildData.androidBuildVersion} ({buildData.androidBuildTime})")}",
+            GUI.Label(BuildStatusTextRect, $"Last Android build: {(androidBuild.buildVersion == -1 ? "Unknown" : $"build {androidBuild.buildVersion} ({androidBuild.BuildTime})")}",
                 buildStatusStyle);
             BuildStatusTextRect.y += EditorGUIUtility.singleLineHeight * 1.64f;
-            GUI.Label(BuildStatusTextRect,
-                $"Last PC upload: {(buildData.pcUploadedBuildVersion == -1 ? "Unknown" : $"build {buildData.pcUploadedBuildVersion} ({buildData.pcUploadTime})")}",
+            GUI.Label(BuildStatusTextRect, $"Last PC upload: {(pcBuild.uploadVersion == -1 ? "Unknown" : $"build {pcBuild.uploadVersion} ({pcBuild.UploadTime})")}",
                 buildStatusStyle);
             BuildStatusTextRect.y += EditorGUIUtility.singleLineHeight * 1f;
-            GUI.Label(BuildStatusTextRect,
-                $"Last Android upload: {(buildData.androidUploadedBuildVersion == -1 ? "Unknown" : $"build {buildData.androidUploadedBuildVersion} ({buildData.androidUploadTime})")}",
+            GUI.Label(BuildStatusTextRect, $"Last Android upload: {(androidBuild.uploadVersion == -1 ? "Unknown" : $"build {androidBuild.uploadVersion} ({androidBuild.UploadTime})")}",
                 buildStatusStyle);
 
             //ayes
@@ -1463,11 +1462,11 @@ namespace BocuD.BuildHelper.Editor
         {
             BuildData buildData = selectedBranch.buildData;
 
-            if (buildData.pcUploadedBuildVersion != buildData.androidUploadedBuildVersion)
+            if (buildData.pcUploadVersion != buildData.androidUploadVersion)
             {
-                if (buildData.pcUploadedBuildVersion > buildData.androidUploadedBuildVersion)
+                if (buildData.pcUploadVersion > buildData.androidUploadVersion)
                 {
-                    if (buildData.androidUploadedBuildVersion != -1)
+                    if (buildData.androidUploadVersion != -1)
                     {
                         EditorGUILayout.HelpBox(
                             "Your uploaded PC and Android builds currently don't match. The last uploaded PC build is newer than the last uploaded Android build. You should consider reuploading for Android to make them match.",
@@ -1476,7 +1475,7 @@ namespace BocuD.BuildHelper.Editor
                 }
                 else
                 {
-                    if (buildData.pcUploadedBuildVersion != -1)
+                    if (buildData.pcUploadVersion != -1)
                     {
                         EditorGUILayout.HelpBox(
                             "Your uploaded PC and Android builds currently don't match. The last uploaded Android build is newer than the last uploaded PC build. You should consider reuploading for PC to make them match.",
@@ -1486,7 +1485,7 @@ namespace BocuD.BuildHelper.Editor
             }
             else
             {
-                if (buildData.pcUploadedBuildVersion != -1 && buildData.androidUploadedBuildVersion != -1)
+                if (buildData.pcUploadVersion != -1 && buildData.androidUploadVersion != -1)
                 {
                     EditorGUILayout.HelpBox(
                         "Your uploaded PC and Android builds match. Awesome!",
@@ -1535,7 +1534,7 @@ namespace BocuD.BuildHelper.Editor
             
             //Prevent local testing on Android
 
-            bool localTestBlocked = CurrentPlatform() == Platform.mobile;
+            bool localTestBlocked = CurrentPlatform() == Platform.Android;
             EditorGUI.BeginDisabledGroup(localTestBlocked);
 
             GUIContent lastBuildTextTest = new GUIContent("Last Build",
@@ -1642,8 +1641,10 @@ namespace BocuD.BuildHelper.Editor
                     {
                         if (BuildHelperEditorPrefs.UseAsyncPublish)
                         {
-                            Task publishTask = BuildHelperBuilder.PublishLastBuildAsync(buildHelperData.CurrentBranch.ToWorldInfo(),
-                                info => OnSuccesfulPublish(targetBranch));
+                            Task publishTask = BuildHelperBuilder.PublishLastBuildAsync(buildHelperData.CurrentBranch.ToWorldInfo(), info =>
+                            {
+                                Task verify = buildHelperBehaviour.OnSuccesfulPublish(info, DateTime.Now);
+                            });
                         }
                         else BuildHelperBuilder.PublishLastBuild();
                     }
@@ -1669,7 +1670,10 @@ namespace BocuD.BuildHelper.Editor
                 {
                     if (BuildHelperEditorPrefs.UseAsyncPublish)
                     {
-                        BuildHelperBuilder.PublishNewBuildAsync(buildHelperData.CurrentBranch.ToWorldInfo(), info => OnSuccesfulPublish(targetBranch));
+                        BuildHelperBuilder.PublishNewBuildAsync(buildHelperData.CurrentBranch.ToWorldInfo(), info =>
+                        {
+                            Task verify = buildHelperBehaviour.OnSuccesfulPublish(info, DateTime.Now);
+                        });
                     }
                     else BuildHelperBuilder.PublishNewBuild();
                 }
@@ -1682,7 +1686,8 @@ namespace BocuD.BuildHelper.Editor
 
             GUIStyle autoButtonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 283};
             
-            GUIContent autonomousBuilderButton = new GUIContent("Build and publish for PC and Android",  "Publish your world for both platforms simultaneously");
+            EditorGUI.BeginDisabledGroup(!BuildHelperEditorPrefs.UseAsyncPublish);
+            GUIContent autonomousBuilderButton = new GUIContent("Build and publish for PC and Android",  BuildHelperEditorPrefs.UseAsyncPublish ? "Publish your world for both platforms simultaneously" : "To use the autonomous builder, please enable Async Publishing in settings");
             
             if (GUILayout.Button(autonomousBuilderButton, autoButtonStyle))
             {
@@ -1701,65 +1706,11 @@ namespace BocuD.BuildHelper.Editor
                     InitAutonomousBuild();
                 }
             }
+            EditorGUI.EndDisabledGroup();
 
             EditorGUILayout.EndHorizontal();
             
             EditorGUILayout.EndVertical();
-        }
-
-        private async void OnSuccesfulPublish(Branch target)
-        {
-            Logger.Log($"Detected succesful publish for {target.name}");
-
-            target.blueprintID = FindPipelineManager().blueprintId;
-
-            ApiWorld world = await FetchApiWorldAsync(target.blueprintID);
-
-            target.editedName = world.name;
-            target.editedDescription = world.name;
-            target.editedCap = world.capacity;
-            target.editedTags = world.publicTags.ToList();
-
-            target.nameChanged = false;
-            target.descriptionChanged = false;
-            target.capacityChanged = false;
-            target.tagsChanged = false;
-            
-            CacheWorldInfo(target, world);
-            
-            if (BuildHelperRuntime.CurrentPlatform() == Platform.mobile)
-            {
-                target.buildData.androidUploadTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
-                target.buildData.androidUploadedBuildVersion = target.buildData.androidBuildVersion;
-            }
-            else
-            {
-                target.buildData.pcUploadTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
-                target.buildData.pcUploadedBuildVersion = target.buildData.pcBuildVersion;
-            }
-
-            if (target.blueprintID == "")
-            {
-                target.blueprintID = FindObjectOfType<PipelineManager>().blueprintId;
-            }
-            
-            if (target.vrcImageHasChanges)
-            {
-                AssetDatabase.DeleteAsset(target.overrideImagePath);
-                target.vrcImageHasChanges = false;
-                target.vrcImageWarning = "";
-            }
-            
-            VRChatApiToolsEditor.RefreshData();
-            
-            TrySave();
-
-            for (int index = 0; index < buildHelperData.branches.Length; index++)
-            {
-                Branch b = buildHelperData.branches[index];
-                if (b.branchID == target.branchID)
-                    buildHelperData.branches[index] = target;
-            }
         }
 
         private static void DrawBuildTargetSwitcher()
@@ -1799,7 +1750,7 @@ namespace BocuD.BuildHelper.Editor
         {
             if (CheckLastBuiltBranch())
             {
-                if (buildHelperData.lastBuiltPlatform == Platform.mobile)
+                if (buildHelperData.lastBuiltPlatform == Platform.Android)
                 {
                     if (EditorUtility.DisplayDialog("Build Helper",
                         "The last detected build was for Android. You may continue, but VRChat will fail while loading the world. Are you sure you want to continue?",
@@ -1885,27 +1836,18 @@ namespace BocuD.BuildHelper.Editor
                 }
             }
 
-            AutonomousBuilder.AutonomousBuildInformation buildInfo = new AutonomousBuilder.AutonomousBuildInformation
+            AutonomousBuilder.AutonomousBuildData buildInfo = new AutonomousBuilder.AutonomousBuildData
                 {
                     initialTarget = CurrentPlatform(),
-                    secondaryTarget = CurrentPlatform() == Platform.PC ? Platform.mobile : Platform.PC,
-                    progress = AutonomousBuilder.AutonomousBuildInformation.Progress.PreInitialBuild
+                    secondaryTarget = CurrentPlatform() == Platform.Windows ? Platform.Android : Platform.Windows,
+                    progress = AutonomousBuilder.AutonomousBuildData.Progress.PreInitialBuild
                 };
-            WorldInfo worldInfo =
-                new WorldInfo
-                {
-                    name = buildHelperData.CurrentBranch.editedName,
-                    description = buildHelperData.CurrentBranch.editedDescription,
-                    capacity = buildHelperData.CurrentBranch.editedCap,
-                    tags = buildHelperData.CurrentBranch.editedTags.ToList(),
-                    
-                    newImagePath = buildHelperData.CurrentBranch.vrcImageHasChanges ? buildHelperData.CurrentBranch.overrideImagePath : ""
-                };
+            
+            WorldInfo worldInfo = buildHelperData.CurrentBranch.ToWorldInfo();
 
             buildInfo.worldInfo = worldInfo;
             
-            AutonomousBuilder.buildInfo = buildInfo;
-            AutonomousBuilder.StartAutonomousPublish();
+            AutonomousBuilder.StartAutonomousPublish(buildInfo);
         }
 
         private void ResetData()
@@ -2123,7 +2065,7 @@ namespace BocuD.BuildHelper.Editor
 
                     OverrideContainer.EnableGameObject(toRemove);
 
-                    ArrayUtility.RemoveAt(ref _overrideContainer.ExclusiveGameObjects, excludedGameObjectsList.index);
+                    ArrayUtility.RemoveAt(ref _overrideContainer.ExcludedGameObjects, excludedGameObjectsList.index);
                     TrySave();
                 }
             };

@@ -40,5 +40,25 @@ namespace BocuD.BuildHelper
         
         [SerializeField] private string string1;
         [SerializeField] private string string2;
+
+        public void _VersionMatch()
+        {
+            Debug.LogError("Version match callback");
+        }
+
+        public void _VersionMismatch()
+        {
+            Debug.LogError("Version mismatch callback");
+        }
+
+        public void _VersionMismatchRemote()
+        {
+            Debug.LogError("Version mismatch remote callback");
+        }
+
+        public void _VersionTimeout()
+        {
+            Debug.LogError("Version timeout callback");
+        }
     }
 }

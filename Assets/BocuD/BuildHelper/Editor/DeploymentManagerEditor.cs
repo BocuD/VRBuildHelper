@@ -127,7 +127,7 @@ namespace BocuD.BuildHelper.Editor
             
                 bool isLive = false;
                 
-                if (deploymentUnit.platform == Platform.mobile && data.dataObject.branches[dataIndex].buildData.androidUploadTime.Length > 1)
+                if (deploymentUnit.platform == Platform.Android && data.dataObject.branches[dataIndex].buildData.androidUploadTime.Length > 1)
                 {
                     DateTime androidUploadTime = DateTime.Parse(data.dataObject.branches[dataIndex].buildData.androidUploadTime, CultureInfo.InvariantCulture);
                     if (Mathf.Abs((float) (androidUploadTime - deploymentUnit.buildDate).TotalSeconds) < 300 && !androidUploadKnown)
@@ -152,7 +152,7 @@ namespace BocuD.BuildHelper.Editor
                 GUI.backgroundColor = backgroundColor;
 
                 EditorGUILayout.BeginHorizontal();
-                GUIContent platformIcon = EditorGUIUtility.IconContent(deploymentUnit.platform == Platform.PC
+                GUIContent platformIcon = EditorGUIUtility.IconContent(deploymentUnit.platform == Platform.Windows
                     ? "BuildSettings.Metro On"
                     : "BuildSettings.Android On");
                 EditorGUILayout.LabelField(platformIcon, GUILayout.Width(20));
@@ -216,7 +216,7 @@ namespace BocuD.BuildHelper.Editor
                     }
                 }
             
-                EditorGUI.BeginDisabledGroup(deploymentUnit.platform == Platform.mobile);
+                EditorGUI.BeginDisabledGroup(deploymentUnit.platform == Platform.Android);
                 if (GUILayout.Button("Test locally in VRChat"))
                 {
                     BuildHelperBuilder.TestExistingBuild(deploymentUnit);
@@ -315,7 +315,7 @@ namespace BocuD.BuildHelper.Editor
                     DateTime lastWriteTime = File.GetLastWriteTime(filePath);
 
                     string gitHash = ResolveGitHash(fileName);
-                    Platform platform = fileName.Contains("_mobile_") ? Platform.mobile : Platform.PC;
+                    Platform platform = fileName.Contains("_mobile_") ? Platform.Android : Platform.Windows;
                     bool autoUploader = fileName.Contains("auto_");
                     string pipelineID = ResolveBlueprintId(fileName);
                     string buildNumberString = fileName.Substring(fileName.IndexOf("build", StringComparison.Ordinal) + 5);
@@ -358,7 +358,7 @@ namespace BocuD.BuildHelper.Editor
                     DateTime lastWriteTime = File.GetLastWriteTime(filePath);
 
                     string gitHash = ResolveGitHash(fileName);
-                    Platform platform = fileName.Contains("_mobile_") ? Platform.mobile : Platform.PC;
+                    Platform platform = fileName.Contains("_mobile_") ? Platform.Android : Platform.Windows;
                     bool autoUploader = fileName.Contains("auto_");
                     string pipelineID = ResolveBlueprintId(fileName);
                     string buildNumberString = fileName.Substring(fileName.IndexOf("build", StringComparison.Ordinal) + 5);

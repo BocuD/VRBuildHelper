@@ -22,18 +22,19 @@
 
 using System;
 using System.Threading.Tasks;
+using BocuD.BuildHelper.Editor;
 using BocuD.VRChatApiTools;
 using UnityEditor;
 using UnityEditor.Build;
 using static BocuD.VRChatApiTools.VRChatApiTools;
-using static BocuD.BuildHelper.AutonomousBuilder.AutonomousBuildInformation;
+using static BocuD.BuildHelper.AutonomousBuilder.AutonomousBuildData;
 
 namespace BocuD.BuildHelper
 {
     public static class AutonomousBuilder
     {
         [Serializable]
-        public class AutonomousBuildInformation
+        public class AutonomousBuildData
         {
             public bool activeBuild;
             public Platform initialTarget;
@@ -41,7 +42,7 @@ namespace BocuD.BuildHelper
             public Progress progress;
             public WorldInfo worldInfo;
 
-            public AutonomousBuildInformation()
+            public AutonomousBuildData()
             {
                 activeBuild = true;
                 worldInfo = new WorldInfo();
@@ -52,30 +53,34 @@ namespace BocuD.BuildHelper
                 PreInitialBuild,
                 PostInitialBuild,
                 PreSecondaryBuild,
-                PostSecondaryBuild,
-                Finished
+                PostSecondaryBuild
             }
         }
 
-        public static AutonomousBuildInformation buildInfo;
-        public static AutonomousBuilderStatus statusWindow;
+        //public static AutonomousBuildInformation buildInfo;
+        public static AutonomousBuilderStatus status;
+
+        public static AutonomousBuildData GetAutonomousBuildData()
+        {
+            return status == null ? null : status.buildInfo;
+        }
         
         private static async void SwitchPlatform(Platform newTarget)
         {
-            statusWindow.currentPlatform = newTarget;
-            statusWindow.currentState = AutonomousBuildState.switchingPlatform;
+            status.currentPlatform = newTarget;
+            status.currentState = AutonomousBuildState.switchingPlatform;
             await Task.Delay(500);
 
             switch (newTarget)
             {
-                case Platform.PC:
+                case Platform.Windows:
                     Logger.Log("Switching platform to Windows");
 
                     EditorUserBuildSettings.selectedBuildTargetGroup = BuildTargetGroup.Standalone;
                     EditorUserBuildSettings.SwitchActiveBuildTargetAsync(BuildTargetGroup.Standalone, BuildTarget.StandaloneWindows64);
                     break;
 
-                case Platform.mobile:
+                case Platform.Android:
                     Logger.Log("Switching platform to Android");
 
                     EditorUserBuildSettings.selectedBuildTargetGroup = BuildTargetGroup.Android;
@@ -84,22 +89,24 @@ namespace BocuD.BuildHelper
             }
         }
 
-        public static void BuildTargetUpdate(BuildTarget newTarget)
+        public static void BuildTargetUpdate()
         {
-            statusWindow = AutonomousBuilderStatus.ShowStatus();
-            buildInfo = statusWindow.buildInfo;
-            Logger.Log(buildInfo.activeBuild ? $"active build: {buildInfo.progress}" : $"no active build: {buildInfo.progress}");
-            
-            if (!buildInfo.activeBuild) return;
-            
-            switch (buildInfo.progress)
+            status = AutonomousBuilderStatus.ShowStatus();
+
+            if (status.buildInfo == null || !status.buildInfo.activeBuild)
             {
-                case Progress.PostInitialBuild when buildInfo.secondaryTarget == CurrentPlatform():
-                    buildInfo.progress = Progress.PreSecondaryBuild;
+                status.Close();
+                return;
+            }
+            
+            switch (status.buildInfo.progress)
+            {
+                case Progress.PostInitialBuild when status.buildInfo.secondaryTarget == CurrentPlatform():
+                    status.buildInfo.progress = Progress.PreSecondaryBuild;
                     ContinueAutonomousPublish();
                     break;
                 
-                case Progress.PostSecondaryBuild when buildInfo.initialTarget == CurrentPlatform():
+                case Progress.PostSecondaryBuild when status.buildInfo.initialTarget == CurrentPlatform():
                     FinishAutonomousPublish();
                     break;
                 default:
@@ -108,45 +115,46 @@ namespace BocuD.BuildHelper
             }
         }
         
-        public static async void StartAutonomousPublish()
+        public static async void StartAutonomousPublish(AutonomousBuildData buildInfo)
         {
-            statusWindow = AutonomousBuilderStatus.ShowStatus();
-            statusWindow.buildInfo = buildInfo;
+            status = AutonomousBuilderStatus.ShowStatus();
+            status.BindLogger();
+            status.buildInfo = buildInfo;
             Logger.Log("Initiating autonomous builder...");
 
-            await BuildAndPublish(buildInfo.initialTarget);
+            await BuildAndPublish(status.buildInfo.initialTarget);
 
-            buildInfo.progress = Progress.PostInitialBuild;
+            status.buildInfo.progress = Progress.PostInitialBuild;
 
-            SwitchPlatform(buildInfo.secondaryTarget);
+            SwitchPlatform(status.buildInfo.secondaryTarget);
         }
         
         private static async void ContinueAutonomousPublish()
         {
-            await BuildAndPublish(buildInfo.secondaryTarget);
+            await BuildAndPublish(status.buildInfo.secondaryTarget);
 
-            buildInfo.progress = Progress.PostSecondaryBuild;
+            status.buildInfo.progress = Progress.PostSecondaryBuild;
             
-            SwitchPlatform(buildInfo.initialTarget);
+            SwitchPlatform(status.buildInfo.initialTarget);
         }
 
         private static void FinishAutonomousPublish()
         {
-            statusWindow.currentState = AutonomousBuildState.finished;
-            buildInfo.activeBuild = false;
+            status.currentState = AutonomousBuildState.finished;
+            status.buildInfo.activeBuild = false;
         }
 
         private static async Task BuildAndPublish(Platform platform)
         {
             if (!await TryAutoLoginAsync())
             {
-                statusWindow.currentState = AutonomousBuildState.failed;
-                statusWindow.failReason = "Login failed";
+                status.currentState = AutonomousBuildState.failed;
+                status.failReason = "Login failed";
                 return;
             }
             
-            statusWindow.currentPlatform = platform;
-            statusWindow.currentState = AutonomousBuildState.building;
+            status.currentPlatform = platform;
+            status.currentState = AutonomousBuildState.building;
 
             await Task.Delay(100);
             
@@ -154,17 +162,30 @@ namespace BocuD.BuildHelper
             
             if (!await TryAutoLoginAsync())
             {
-                statusWindow.currentState = AutonomousBuildState.failed;
-                statusWindow.failReason = "Login failed";
+                status.currentState = AutonomousBuildState.failed;
+                status.failReason = "Login failed";
                 return;
             }
             
-            statusWindow.currentState = AutonomousBuildState.uploading;
+            status.currentState = AutonomousBuildState.uploading;
             
             VRChatApiUploaderAsync uploader = new VRChatApiUploaderAsync();
-            uploader.UseStatusWindow();
+            uploader.OnProgress = status.UploadProgress;
+            uploader.OnError = (header, details) =>
+            {
+                status.buildInfo.activeBuild = false;
+                status.UploadError(header, details);
+            };
+            uploader.Log = contents => status.AddLog($"<b>{contents}</b>");
+            uploader.cancelQuery = () => status.abort;
 
-            await uploader.UploadWorld(buildPath, "", buildInfo.worldInfo);
+            await uploader.UploadWorld(buildPath, "", status.buildInfo.worldInfo);
+
+            BuildHelperData data = BuildHelperData.GetDataBehaviour();
+            if (data != null)
+                await data.OnSuccesfulPublish(status.buildInfo.worldInfo, DateTime.Now);
+            
+            status.uploading = false;
         }
     }
 
@@ -174,7 +195,7 @@ namespace BocuD.BuildHelper
     
         public void OnActiveBuildTargetChanged(BuildTarget previousTarget, BuildTarget newTarget)
         {
-            AutonomousBuilder.BuildTargetUpdate(newTarget);
+            AutonomousBuilder.BuildTargetUpdate();
         }
     }
 }

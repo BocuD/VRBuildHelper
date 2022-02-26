@@ -24,11 +24,15 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using UdonSharpEditor;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using VRC.Core;
 using static BocuD.VRChatApiTools.VRChatApiTools;
 namespace BocuD.BuildHelper
 {
@@ -172,6 +176,45 @@ namespace BocuD.BuildHelper
             
             return id;
         }
+        
+        public async Task OnSuccesfulPublish(WorldInfo info, DateTime uploadTime, int uploadVersion = -1)
+        {
+            Branch target;
+            if (info.blueprintID == dataObject.CurrentBranch.blueprintID)
+            {
+                target = dataObject.CurrentBranch;
+            }
+            else if (dataObject.CurrentBranch.blueprintID == "")
+            {
+                target = dataObject.CurrentBranch;
+                target.blueprintID = FindPipelineManager().blueprintId;
+            }
+            else return;
+            
+            ApiWorld world = await FetchApiWorldAsync(target.blueprintID);
+            
+            target.editedName = world.name;
+            target.editedDescription = world.name;
+            target.editedCap = world.capacity;
+            target.editedTags = world.publicTags.ToList();
+
+            target.nameChanged = false;
+            target.descriptionChanged = false;
+            target.capacityChanged = false;
+            target.tagsChanged = false;
+            
+            target.buildData.CurrentPlatformBuildData().UploadTime = uploadTime;
+            target.buildData.CurrentPlatformBuildData().uploadVersion = uploadVersion == -1 ? target.buildData.CurrentPlatformBuildData().buildVersion : uploadVersion;
+
+            if (target.vrcImageHasChanges)
+            {
+                AssetDatabase.DeleteAsset(target.overrideImagePath);
+                target.vrcImageHasChanges = false;
+                target.vrcImageWarning = "";
+            }
+            
+            ClearCaches();
+        }
     }
 
     public static class ApiToolsExtensions
@@ -264,35 +307,81 @@ namespace BocuD.BuildHelper
     [Serializable]
     public class BuildData
     {
-        //yes, these should be DateTime for sure.. they are strings because DateTime was not being serialised correctly somehow.. i hate it.
-        public string pcBuildTime;
-        public string androidBuildTime;
-
+        public PlatformBuildInfo pcData;
+        public PlatformBuildInfo androidData;
+        
         public string pcUploadTime;
         public string androidUploadTime;
 
         public int pcBuildVersion = -1;
         public int androidBuildVersion = -1;
 
-        public int pcUploadedBuildVersion = -1;
-        public int androidUploadedBuildVersion = -1;
+        public int pcUploadVersion = -1;
+        public int androidUploadVersion = -1;
+
+        public void SaveBuildTime()
+        {
+            CurrentPlatformBuildData().BuildTime = DateTime.Now;
+        }
+
+        public void SaveUploadTime()
+        {
+            CurrentPlatformBuildData().UploadTime = DateTime.Now;
+        }
+
+        public PlatformBuildInfo GetLatestBuild()
+        {
+            return pcData.buildVersion > androidData.buildVersion ? pcData : androidData;
+        }
+
+        public PlatformBuildInfo GetLatestUpload()
+        {
+            return pcData.uploadVersion > androidData.uploadVersion ? pcData : androidData;
+        }
+
+        public PlatformBuildInfo CurrentPlatformBuildData()
+        {
+            return CurrentPlatform() == Platform.Windows ? pcData : androidData;
+        }
 
         public BuildData()
         {
-            Reset();
+            pcData = new PlatformBuildInfo(Platform.Windows);
+            androidData = new PlatformBuildInfo(Platform.Android);
         }
-    
-        public void Reset()
-        {
-            pcBuildTime = "";
-            androidBuildTime = "";
-            pcUploadTime = "";
-            androidUploadTime = "";
+    }
 
-            pcBuildVersion = -1;
-            androidBuildVersion = -1;
-            pcUploadedBuildVersion = -1;
-            androidUploadedBuildVersion = -1;
+    [Serializable]
+    public class PlatformBuildInfo
+    {
+        //yes, these should be DateTime for sure.. they are strings because DateTime was not being serialised correctly somehow.. i hate it.
+        public string buildTime;
+        public int buildVersion;
+
+        public string uploadTime;
+        public int uploadVersion;
+
+        public Platform platform;
+
+        public DateTime BuildTime
+        {
+            set => buildTime = value.ToString(CultureInfo.InvariantCulture);
+            get => DateTime.Parse(buildTime, CultureInfo.InvariantCulture);
+        }
+
+        public DateTime UploadTime
+        {
+            set => uploadTime = value.ToString(CultureInfo.InvariantCulture);
+            get => DateTime.Parse(uploadTime, CultureInfo.InvariantCulture);
+        }
+
+        public PlatformBuildInfo(Platform platform)
+        {
+            buildTime = "";
+            buildVersion = -1;
+            uploadTime = "";
+            uploadVersion = -1;
+            this.platform = platform;
         }
     }
 

@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using BocuD.BuildHelper;
 using JetBrains.Annotations;
 using UnityEditor;
 using UnityEngine;
@@ -12,7 +11,6 @@ using UnityEngine.SceneManagement;
 using VRC.Core;
 using VRC.SDK3.Components;
 using Object = UnityEngine.Object;
-using Tools = VRC.Tools;
 
 namespace BocuD.VRChatApiTools
 {
@@ -399,8 +397,8 @@ namespace BocuD.VRChatApiTools
         
         public enum Platform
         {
-            PC,
-            mobile,
+            Windows,
+            Android,
             unknown
         }
 
@@ -410,11 +408,11 @@ namespace BocuD.VRChatApiTools
             switch (target)
             {
                 case BuildTarget.Android:
-                    return Platform.mobile;
+                    return Platform.Android;
                 
                 case BuildTarget.StandaloneWindows:
                 case BuildTarget.StandaloneWindows64:
-                    return Platform.PC;
+                    return Platform.Windows;
                 
                 default:
                     return Platform.unknown;
@@ -425,9 +423,9 @@ namespace BocuD.VRChatApiTools
         {
             switch (input)
             {
-                case Platform.PC:
+                case Platform.Windows:
                     return "standalonewindows";
-                case Platform.mobile:
+                case Platform.Android:
                     return "android";
                 default:
                     return "unknownplatform";

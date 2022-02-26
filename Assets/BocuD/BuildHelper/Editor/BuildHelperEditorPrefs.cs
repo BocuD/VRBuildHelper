@@ -5,11 +5,15 @@ namespace BocuD.BuildHelper
     [InitializeOnLoad]
     public static class BuildHelperEditorPrefs
     {
+        private const string autoSavePath = "BuildHelperAutoSave";
+        private const string asyncPublishPath = "BuildHelperAsyncPublish";
+        private const string buildNumberPath = "BuildHelperNumberMode";
+        
         static BuildHelperEditorPrefs()
         {
-            _autoSave = EditorPrefs.GetBool("BuildHelperAutoSave");
-            _useAsyncPublish = EditorPrefs.GetBool("BuildHelperAsyncPublish");
-            _buildNumberMode = EditorPrefs.GetInt("BuildNumberMode");
+            _autoSave = EditorPrefs.GetBool(autoSavePath);
+            _useAsyncPublish = EditorPrefs.GetBool(asyncPublishPath);
+            _buildNumberMode = EditorPrefs.GetInt(buildNumberPath);
         }
 
         private static bool _autoSave;
@@ -20,7 +24,7 @@ namespace BocuD.BuildHelper
                 if (_autoSave == value) return;
                 
                 _autoSave = value;
-                EditorPrefs.SetBool("BuildHelperAutoSave", value);
+                EditorPrefs.SetBool(autoSavePath, value);
             }
             get => _autoSave;
         }
@@ -33,7 +37,7 @@ namespace BocuD.BuildHelper
                 if (_useAsyncPublish == value) return;
                 
                 _useAsyncPublish = value;
-                EditorPrefs.SetBool("BuildHelperAsyncPublish", value);
+                EditorPrefs.SetBool(asyncPublishPath, value);
             }
             get => _useAsyncPublish;
         }
@@ -47,7 +51,7 @@ namespace BocuD.BuildHelper
                 if (_buildNumberMode == value) return;
 
                 _buildNumberMode = value;
-                EditorPrefs.SetInt("BuildNumberMode", value);
+                EditorPrefs.SetInt(buildNumberPath, value);
             }
 
             get => _buildNumberMode;

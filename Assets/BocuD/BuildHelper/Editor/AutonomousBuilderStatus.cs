@@ -36,8 +36,29 @@ namespace BocuD.BuildHelper
         public string failReason;
         private Vector2 logScroll;
         public bool abort = false;
-        public AutonomousBuilder.AutonomousBuildInformation buildInfo;
+        public AutonomousBuilder.AutonomousBuildData buildInfo;
 
+        public bool uploading;
+        public float uploadProgress;
+        public string uploadHeader;
+        public string uploadStatus;
+        
+        public void UploadProgress(string header, float progress, string status = null, string subStatus = null)
+        {
+            uploadHeader = header;
+            uploadProgress = progress;
+            uploadStatus = status;
+            Repaint();
+        }
+        
+        public void UploadError(string header, string details)
+        {
+            currentState = AutonomousBuildState.failed;
+            failReason = $"{header}: {details}";
+            AddLog($"<color=red>{header}: {details}</color>");
+            Repaint();
+        }
+        
         public AutonomousBuildState currentState
         {
             set
@@ -46,6 +67,7 @@ namespace BocuD.BuildHelper
                 _currentState = value;
                 AddLog(GetStateString(_currentState));
                 window.Repaint();
+                if (_currentState == AutonomousBuildState.finished) Application.logMessageReceived -= Log;
             }
             get => _currentState;
         }
@@ -57,9 +79,15 @@ namespace BocuD.BuildHelper
             log += $"\n[{DateTime.Now:HH:mm:ss}]: {contents}";
         }
 
-        private void OnEnable()
+        public void BindLogger()
         {
             Application.logMessageReceived += Log;
+        }
+
+        private void OnEnable()
+        {
+            if (buildInfo != null && buildInfo.activeBuild)
+                BindLogger();
         }
 
         private void OnDisable()
@@ -93,7 +121,7 @@ namespace BocuD.BuildHelper
                 case AutonomousBuildState.switchingPlatform:
                     return $"Switching platform to {currentPlatform}";
                 case AutonomousBuildState.uploading:
-                    return $"Uploading for {currentPlatform}";
+                    return uploading ? uploadHeader : $"Uploading for {currentPlatform}";
                 case AutonomousBuildState.finished:
                     return "Finished!";
                 case AutonomousBuildState.aborting:
@@ -101,7 +129,7 @@ namespace BocuD.BuildHelper
                 case AutonomousBuildState.aborted:
                     return "Aborted";
                 case AutonomousBuildState.failed:
-                    return "Failed";
+                    return $"Failed: {failReason}";
             }
 
             return "Unknown status";
@@ -126,71 +154,50 @@ namespace BocuD.BuildHelper
             EditorGUILayout.EndHorizontal();
 
             GUIStyle stateLabel = new GUIStyle(GUI.skin.label) {fontSize = 24, wordWrap = true};
-            GUIContent icon;
+            GUIContent icon = null;
             GUIStyle iconStyle = new GUIStyle(GUI.skin.label) {fixedHeight = 30};
 
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(GetStateString(_currentState), stateLabel);
+            GUILayout.FlexibleSpace();
+            
             switch (_currentState)
             {
                 case AutonomousBuildState.building:
-                    icon = EditorGUIUtility.IconContent(currentPlatform == Platform.PC
+                    icon = EditorGUIUtility.IconContent(currentPlatform == Platform.Windows
                         ? "BuildSettings.Metro On"
                         : "BuildSettings.Android On");
-
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label(GetStateString(_currentState), stateLabel);
-                    GUILayout.FlexibleSpace();
-                    GUILayout.Label(icon, iconStyle);
-                    GUILayout.EndHorizontal();
                     break;
-                case AutonomousBuildState.waitingForApi:
-                    GUILayout.Label(GetStateString(_currentState), stateLabel);
-                    break;
+                
                 case AutonomousBuildState.switchingPlatform:
                     icon = EditorGUIUtility.IconContent("RotateTool On@2x");
-
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label(GetStateString(_currentState), stateLabel);
-                    GUILayout.FlexibleSpace();
-                    GUILayout.Label(icon, iconStyle);
-                    GUILayout.EndHorizontal();
                     break;
+                
                 case AutonomousBuildState.uploading:
                     icon = EditorGUIUtility.IconContent("UpArrow");
-
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label(GetStateString(_currentState), stateLabel);
-                    GUILayout.FlexibleSpace();
-                    GUILayout.Label(icon, iconStyle);
-                    GUILayout.EndHorizontal();
                     break;
+                
                 case AutonomousBuildState.finished:
                     icon = EditorGUIUtility.IconContent("d_Toggle Icon");
-
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label(GetStateString(_currentState), stateLabel);
-                    GUILayout.FlexibleSpace();
-                    GUILayout.Label(icon, iconStyle);
-                    GUILayout.EndHorizontal();
                     break;
+                
                 case AutonomousBuildState.aborting:
                 case AutonomousBuildState.aborted:
                     icon = EditorGUIUtility.IconContent("Error@2x");
-
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label(GetStateString(_currentState), stateLabel);
-                    GUILayout.FlexibleSpace();
-                    GUILayout.Label(icon, iconStyle);
-                    GUILayout.EndHorizontal();
                     break;
+                
                 case AutonomousBuildState.failed:
                     icon = EditorGUIUtility.IconContent("Error@2x");
-
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label(GetStateString(_currentState) + ": " + failReason, stateLabel);
-                    GUILayout.FlexibleSpace();
-                    GUILayout.Label(icon, iconStyle);
-                    GUILayout.EndHorizontal();
                     break;
+            }
+
+            if (icon != null)
+                GUILayout.Label(icon, iconStyle);
+            GUILayout.EndHorizontal();
+            
+            if (currentState == AutonomousBuildState.uploading)
+            {
+                EditorGUI.ProgressBar(EditorGUILayout.GetControlRect(GUILayout.Height(15)), uploadProgress, uploadStatus);
             }
 
             GUIStyle logStyle = new GUIStyle(EditorStyles.label)
@@ -243,7 +250,7 @@ namespace BocuD.BuildHelper
                     break;
                 
                 case LogType.Log:
-                    AddLog(logString);
+                    AddLog($"<color=grey>{logString}</color>");
                     break;
             }
             
@@ -253,15 +260,15 @@ namespace BocuD.BuildHelper
 
         private void OnDestroy()
         {
-            //Application.logMessageReceived -= Log;
-
+            if (buildInfo == null) return;
+            
             switch (_currentState)
             {
                 case AutonomousBuildState.aborting:
                     BuildHelperData data = BuildHelperData.GetDataBehaviour();
 
                     //spawn new window if we still need to process the abort
-                    if (data && AutonomousBuilder.buildInfo.activeBuild)
+                    if (data && buildInfo.activeBuild)
                     {
                         AutonomousBuilderStatus status = CreateInstance<AutonomousBuilderStatus>();
                         status.ShowUtility();
