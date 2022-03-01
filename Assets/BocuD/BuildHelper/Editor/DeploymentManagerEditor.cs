@@ -29,10 +29,13 @@
 */
 
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using BocuD.VRChatApiTools;
 using UnityEditor;
 using UnityEngine;
 using VRC.Core;
@@ -40,8 +43,6 @@ using static BocuD.VRChatApiTools.VRChatApiTools;
 
 namespace BocuD.BuildHelper.Editor
 {
-    using VRChatApiTools;
-    
     public class DeploymentManagerEditor : EditorWindow
     {
         public BuildHelperData data;
@@ -80,7 +81,7 @@ namespace BocuD.BuildHelper.Editor
                         }
                         else
                         {
-                            Logger.LogError("Please choose a location within the Assets folder");
+                            VRChatApiTools.Logger.LogError("Please choose a location within the Assets folder");
                         }
                     }
                 }
@@ -112,53 +113,23 @@ namespace BocuD.BuildHelper.Editor
         
             if (GUILayout.Button("Force Refresh")) 
                 DeploymentManager.RefreshDeploymentData(data.dataObject.branches[dataIndex]);
-
-            bool pcUploadKnown = false, androidUploadKnown = false;
-        
+            
             foreach (DeploymentUnit deploymentUnit in data.dataObject.branches[dataIndex].deploymentData.units)
             {
-                if (!VRChatApiTools.worldCache.TryGetValue(deploymentUnit.pipelineID, out ApiWorld test))
+                //Fetch ApiWorld used by this deployment unit
+                if (!worldCache.TryGetValue(deploymentUnit.pipelineID, out ApiWorld empty))
                 {
-                    VRChatApiTools.FetchApiWorld(deploymentUnit.pipelineID);
+                    FetchApiWorld(deploymentUnit.pipelineID);
                 }
                 
-                //GUIStyle box = new GUIStyle("GroupBox");
-                Color backgroundColor = GUI.backgroundColor;
-            
-                bool isLive = false;
-                
-                if (deploymentUnit.platform == Platform.Android && data.dataObject.branches[dataIndex].buildData.androidUploadTime.Length > 1)
-                {
-                    DateTime androidUploadTime = DateTime.Parse(data.dataObject.branches[dataIndex].buildData.androidUploadTime, CultureInfo.InvariantCulture);
-                    if (Mathf.Abs((float) (androidUploadTime - deploymentUnit.buildDate).TotalSeconds) < 300 && !androidUploadKnown)
-                    {
-                        androidUploadKnown = true;
-                        isLive = true;
-                    }
-                }
-                else if(data.dataObject.branches[dataIndex].buildData.pcUploadTime.Length > 1)
-                {
-                    DateTime pcUploadTime = DateTime.Parse(data.dataObject.branches[dataIndex].buildData.pcUploadTime, CultureInfo.InvariantCulture);
-                    if (Mathf.Abs((float) (pcUploadTime - deploymentUnit.buildDate).TotalSeconds) < 300 && !pcUploadKnown)
-                    {
-                        pcUploadKnown = true;
-                        isLive = true;
-                    }
-                }
-                if(isLive) GUI.backgroundColor = new Color(0.2f, 0.92f, 0.2f);
-
                 GUILayout.BeginVertical("GroupBox");
-
-                GUI.backgroundColor = backgroundColor;
-
+                
                 EditorGUILayout.BeginHorizontal();
                 GUIContent platformIcon = EditorGUIUtility.IconContent(deploymentUnit.platform == Platform.Windows
                     ? "BuildSettings.Metro On"
                     : "BuildSettings.Android On");
                 EditorGUILayout.LabelField(platformIcon, GUILayout.Width(20));
-            
-                if(isLive) GUILayout.Label("Live on VRChat");
-            
+                
                 GUILayout.FlexibleSpace();
             
                 GUIContent uploadIcon = EditorGUIUtility.IconContent("UpArrow");
@@ -202,7 +173,7 @@ namespace BocuD.BuildHelper.Editor
                 GUILayout.Label("Git hash: " + deploymentUnit.gitHash);
 
                 EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button("Delete build"))
+                if (GUILayout.Button("Delete backup"))
                 {
                     if (EditorUtility.DisplayDialog("Build Helper",
                         $"Are you sure you want to delete '{deploymentUnit.fileName}'? This can not be undone.", "Yes",
@@ -227,7 +198,7 @@ namespace BocuD.BuildHelper.Editor
                 if (GUILayout.Button("Publish this build"))
                 {
                     //run account checks
-                    if (VRChatApiTools.worldCache.TryGetValue(deploymentUnit.pipelineID, out ApiWorld apiWorld))
+                    if (worldCache.TryGetValue(deploymentUnit.pipelineID, out ApiWorld apiWorld))
                     {
                         if (apiWorld.authorId != APIUser.CurrentUser.id)
                         {
@@ -315,7 +286,7 @@ namespace BocuD.BuildHelper.Editor
                     DateTime lastWriteTime = File.GetLastWriteTime(filePath);
 
                     string gitHash = ResolveGitHash(fileName);
-                    Platform platform = fileName.Contains("_mobile_") ? Platform.Android : Platform.Windows;
+                    Platform platform = fileName.Contains("_Android_") ? Platform.Android : Platform.Windows;
                     bool autoUploader = fileName.Contains("auto_");
                     string pipelineID = ResolveBlueprintId(fileName);
                     string buildNumberString = fileName.Substring(fileName.IndexOf("build", StringComparison.Ordinal) + 5);

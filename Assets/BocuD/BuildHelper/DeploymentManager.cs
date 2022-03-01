@@ -10,7 +10,7 @@ namespace BocuD.BuildHelper
 {
     public class DeploymentManager
     {
-        public static void TrySaveBuild(Branch branch, string buildPath)
+        public static void TrySaveBuild(Branch branch, string buildPath, bool autonomousBuild = false)
         {
             if (!branch.hasDeploymentData) return;
             
@@ -18,27 +18,25 @@ namespace BocuD.BuildHelper
                 Logger.LogWarning($"Deployment folder location for {branch.name} is not set, no published builds will be saved.");
                 return;
             }
-
-            string justPublishedFilePath = EditorPrefs.GetString("lastVRCPath");
             
-            if (!File.Exists(justPublishedFilePath)) return; // Defensive check, normally the file should exist there given that a publish was just completed
+            if (!File.Exists(buildPath)) return; // Defensive check, normally the file should exist there given that a publish was just completed
 
             string deploymentFolder = Path.GetFullPath(Application.dataPath + branch.deploymentData.deploymentPath);
             
-            if (Path.GetDirectoryName(justPublishedFilePath).StartsWith(deploymentFolder))
+            if (Path.GetDirectoryName(buildPath).StartsWith(deploymentFolder))
             {
                 Logger.Log("Not saving build as the published build was already located within the deployments folder. This probably means the published build was an existing (older) build.");
                 return;
             }
 
-            string backupFileName = ComposeBackupFileName(branch, justPublishedFilePath);
+            string backupFileName = ComposeBackupFileName(branch, buildPath, autonomousBuild);
             string backupPath = Path.Combine(new []{deploymentFolder, backupFileName});
 
-            File.Copy(justPublishedFilePath, backupPath);
+            File.Copy(buildPath, backupPath);
             Logger.Log("Completed a backup: " + backupFileName);
         }
         
-        private static string ComposeBackupFileName(Branch branch, string justPublishedFilePath)
+        private static string ComposeBackupFileName(Branch branch, string justPublishedFilePath, bool autonomousBuilder = false)
         {
             string buildDate = File.GetLastWriteTime(justPublishedFilePath).ToString("yyyy'-'MM'-'dd HH'-'mm'-'ss");
             string autoUploader = "";
