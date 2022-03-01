@@ -81,56 +81,85 @@ namespace BocuD.BuildHelper.Editor
             }
             else //autonomous builder is not active: determine what the build number should be
             {
-                //if our current platform is the one with the newest build, just increment the build number again
-                if (buildData.CurrentPlatformBuildData().buildVersion >= buildData.GetLatestBuild().buildVersion)
+                switch (BuildHelperEditorPrefs.BuildNumberMode)
                 {
-                    buildData.SaveBuildTime();
-                    buildData.CurrentPlatformBuildData().buildVersion++;
-                }
-                else
-                {
-                    PlatformBuildInfo latestBuild = buildData.GetLatestBuild();
-                    double minutesSinceLastBuild = (DateTime.Now - latestBuild.BuildTime).TotalMinutes;
-
-                    //mark it as equivalent if its been less than 5 minutes since the last build or the last upload (only if last upload is the same version as the last build)
-                    if (minutesSinceLastBuild < 5 || (latestBuild.buildVersion == latestBuild.uploadVersion && (DateTime.Now - latestBuild.UploadTime).TotalMinutes < 5))
-                    {
-                        buildData.CurrentPlatformBuildData().buildVersion = buildData.GetLatestBuild().buildVersion;
-                    }
-                    //if its been more than 5 minutes, ask the user if it should match
-                    else if (minutesSinceLastBuild < 30)
-                    {
-                        int newBuild = EditorUtility.DisplayDialogComplex("Build Helper",
-                            $"The last build on this branch was for a different platform. " +
-                            $"If you made any changes to the scene since the last build, (build {latestBuild.buildVersion}, {minutesSinceLastBuild} minutes ago for {latestBuild.platform}) " +
-                            $"you should probably mark this build as a new build.\n\n" +
-                            $"New Build: This build will be marked as build {latestBuild.buildVersion + 1}.\n\n" +
-                            $"Equivalent build: This build will be marked as the {CurrentPlatform()} version of build {latestBuild.buildVersion}.",
-                            "New build", "Cancel", "Equivalent build");
-
-                        switch (newBuild)
+                    //On Build
+                    case 0:
+                        //if our current platform is the one with the newest build, just increment the build number again
+                        if (buildData.CurrentPlatformBuildData().buildVersion >=
+                            buildData.GetLatestBuild().buildVersion)
                         {
-                            //new build
-                            case 0:
-                                buildData.CurrentPlatformBuildData().buildVersion = buildData.GetLatestBuild().buildVersion + 1;
-                                break;
-                            //cancel
-                            case 1:
-                                return false;
-                            //equivalent build
-                            case 2:
-                                buildData.CurrentPlatformBuildData().buildVersion = buildData.GetLatestBuild().buildVersion;
-                                break;
+                            buildData.SaveBuildTime();
+                            buildData.CurrentPlatformBuildData().buildVersion++;
                         }
-                    }
-                    //if its been more than 30 minutes, just count this as a new build
-                    else
-                    {
-                        buildData.CurrentPlatformBuildData().buildVersion = buildData.GetLatestBuild().buildVersion + 1;
-                    }
+                        else
+                        {
+                            PlatformBuildInfo latestBuild = buildData.GetLatestBuild();
+                            double minutesSinceLastBuild = (DateTime.Now - latestBuild.BuildTime).TotalMinutes;
+
+                            switch (BuildHelperEditorPrefs.PlatformSwitchMode)
+                            {
+                                //ask
+                                case 0:
+                                    int newBuild = EditorUtility.DisplayDialogComplex("Build Helper",
+                                        $"The last build on this branch was for a different platform. " +
+                                        $"If you made any changes to the scene since the last build, (build {latestBuild.buildVersion}, {(long)minutesSinceLastBuild} minutes ago for {latestBuild.platform}) " +
+                                        $"you should probably mark this build as a new build.\n\n" +
+                                        $"New Build: This build will be marked as build {latestBuild.buildVersion + 1}.\n\n" +
+                                        $"Equivalent build: This build will be marked as the {CurrentPlatform()} version of build {latestBuild.buildVersion}.",
+                                        "New build", "Cancel", "Equivalent build");
+
+                                    switch (newBuild)
+                                    {
+                                        //new build
+                                        case 0:
+                                            buildData.CurrentPlatformBuildData().buildVersion =
+                                                buildData.GetLatestBuild().buildVersion + 1;
+                                            break;
+                                        //cancel
+                                        case 1:
+                                            return false;
+                                        //equivalent build
+                                        case 2:
+                                            buildData.CurrentPlatformBuildData().buildVersion =
+                                                buildData.GetLatestBuild().buildVersion;
+                                            break;
+                                    }
+
+                                    break;
+
+                                //always increment
+                                case 1:
+                                    buildData.CurrentPlatformBuildData().buildVersion =
+                                        buildData.GetLatestBuild().buildVersion + 1;
+                                    break;
+                            }
+                        }
+                        break;
                     
-                    buildData.SaveBuildTime();
+                    //On upload
+                    //if we didn't just upload, keep the same build number unless we have a platform switch (in which case it should be matched to the highest build number)
+                    case 1:
+                        if (buildData.justUploaded)
+                        {
+                            buildData.CurrentPlatformBuildData().buildVersion =
+                                buildData.GetLatestBuild().buildVersion + 1;
+                        }
+                        else
+                        {
+                            if (buildData.CurrentPlatformBuildData().buildVersion <
+                                buildData.GetLatestBuild().buildVersion)
+                            {
+                                buildData.CurrentPlatformBuildData().buildVersion =
+                                    buildData.GetLatestBuild().buildVersion;
+                            }
+                        }
+
+                        break;
                 }
+                
+                buildData.SaveBuildTime();
+                buildData.justUploaded = false;
             }
 
             buildHelperData.dataObject.lastBuiltBranch = buildHelperData.dataObject.CurrentBranch.branchID;

@@ -205,6 +205,7 @@ namespace BocuD.BuildHelper
             
             target.buildData.CurrentPlatformBuildData().UploadTime = uploadTime;
             target.buildData.CurrentPlatformBuildData().uploadVersion = uploadVersion == -1 ? target.buildData.CurrentPlatformBuildData().buildVersion : uploadVersion;
+            target.buildData.justUploaded = true;
 
             if (target.vrcImageHasChanges)
             {
@@ -307,18 +308,10 @@ namespace BocuD.BuildHelper
     [Serializable]
     public class BuildData
     {
+        public bool justUploaded;
         public PlatformBuildInfo pcData;
         public PlatformBuildInfo androidData;
         
-        public string pcUploadTime;
-        public string androidUploadTime;
-
-        public int pcBuildVersion = -1;
-        public int androidBuildVersion = -1;
-
-        public int pcUploadVersion = -1;
-        public int androidUploadVersion = -1;
-
         public void SaveBuildTime()
         {
             CurrentPlatformBuildData().BuildTime = DateTime.Now;

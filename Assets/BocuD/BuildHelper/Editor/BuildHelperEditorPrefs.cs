@@ -8,12 +8,14 @@ namespace BocuD.BuildHelper
         private const string autoSavePath = "BuildHelperAutoSave";
         private const string asyncPublishPath = "BuildHelperAsyncPublish";
         private const string buildNumberPath = "BuildHelperNumberMode";
+        private const string platformSwitchPath = "BuildHelperNumberMode";
         
         static BuildHelperEditorPrefs()
         {
             _autoSave = EditorPrefs.GetBool(autoSavePath);
             _useAsyncPublish = EditorPrefs.GetBool(asyncPublishPath);
             _buildNumberMode = EditorPrefs.GetInt(buildNumberPath);
+            _platformSwitchMode = EditorPrefs.GetInt(platformSwitchPath);
         }
 
         private static bool _autoSave;
@@ -41,20 +43,33 @@ namespace BocuD.BuildHelper
             }
             get => _useAsyncPublish;
         }
-
+        
         private static int _buildNumberMode;
-
         public static int BuildNumberMode
         {
             set
             {
                 if (_buildNumberMode == value) return;
-
+                
                 _buildNumberMode = value;
                 EditorPrefs.SetInt(buildNumberPath, value);
             }
-
             get => _buildNumberMode;
+        }
+
+        private static int _platformSwitchMode;
+
+        public static int PlatformSwitchMode
+        {
+            set
+            {
+                if (_platformSwitchMode == value) return;
+
+                _platformSwitchMode = value;
+                EditorPrefs.SetInt(platformSwitchPath, value);
+            }
+
+            get => _platformSwitchMode;
         }
     }
 }

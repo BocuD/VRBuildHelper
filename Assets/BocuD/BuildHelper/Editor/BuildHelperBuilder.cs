@@ -127,7 +127,7 @@ namespace BocuD.BuildHelper
                 uploaderAsync.UseStatusWindow();
                 
                 await uploaderAsync.UploadLastBuild(worldInfo);
-                
+
                 onSucces?.Invoke(worldInfo);
             }
             else

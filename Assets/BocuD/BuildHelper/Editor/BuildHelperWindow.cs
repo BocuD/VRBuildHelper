@@ -234,15 +234,26 @@ namespace BocuD.BuildHelper.Editor
             EditorGUILayout.LabelField("Use Async Publisher (beta)");
             EditorGUILayout.EndHorizontal();
 
-            GUIContent[] versionIncrementModes =
+            GUIContent[] buildNumberModes =
             {
-                new GUIContent("On build"),
-                new GUIContent("On upload")
+                new GUIContent("On build", "The build number will be incremented on every new build"),
+                new GUIContent("On upload", "The build number will only be incremented after every upload")
+            };
+            
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Increment build number");
+            BuildHelperEditorPrefs.BuildNumberMode = GUILayout.Toolbar(BuildHelperEditorPrefs.BuildNumberMode, buildNumberModes);
+            EditorGUILayout.EndHorizontal();
+            
+            GUIContent[] platformSwitchModes =
+            {
+                new GUIContent("Ask to increment build number", "Build Helper will always ask you if it should match build numbers between PC and Android right after switching between them."),
+                new GUIContent("Always increment build number", "Build Helper will always increment the build number when doing a new build. The Autonomous publisher should be used if you want version detection to work.")
             };
 
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("Increment build number");
-            BuildHelperEditorPrefs.BuildNumberMode = GUILayout.Toolbar(BuildHelperEditorPrefs.BuildNumberMode, versionIncrementModes);
+            EditorGUILayout.LabelField("After a platform switch");
+            BuildHelperEditorPrefs.PlatformSwitchMode = GUILayout.Toolbar(BuildHelperEditorPrefs.PlatformSwitchMode, platformSwitchModes);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.EndVertical();
@@ -613,6 +624,7 @@ namespace BocuD.BuildHelper.Editor
 
 
         private Vector2 deploymentScrollArea;
+        private bool doneScan = false;
 
         private void DrawDeploymentEditorPreview(Branch selectedBranch)
         {
@@ -679,7 +691,12 @@ namespace BocuD.BuildHelper.Editor
                         return;
                     }
 
-                    DeploymentManager.RefreshDeploymentData(selectedBranch);
+                    if (!doneScan)
+                    {
+                        DeploymentManager.RefreshDeploymentData(selectedBranch);
+                        doneScan = true;
+                    }
+                    
                     deploymentScrollArea = EditorGUILayout.BeginScrollView(deploymentScrollArea);
 
                     if (selectedBranch.deploymentData.units.Length < 1)
@@ -699,10 +716,9 @@ namespace BocuD.BuildHelper.Editor
 
                         if (deploymentUnit.platform == Platform.Android)
                         {
-                            if (selectedBranch.buildData.androidUploadVersion != -1)
+                            if (selectedBranch.buildData.androidData.uploadVersion != -1)
                             {
-                                DateTime androidUploadTime = DateTime.Parse(selectedBranch.buildData.androidUploadTime,
-                                    CultureInfo.InvariantCulture);
+                                DateTime androidUploadTime = selectedBranch.buildData.androidData.UploadTime;
                                 if (Mathf.Abs((float) (androidUploadTime - deploymentUnit.buildDate).TotalSeconds) <
                                     300 &&
                                     !androidUploadKnown)
@@ -714,10 +730,9 @@ namespace BocuD.BuildHelper.Editor
                         }
                         else
                         {
-                            if (selectedBranch.buildData.pcUploadVersion != -1)
+                            if (selectedBranch.buildData.pcData.uploadVersion != -1)
                             {
-                                DateTime pcUploadTime = DateTime.Parse(selectedBranch.buildData.pcUploadTime,
-                                    CultureInfo.InvariantCulture);
+                                DateTime pcUploadTime = selectedBranch.buildData.pcData.UploadTime;
                                 if (Mathf.Abs((float) (pcUploadTime - deploymentUnit.buildDate).TotalSeconds) < 300 &&
                                     !pcUploadKnown)
                                 {
@@ -1462,11 +1477,11 @@ namespace BocuD.BuildHelper.Editor
         {
             BuildData buildData = selectedBranch.buildData;
 
-            if (buildData.pcUploadVersion != buildData.androidUploadVersion)
+            if (buildData.pcData.uploadVersion != buildData.androidData.uploadVersion)
             {
-                if (buildData.pcUploadVersion > buildData.androidUploadVersion)
+                if (buildData.pcData.uploadVersion > buildData.androidData.uploadVersion)
                 {
-                    if (buildData.androidUploadVersion != -1)
+                    if (buildData.androidData.uploadVersion != -1)
                     {
                         EditorGUILayout.HelpBox(
                             "Your uploaded PC and Android builds currently don't match. The last uploaded PC build is newer than the last uploaded Android build. You should consider reuploading for Android to make them match.",
@@ -1475,7 +1490,7 @@ namespace BocuD.BuildHelper.Editor
                 }
                 else
                 {
-                    if (buildData.pcUploadVersion != -1)
+                    if (buildData.pcData.uploadVersion != -1)
                     {
                         EditorGUILayout.HelpBox(
                             "Your uploaded PC and Android builds currently don't match. The last uploaded Android build is newer than the last uploaded PC build. You should consider reuploading for PC to make them match.",
@@ -1485,7 +1500,7 @@ namespace BocuD.BuildHelper.Editor
             }
             else
             {
-                if (buildData.pcUploadVersion != -1 && buildData.androidUploadVersion != -1)
+                if (buildData.pcData.uploadVersion != -1 && buildData.androidData.uploadVersion != -1)
                 {
                     EditorGUILayout.HelpBox(
                         "Your uploaded PC and Android builds match. Awesome!",

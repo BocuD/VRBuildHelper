@@ -191,6 +191,15 @@ namespace BocuD.BuildHelper
                     "Mismatches can happen quite often when you update your world (as people that are already in an instance when updating will still be on the old version). " +
                     "You can use the mismatch and timeout events to alert the user (and master) that they should rejoin the world.", MessageType.Info);
 
+                if (BuildHelperEditorPrefs.PlatformSwitchMode == 1)
+                {
+                    EditorGUILayout.HelpBox(
+                        "Build Number increment mode is currently set to Always Increment. " +
+                        "Make sure to use the autonomous publisher when updating your world if it supports more than one platform, " +
+                        "as manually updating the world for one platform at a time will not properly update the world number causing version detection to break.",
+                        MessageType.Warning);
+                }
+
                 if (inspectorBehaviour.transform.parent != null || inspectorBehaviour.transform.GetSiblingIndex() != 0)
                 {
                     EditorGUILayout.HelpBox("To reduce the chances of version checking timing out when the hierarchy changes, you should move the GameObject containing this UdonBehaviour to the top of your scene root.", MessageType.Warning);
