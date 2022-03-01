@@ -126,7 +126,14 @@ namespace BocuD.BuildHelper
                 VRChatApiUploaderAsync uploaderAsync = new VRChatApiUploaderAsync();
                 uploaderAsync.UseStatusWindow();
                 
-                await uploaderAsync.UploadLastBuild(worldInfo);
+                string unityPackagePath = EditorPrefs.GetString("VRC_exportedUnityPackagePath");
+                string assetbundlePath = EditorPrefs.GetString("currentBuildingAssetBundlePath");
+                
+                await uploaderAsync.UploadWorld(assetbundlePath, unityPackagePath, worldInfo);
+                
+                BranchStorageObject data = BuildHelperData.GetDataObject();
+                if (data != null)
+                    DeploymentManager.TrySaveBuild(data.CurrentBranch, assetbundlePath);
 
                 onSucces?.Invoke(worldInfo);
             }

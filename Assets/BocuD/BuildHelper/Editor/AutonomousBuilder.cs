@@ -183,8 +183,11 @@ namespace BocuD.BuildHelper
 
             BuildHelperData data = BuildHelperData.GetDataBehaviour();
             if (data != null)
+            {
                 await data.OnSuccesfulPublish(status.buildInfo.worldInfo, DateTime.Now);
-            
+                DeploymentManager.TrySaveBuild(data.dataObject.CurrentBranch, buildPath, true);
+            }
+
             status.uploading = false;
         }
     }
