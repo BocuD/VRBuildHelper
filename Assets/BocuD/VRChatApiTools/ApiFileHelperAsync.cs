@@ -23,13 +23,11 @@ namespace BocuD.VRChatApiTools
         [MenuItem("Tools/TestThing")]
         private static async void RunTest()
         {
-            ApiFileHelperAsync helper = new ApiFileHelperAsync();
-
             ApiWorld apiWorld = await VRChatApiTools.FetchApiWorldAsync("wrld_5c3543ae-52cb-466c-947e-ca2aafb9f6c5");
             
             string fileId = ApiFile.ParseFileIdFromFileAPIUrl(apiWorld.assetUrl);
 
-            ApiFile apiFile = await helper.FetchRecord(
+            ApiFile apiFile = await FetchRecord(
                 "C:/Users/BocuD/AppData/LocalLow/VRChat/VRChat/Worlds/scene-StandaloneWindows64-New Scene.vrcw",
                 fileId,
                 VRChatApiTools.GetFriendlyWorldFileName("Asset bundle", apiWorld, VRChatApiTools.CurrentPlatform()),
@@ -731,9 +729,11 @@ namespace BocuD.VRChatApiTools
             return false;
         }
 
-        private async Task<ApiFile> FetchRecord(string filename, string existingFileId, string friendlyName,
+        public static async Task<ApiFile> FetchRecord(string filename, string existingFileId, string friendlyName,
             UploadError onError, UploadProgress onProgress, Func<bool> cancelQuery)
         {
+            ApiFile apiFile;
+            
             Logger.Log($"Fetching API Record for filename: {filename}, Existing file id: {existingFileId}, Friendly name: {friendlyName}");
             
             string extension = Path.GetExtension(filename);
@@ -754,9 +754,29 @@ namespace BocuD.VRChatApiTools
                 errorStr = "";
 
                 if (string.IsNullOrEmpty(existingFileId))
-                    ApiFile.Create(friendlyName, mimeType, extension, FileSuccess, FileFailure);
+                    ApiFile.Create(friendlyName, mimeType, extension, (c) =>
+                    {
+                        apiFile = c.Model as ApiFile;
+                        wait = false;
+                    }, (c) =>
+                    {
+                        errorStr = c.Error;
+                        wait = false;
+            
+                        Logger.LogError(errorStr);
+                    });
                 else
-                    API.Fetch<ApiFile>(existingFileId, FileSuccess, FileFailure, true);
+                    API.Fetch<ApiFile>(existingFileId, (c) =>
+                    {
+                        apiFile = c.Model as ApiFile;
+                        wait = false;
+                    }, (c) =>
+                    {
+                        errorStr = c.Error;
+                        wait = false;
+            
+                        Logger.LogError(errorStr);
+                    }, true);
 
                 while (wait)
                 {

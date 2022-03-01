@@ -128,7 +128,7 @@ namespace BocuD.VRChatApiTools
             ApiWorld world = API.Fetch<ApiWorld>(blueprintID);
             ApiContainer result = new ApiContainer();
             bool wait = true;
-            
+
             world.Fetch(null,
                 c =>
                 {

@@ -6,7 +6,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using BocuD.BuildHelper;
 using UnityEditor;
 using UnityEngine;
 using VRC.Core;
@@ -97,14 +96,6 @@ namespace BocuD.VRChatApiTools
             }
             
             return newUrl;
-        }
-
-        public async Task UploadLastBuild(VRChatApiTools.WorldInfo worldInfo = null)
-        {
-            string unityPackagePath = EditorPrefs.GetString("VRC_exportedUnityPackagePath");
-            string assetbundlePath = EditorPrefs.GetString("currentBuildingAssetBundlePath");
-
-            await UploadWorld(assetbundlePath, unityPackagePath, worldInfo);
         }
 
         public async Task UploadWorld(string assetbundlePath, string unityPackagePath, VRChatApiTools.WorldInfo worldInfo = null)
