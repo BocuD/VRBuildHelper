@@ -105,9 +105,9 @@ namespace BocuD.BuildHelper.Editor
                                         $"The last build on this branch was for a different platform. " +
                                         $"If you made any changes to the scene since the last build, (build {latestBuild.buildVersion}, {(long)minutesSinceLastBuild} minutes ago for {latestBuild.platform}) " +
                                         $"you should probably mark this build as a new build.\n\n" +
-                                        $"New Build: This build will be marked as build {latestBuild.buildVersion + 1}.\n\n" +
-                                        $"Equivalent build: This build will be marked as the {CurrentPlatform()} version of build {latestBuild.buildVersion}.",
-                                        "New build", "Cancel", "Equivalent build");
+                                        $"Increment: This build will be marked as build {latestBuild.buildVersion + 1}. Keep in mind that this will make this build count as a new version for World Update Detection, so you should reupload for {latestBuild.platform} as well.\n\n" +
+                                        $"Don't increment: This build will be marked as the {CurrentPlatform()} version of build {latestBuild.buildVersion}.",
+                                        "Increment", "Cancel", "Don't increment");
 
                                     switch (newBuild)
                                     {
