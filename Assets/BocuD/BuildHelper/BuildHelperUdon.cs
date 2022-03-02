@@ -219,7 +219,7 @@ namespace BocuD.BuildHelper
             SendEvent(onVersionTimeout);
         }
 
-        [NonSerialized] private string sentCallbacks = "";
+        private string sentCallbacks = "";
         
         private void SendEvent(string eventName)
         {
