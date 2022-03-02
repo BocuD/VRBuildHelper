@@ -150,9 +150,13 @@ namespace BocuD.BuildHelper
             EditorGUILayout.LabelField("<b>VR Build Helper Udon Link</b>", headerStyle);
             
             DrawProgramVariableList();
+            
+            EditorGUILayout.Space(10);
 
             DrawUpdateCheckerEditor();
 
+            EditorGUILayout.Space(10);
+            
             DrawTMPEditor();
         }
 
@@ -164,6 +168,7 @@ namespace BocuD.BuildHelper
         private string onVersionMismatchRemote;
         private bool allowUpdates;
         private bool sendToAll;
+        private bool singleCallback;
         
         private void DrawUpdateCheckerEditor()
         {
@@ -175,6 +180,7 @@ namespace BocuD.BuildHelper
             onVersionMismatchRemote = inspectorBehaviour.onVersionMismatchRemote;
             allowUpdates = inspectorBehaviour.allowUpdates;
             sendToAll = inspectorBehaviour.sendToAll;
+            singleCallback = inspectorBehaviour.singleCallback;
             
             EditorGUILayout.BeginVertical("Helpbox");
             EditorGUI.BeginChangeCheck();
@@ -225,14 +231,28 @@ namespace BocuD.BuildHelper
                 {
                     EditorGUI.indentLevel++;
                     
+                    EditorGUI.BeginChangeCheck();
+
+                    EditorGUILayout.BeginHorizontal();
+                    GUIContent[] callbackMode =
+                    {
+                        new GUIContent("Multiple callbacks", "Multiple callbacks will allow a callback to be sent more than once (for example, the remote version mismatch callback may be sent more than once, as it would be fired everytime a player on a newer version joins)"),
+                        new GUIContent("Single callback", "Single callback will never fire a callback more than one time (This may be desired when using these callbacks to directly spawn notifications telling the user or master to rejoin)")
+                    };
+
+                    EditorGUILayout.LabelField(new GUIContent("Callback mode", "Hover over the possible callback options to see which one applies to your project."));
+                    singleCallback = GUILayout.Toolbar(singleCallback ? 1 : 0, callbackMode) == 1;
+                    EditorGUILayout.EndHorizontal();
+                    
                     GUIContent versionMatch = new GUIContent("On version match", "Called when the world version (build number) on the local client matches that of the instance master");
                     GUIContent versionMismatch = new GUIContent("On version mismatch", "Called when the world version (build number) on the local client *doesn't* match that of the instance master");
                     GUIContent versionTimeout = new GUIContent("On version timeout", "Called when the world version (build number) of the instance master failed to be read (this can happen when the hierarchy changes significantly between versions)");
-                    
-                    EditorGUI.BeginChangeCheck();
+
+                    EditorGUILayout.BeginVertical("Helpbox");
                     onVersionMatch = EditorGUILayout.TextField(versionMatch, onVersionMatch);
                     onVersionMismatch = EditorGUILayout.TextField(versionMismatch, onVersionMismatch);
                     onVersionTimeout = EditorGUILayout.TextField(versionTimeout, onVersionTimeout);
+                    EditorGUILayout.EndVertical();
                     
                     EditorGUILayout.Space(6);
 
@@ -267,6 +287,7 @@ namespace BocuD.BuildHelper
                         inspectorBehaviour.sendNetworkedEvent = sendNetworkedEvent;
                         inspectorBehaviour.onVersionMismatchRemote = onVersionMismatchRemote;
                         inspectorBehaviour.sendToAll = sendToAll;
+                        inspectorBehaviour.singleCallback = singleCallback;
                     }
 
                     EditorGUI.indentLevel--;

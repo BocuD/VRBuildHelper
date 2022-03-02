@@ -57,6 +57,7 @@ namespace BocuD.BuildHelper
         public bool sendNetworkedEvent;
         public bool sendToAll;
         public string onVersionMismatchRemote;
+        public bool singleCallback;
         
         [Header("TMP Output")]
         public bool useTMP;
@@ -204,7 +205,10 @@ namespace BocuD.BuildHelper
 
         public void OnRemoteMismatch()
         {
-            Debug.LogError($"[<color=green>BuildHelper Udon Link</color>] A player on a newer version of this world just joined. The world was most likely just updated.");
+            if (buildNumber > MasterBuildNumber) return;
+            
+            Debug.LogError(
+                $"[<color=green>BuildHelper Udon Link</color>] A player on a newer version of this world just joined. The world was most likely just updated.");
             SendEvent(onVersionMismatchRemote);
         }
 
@@ -215,10 +219,18 @@ namespace BocuD.BuildHelper
             SendEvent(onVersionTimeout);
         }
 
+        [NonSerialized] private string sentCallbacks = "";
+        
         private void SendEvent(string eventName)
         {
-            if (eventBehaviour != null && !string.IsNullOrEmpty(eventName))
-                eventBehaviour.SendCustomEvent(eventName);
+            string changedEventname = $"_{eventName}_";
+            if (!singleCallback || singleCallback && !sentCallbacks.Contains(changedEventname))
+            {
+                if (eventBehaviour != null && !string.IsNullOrEmpty(eventName))
+                    eventBehaviour.SendCustomEvent(eventName);
+
+                sentCallbacks += changedEventname;
+            }
         }
 
         public override void OnOwnershipTransferred(VRCPlayerApi player)
