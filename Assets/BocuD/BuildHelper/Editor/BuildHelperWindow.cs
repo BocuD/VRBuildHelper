@@ -22,7 +22,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -54,6 +53,8 @@ namespace BocuD.BuildHelper.Editor
         private Texture2D _iconSettings;
 
         private Dictionary<string, Texture2D> modifiedWorldImages = new Dictionary<string, Texture2D>();
+        
+        public const string version = "v1.0.0";
 
         private Vector2 scrollPosition;
         private bool settings;
@@ -66,7 +67,7 @@ namespace BocuD.BuildHelper.Editor
         {
             BuildHelperWindow window = GetWindow<BuildHelperWindow>();
             window.titleContent = new GUIContent("VR Build Helper");
-            window.minSize = new Vector2(500, 650);
+            window.minSize = new Vector2(550, 650);
             window.Show();
         }
 
@@ -135,7 +136,24 @@ namespace BocuD.BuildHelper.Editor
             buildHelperDataSO.Update();
             branchList.DoLayoutList();
             buildHelperDataSO.ApplyModifiedProperties();
-            
+
+            if (buildHelperData.branches.Length == 0)
+            {
+                GUIStyle welcomeLabel = new GUIStyle(EditorStyles.label) { fontStyle = FontStyle.Bold, fontSize = 20 };
+                GUIStyle textArea = new GUIStyle(EditorStyles.label) { wordWrap = true, richText = true };
+                
+                EditorGUILayout.BeginVertical("Helpbox");
+                EditorGUILayout.Space(2);
+                EditorGUILayout.LabelField("Welcome to VR Build Helper", welcomeLabel, GUILayout.Height(23));
+                EditorGUILayout.LabelField("To get started, click the '+' button to create a new branch. For documentation, please visit the wiki on GitHub.", textArea);
+                EditorGUILayout.Space(2);
+                if (GUILayout.Button("Open Wiki"))
+                {
+                    Application.OpenURL("https://github.com/BocuD/VRBuildHelper/wiki/Getting-Started");
+                }
+                EditorGUILayout.EndVertical();
+            }
+
             if (buildHelperData.currentBranch >= buildHelperData.branches.Length)
                 buildHelperData.currentBranch = 0;
 
@@ -241,8 +259,9 @@ namespace BocuD.BuildHelper.Editor
             };
             
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("Increment build number");
-            BuildHelperEditorPrefs.BuildNumberMode = GUILayout.Toolbar(BuildHelperEditorPrefs.BuildNumberMode, buildNumberModes);
+            EditorGUILayout.LabelField("Increment build number", GUILayout.Width(150));
+            GUILayout.FlexibleSpace();
+            BuildHelperEditorPrefs.BuildNumberMode = GUILayout.Toolbar(BuildHelperEditorPrefs.BuildNumberMode, buildNumberModes, GUILayout.Width(250));
             EditorGUILayout.EndHorizontal();
             
             GUIContent[] platformSwitchModes =
@@ -252,7 +271,8 @@ namespace BocuD.BuildHelper.Editor
             };
 
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("After a platform switch");
+            EditorGUILayout.LabelField("After a platform switch", GUILayout.Width(150));
+            GUILayout.FlexibleSpace();
             BuildHelperEditorPrefs.PlatformSwitchMode = GUILayout.Toolbar(BuildHelperEditorPrefs.PlatformSwitchMode, platformSwitchModes);
             EditorGUILayout.EndHorizontal();
 
@@ -264,8 +284,8 @@ namespace BocuD.BuildHelper.Editor
                 settings = false;
             }
 
-            EditorGUILayout.LabelField("VR Build Helper v1.0.0");
-
+            EditorGUILayout.LabelField($"VR Build Helper {version}");
+            EditorGUILayout.LabelField($"<i>Made with ♡ by BocuD</i>", new GUIStyle(EditorStyles.label) {richText = true});
             return true;
         }
 
@@ -1423,7 +1443,7 @@ namespace BocuD.BuildHelper.Editor
             BuildData buildData = branch.buildData;
             GUIStyle styleRichTextLabel = new GUIStyle(GUI.skin.label) { richText = true };
 
-            GUILayout.Label("<b>Build Options</b>", styleRichTextLabel);
+            GUILayout.Label("<b>Build Information</b>", styleRichTextLabel);
 
             Rect buildRectBase = EditorGUILayout.GetControlRect();
             Rect buildRect = new Rect(5, buildRectBase.y + 7, 32,
@@ -1540,6 +1560,12 @@ namespace BocuD.BuildHelper.Editor
             EditorGUILayout.LabelField("");
             EditorGUILayout.LabelField("Force no VR", GUILayout.Width(140));
             VRCSettings.ForceNoVR = EditorGUILayout.Toggle(VRCSettings.ForceNoVR, GUILayout.Width(140));
+            EditorGUILayout.EndHorizontal();
+            
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("");
+            EditorGUILayout.LabelField("Watch for changes (support reloads)", GUILayout.Width(140));
+            VRCSettings.WatchWorlds = EditorGUILayout.Toggle(VRCSettings.WatchWorlds, GUILayout.Width(140));
             EditorGUILayout.EndHorizontal();
             
             GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 140};
@@ -1795,7 +1821,6 @@ namespace BocuD.BuildHelper.Editor
             return buildHelperData.lastBuiltPlatform == CurrentPlatform();
         }
 
-        //TODO: make this static
         private static bool CheckAccount(Branch target)
         {
             if (target.blueprintID == "")
