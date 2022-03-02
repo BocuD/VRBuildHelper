@@ -1,13 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 namespace BocuD.BuildHelper.Editor
 {
     public static class SiblingFixer
     {
+        //todo run this on vrc build callback
         [MenuItem("Tools/Build Helper/Fix sibling transforms")]
         public static void FixSiblings()
         {
@@ -23,6 +26,9 @@ namespace BocuD.BuildHelper.Editor
             int goCount = GameObjectList.Length;
             int fixedCount = 0;
         
+            Scene currentScene = SceneManager.GetActiveScene();
+            GameObject[] rootGameObjects = currentScene.GetRootGameObjects();
+
             try
             {
                 for (int index = 0; index < goCount; index++)
@@ -32,34 +38,38 @@ namespace BocuD.BuildHelper.Editor
                     progress = (float)index / goCount;
                     EditorUtility.DisplayProgressBar("VRBuildHelper", "Fixing sibling transform names..", progress);
 
-                    if (go.transform.parent == null) continue;
+                    //handle scene root objects differently
+                    if (go.transform.parent == null)
+                    {
+                        List<GameObject> gos = rootGameObjects.Where(sibling => sibling != go && sibling.name == go.name).ToList();
+                        for (int i = 0; i < gos.Count; i++)
+                            gos[i].name = $"{gos[i].name}-{i:00}";
+
+                        fixedCount += gos.Count;
+                        continue;
+                    }
                 
                     for (int idx = 0; idx < go.transform.parent.childCount; ++idx)
                     {
-                        Transform t = go.transform.parent.GetChild(idx);
-                        if (t == go.transform)
+                        Transform transform = go.transform.parent.GetChild(idx);
+                        
+                        //skip self
+                        if (transform == go.transform)
                             continue;
 
-                        if (t.name != go.transform.name) continue;
-
-                        string path = t.name;
-                        Transform p = t.parent;
-                        while (p != null)
-                        {
-                            path = p.name + "/" + path;
-                            p = p.parent;
-                        }
-
-                        List<Object> gos = new List<Object>();
+                        List<GameObject> gos = new List<GameObject>();
                         for (int c = 0; c < go.transform.parent.childCount; ++c)
+                        {
+                            if (go.transform.parent.GetChild(c) == go.transform) continue;
                             if (go.transform.parent.GetChild(c).name == go.name)
                                 gos.Add(go.transform.parent.GetChild(c).gameObject);
-                    
-                        for (int i = 0; i < gos.Count; ++i)
-                            gos[i].name = gos[i].name + "-" + i.ToString("00");
-                    }
+                        }
 
-                    fixedCount++;
+                        for (int i = 0; i < gos.Count; ++i)
+                            gos[i].name = $"{gos[i].name}-{i:00}";
+
+                        fixedCount += gos.Count;
+                    }
                 }
 
                 EditorUtility.ClearProgressBar();
