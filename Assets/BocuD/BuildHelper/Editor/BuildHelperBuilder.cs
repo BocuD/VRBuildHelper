@@ -125,15 +125,29 @@ namespace BocuD.BuildHelper
             {
                 VRChatApiUploaderAsync uploaderAsync = new VRChatApiUploaderAsync();
                 uploaderAsync.UseStatusWindow();
-                
-                string unityPackagePath = EditorPrefs.GetString("VRC_exportedUnityPackagePath");
-                string assetbundlePath = EditorPrefs.GetString("currentBuildingAssetBundlePath");
-                
-                await uploaderAsync.UploadWorld(assetbundlePath, unityPackagePath, worldInfo);
-                
-                BranchStorageObject data = BuildHelperData.GetDataObject();
-                if (data != null)
-                    DeploymentManager.TrySaveBuild(data.CurrentBranch, assetbundlePath);
+
+                try
+                {
+                    EditorApplication.LockReloadAssemblies();
+
+                    string unityPackagePath = EditorPrefs.GetString("VRC_exportedUnityPackagePath");
+                    string assetbundlePath = EditorPrefs.GetString("currentBuildingAssetBundlePath");
+
+                    await uploaderAsync.UploadWorld(assetbundlePath, unityPackagePath, worldInfo);
+
+                    BranchStorageObject data = BuildHelperData.GetDataObject();
+                    if (data != null)
+                        DeploymentManager.TrySaveBuild(data.CurrentBranch, assetbundlePath);
+                }
+                catch (Exception e)
+                {
+                    uploaderAsync.OnError("Unhandled Exception", e.Message);
+                    BocuD.VRChatApiTools.Logger.LogError("" + e.Message);
+                }
+                finally
+                {
+                    EditorApplication.UnlockReloadAssemblies();
+                }
 
                 onSucces?.Invoke(worldInfo);
             }

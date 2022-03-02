@@ -146,49 +146,64 @@ namespace BocuD.BuildHelper
 
         private static async Task BuildAndPublish(Platform platform)
         {
-            if (!await TryAutoLoginAsync())
+            try
+            {
+                if (!await TryAutoLoginAsync())
+                {
+                    status.currentState = AutonomousBuildState.failed;
+                    status.failReason = "Login failed";
+                    return;
+                }
+
+                status.currentPlatform = platform;
+                status.currentState = AutonomousBuildState.building;
+
+                await Task.Delay(100);
+
+                string buildPath = BuildHelperBuilder.ExportAssetBundle();
+
+                if (!await TryAutoLoginAsync())
+                {
+                    status.currentState = AutonomousBuildState.failed;
+                    status.failReason = "Login failed";
+                    return;
+                }
+                
+                EditorApplication.LockReloadAssemblies();
+
+                status.currentState = AutonomousBuildState.uploading;
+
+                VRChatApiUploaderAsync uploader = new VRChatApiUploaderAsync();
+                uploader.OnProgress = status.UploadProgress;
+                uploader.OnError = (header, details) =>
+                {
+                    status.buildInfo.activeBuild = false;
+                    status.UploadError(header, details);
+                };
+                uploader.Log = contents => status.AddLog($"<b>{contents}</b>");
+                uploader.cancelQuery = () => status.abort;
+
+                await uploader.UploadWorld(buildPath, "", status.buildInfo.worldInfo);
+
+                BuildHelperData data = BuildHelperData.GetDataBehaviour();
+                if (data != null)
+                {
+                    await data.OnSuccesfulPublish(status.buildInfo.worldInfo, DateTime.Now);
+                    DeploymentManager.TrySaveBuild(data.dataObject.CurrentBranch, buildPath, true);
+                }
+
+                status.uploading = false;
+            }
+            catch (Exception e)
             {
                 status.currentState = AutonomousBuildState.failed;
-                status.failReason = "Login failed";
-                return;
+                status.failReason = "Unhandled Exception: " + e.Message;
+                VRChatApiTools.Logger.LogError(e.Message);
             }
-            
-            status.currentPlatform = platform;
-            status.currentState = AutonomousBuildState.building;
-
-            await Task.Delay(100);
-            
-            string buildPath = BuildHelperBuilder.ExportAssetBundle();
-            
-            if (!await TryAutoLoginAsync())
+            finally
             {
-                status.currentState = AutonomousBuildState.failed;
-                status.failReason = "Login failed";
-                return;
+                EditorApplication.UnlockReloadAssemblies();
             }
-            
-            status.currentState = AutonomousBuildState.uploading;
-            
-            VRChatApiUploaderAsync uploader = new VRChatApiUploaderAsync();
-            uploader.OnProgress = status.UploadProgress;
-            uploader.OnError = (header, details) =>
-            {
-                status.buildInfo.activeBuild = false;
-                status.UploadError(header, details);
-            };
-            uploader.Log = contents => status.AddLog($"<b>{contents}</b>");
-            uploader.cancelQuery = () => status.abort;
-
-            await uploader.UploadWorld(buildPath, "", status.buildInfo.worldInfo);
-
-            BuildHelperData data = BuildHelperData.GetDataBehaviour();
-            if (data != null)
-            {
-                await data.OnSuccesfulPublish(status.buildInfo.worldInfo, DateTime.Now);
-                DeploymentManager.TrySaveBuild(data.dataObject.CurrentBranch, buildPath, true);
-            }
-
-            status.uploading = false;
         }
     }
 
