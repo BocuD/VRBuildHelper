@@ -22,6 +22,9 @@ Special Thanks:
 ## Requirements
 - VRCSDK3 WORLD 2021.10.22.18.33 or later (earlier versions are untested but may work)
 - UdonSharp 0.20.0 or later (earlier versions are untested but may work)
+
+For up to date documentation, please visit [the wiki](https://github.com/BocuD/VRBuildHelper/wiki). The documentation below is for the current release candidate.
+
 ## Documentation
 ### Getting started
 To set up VR Build Helper in a scene, open the editor window [Window/VR Build Helper] and click Set up Build Helper in this scene. You can now create a new branch by clicking the + button in the branch list.
