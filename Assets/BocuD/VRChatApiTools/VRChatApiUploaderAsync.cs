@@ -116,8 +116,6 @@ namespace BocuD.VRChatApiTools
             bool isUpdate = true;
             bool wait = true;
             
-            Debug.Log("Henlo " + pipelineManager.blueprintId);
-            
             ApiWorld apiWorld = new ApiWorld
             {
                 id = pipelineManager.blueprintId
