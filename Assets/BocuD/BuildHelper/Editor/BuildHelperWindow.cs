@@ -37,6 +37,7 @@ using VRC.SDK3.Components;
 using VRC.SDKBase.Editor;
 using VRC.Udon.Editor.ProgramSources.UdonGraphProgram.UI;
 using static BocuD.VRChatApiTools.VRChatApiTools;
+using Debug = UnityEngine.Debug;
 using Object = UnityEngine.Object;
 
 namespace BocuD.BuildHelper.Editor
@@ -266,12 +267,13 @@ namespace BocuD.BuildHelper.Editor
             
             GUIContent[] platformSwitchModes =
             {
-                new GUIContent("Ask to increment build number", "Build Helper will always ask you if it should match build numbers between PC and Android right after switching between them."),
-                new GUIContent("Always increment build number", "Build Helper will always increment the build number when doing a new build. The Autonomous publisher should be used if you want version detection to work.")
-            };
-
+                new GUIContent("For every build", "Build Helper will always ask you if it should match build numbers between PC and Android right after switching between them."),
+                new GUIContent("Only after switching", "Build Helper will always increment the build number when doing a new build. The Autonomous publisher should be used if you want version detection to work.")
+            }; 
+            EditorGUILayout.Space(5);
+            EditorGUILayout.LabelField("<i>When building for Android</i>", labelStyle);
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("After a platform switch", GUILayout.Width(150));
+            EditorGUILayout.LabelField("Ask to match build number", GUILayout.Width(250));
             GUILayout.FlexibleSpace();
             BuildHelperEditorPrefs.PlatformSwitchMode = GUILayout.Toolbar(BuildHelperEditorPrefs.PlatformSwitchMode, platformSwitchModes);
             EditorGUILayout.EndHorizontal();
@@ -908,12 +910,12 @@ namespace BocuD.BuildHelper.Editor
                 }
                 else if (!worldCache.TryGetValue(branch.blueprintID, out apiWorld))
                 {
-                    if (!invalidWorlds.Contains(branch.blueprintID))
+                    if (!invalidBlueprints.Contains(branch.blueprintID))
                         FetchApiWorld(branch.blueprintID);
                     else isNewWorld = true;
                 }
 
-                if (invalidWorlds.Contains(branch.blueprintID))
+                if (invalidBlueprints.Contains(branch.blueprintID))
                 {
                     loadError = true;
                     EditorGUILayout.HelpBox(
@@ -1564,7 +1566,10 @@ namespace BocuD.BuildHelper.Editor
             
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("");
-            EditorGUILayout.LabelField("Watch for changes (support reloads)", GUILayout.Width(140));
+            EditorGUILayout.LabelField(
+                new GUIContent("Watch for changes",
+                    "When enabled, launched VRChat clients will watch for new builds and reload the world when a new build is detected."),
+                GUILayout.Width(140));
             VRCSettings.WatchWorlds = EditorGUILayout.Toggle(VRCSettings.WatchWorlds, GUILayout.Width(140));
             EditorGUILayout.EndHorizontal();
             
@@ -1682,8 +1687,9 @@ namespace BocuD.BuildHelper.Editor
                     {
                         if (BuildHelperEditorPrefs.UseAsyncPublish)
                         {
-                            Task publishTask = BuildHelperBuilder.PublishLastBuildAsync(buildHelperData.CurrentBranch.ToWorldInfo(), info =>
+                            BuildHelperBuilder.PublishLastBuildAsync(buildHelperData.CurrentBranch.ToWorldInfo(), info =>
                             {
+                                //todo check this crap
                                 Task verify = buildHelperBehaviour.OnSuccesfulPublish(info, DateTime.Now);
                             });
                         }

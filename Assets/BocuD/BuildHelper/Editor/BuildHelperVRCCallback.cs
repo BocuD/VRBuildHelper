@@ -81,6 +81,7 @@ namespace BocuD.BuildHelper.Editor
             }
             else //autonomous builder is not active: determine what the build number should be
             {
+                //todo: implement the new ask every time option
                 switch (BuildHelperEditorPrefs.BuildNumberMode)
                 {
                     //On Build
@@ -105,9 +106,9 @@ namespace BocuD.BuildHelper.Editor
                                         $"The last build on this branch was for a different platform. " +
                                         $"If you made any changes to the scene since the last build, (build {latestBuild.buildVersion}, {(long)minutesSinceLastBuild} minutes ago for {latestBuild.platform}) " +
                                         $"you should probably mark this build as a new build.\n\n" +
-                                        $"Increment: This build will be marked as build {latestBuild.buildVersion + 1}. Keep in mind that this will make this build count as a new version for World Update Detection, so you should reupload for {latestBuild.platform} as well.\n\n" +
-                                        $"Don't increment: This build will be marked as the {CurrentPlatform()} version of build {latestBuild.buildVersion}.",
-                                        "Increment", "Cancel", "Don't increment");
+                                        $"Increment build number: This build will be marked as build {latestBuild.buildVersion + 1}. Keep in mind that this will make this build count as a new version for World Update Detection, so you should reupload for {latestBuild.platform} as well.\n\n" +
+                                        $"Match build number: This build will be marked as the {CurrentPlatform()} version of build {latestBuild.buildVersion}.",
+                                        "Increment", "Cancel", "Match");
 
                                     switch (newBuild)
                                     {
