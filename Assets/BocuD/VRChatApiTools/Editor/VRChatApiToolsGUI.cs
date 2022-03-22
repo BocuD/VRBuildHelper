@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 using VRC.Core;
@@ -12,58 +13,88 @@ namespace BocuD.VRChatApiTools
     public static class VRChatApiToolsGUI
     {
         /// <summary>
-        /// Draws inspector for VRChat ApiAvatar from blueprint ID
+        /// Draws inspector for VRChat avatar or world from blueprint ID
         /// </summary>
-        /// <param name="blueprintID">The blueprint ID for the avatar to be displayed</param>
-        public static void DrawAvatarInspector(string blueprintID)
+        /// <param name="blueprintID">The blueprint ID to be displayed</param>
+        /// <param name="small">When disabled, adds copy id and open in website buttons</param>
+        /// <param name="secondaryButtons">Action params that can be implemented to add extra GUI functionality to inspector</param>
+        public static void DrawBlueprintInspector(string blueprintID, bool small = true, params Action[] secondaryButtons)
         {
             if (blueprintID.IsNullOrWhitespace()) return;
-            if (!APIUser.IsLoggedIn)
-            {
-                VRChatApiToolsGUI.HandleLogin(null, false);
-                return;
-            }
-            
+            if (!HandleLogin(null, false)) return;
+
             //already cached
-            if (VRChatApiTools.avatarCache.TryGetValue(blueprintID, out ApiAvatar avatar))
+            if (VRChatApiTools.blueprintCache.TryGetValue(blueprintID, out ApiModel model)) 
             {
-                DrawApiAvatarInspector(avatar);
+                DrawBlueprintInspector(model, small, secondaryButtons);
             }
             else
             {
                 //loading
-                if (VRChatApiTools.currentlyFetchingAvatars.Contains(blueprintID))
+                if (VRChatApiTools.currentlyFetching.Contains(blueprintID))
                 {
-                    EditorGUILayout.LabelField("Loading avatar information...");
+                    EditorGUILayout.LabelField($"Loading blueprint information...");
                 }
                 else
                 {
                     //its not invalidated yet, so try loading
-                    if (!VRChatApiTools.invalidAvatars.Contains(blueprintID))
+                    if (!VRChatApiTools.invalidBlueprints.Contains(blueprintID))
                     {
-                        VRChatApiTools.FetchApiAvatar(blueprintID);
+                        if (Regex.IsMatch(blueprintID, VRChatApiTools.world_regex))
+                        {
+                            VRChatApiTools.FetchApiWorld(blueprintID);
+                        }
+                        else if (Regex.IsMatch(blueprintID, VRChatApiTools.avatar_regex))
+                        {
+                            VRChatApiTools.FetchApiAvatar(blueprintID);
+                        }
+                        else
+                        {
+                            VRChatApiTools.invalidBlueprints.Add(blueprintID);
+                        }
                     }
                     //invalid avatar
                     else
                     {
-                        EditorGUILayout.HelpBox("Couldn't load specified avatar.", MessageType.Error);
+                        EditorGUILayout.HelpBox("Couldn't load specified blueprint ID.", MessageType.Error);
                     }
                 }
             }
         }
 
         /// <summary>
-        /// Draws inspector for VRChat ApiAvatar
+        /// Draws inspector for VRChat blueprint
         /// </summary>
-        /// <param name="avatar">Valid ApiAvatar to be drawn</param>
-        public static void DrawApiAvatarInspector(ApiAvatar avatar)
+        /// <param name="model">Valid ApiWorld or ApiAvatar to be drawn</param>
+        /// <param name="small">When disabled, adds copy id and open in website buttons</param>
+        /// <param name="secondaryButtons">Action params that can be implemented to add extra GUI functionality to inspector</param>
+        public static void DrawBlueprintInspector(ApiModel model, bool small = true, params Action[] secondaryButtons)
         {
             EditorGUILayout.BeginHorizontal(EditorStyles.helpBox, GUILayout.Height(108));
             EditorGUILayout.BeginHorizontal();
 
-            if (VRChatApiTools.ImageCache.ContainsKey(avatar.id))
+            string modelName = "";
+            bool isWorld = false;
+            
+            switch (model)
             {
-                GUILayout.Box(VRChatApiTools.ImageCache[avatar.id], GUILayout.Width(128), GUILayout.Height(99));
+                case ApiWorld world:
+                    modelName = world.name;
+                    isWorld = true;
+                    break;
+                
+                case ApiAvatar avatar:
+                    modelName = avatar.name;
+                    break;
+                
+                default:
+                    Logger.LogWarning("Non world or avatar ApiModel passed to DrawBlueprintInspector");
+                    return;
+            }
+
+            if (VRChatApiTools.ImageCache.ContainsKey(model.id))
+            {
+                GUILayout.Box(VRChatApiTools.ImageCache[model.id], GUILayout.Width(128), GUILayout.Height(99));
             }
             else
             {
@@ -71,16 +102,11 @@ namespace BocuD.VRChatApiTools
             }
 
             EditorGUILayout.BeginVertical();
-            EditorGUILayout.LabelField(avatar.name, EditorStyles.boldLabel);
-            EditorGUILayout.LabelField(avatar.id);
+            EditorGUILayout.LabelField(modelName, EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(model.id);
 
-            EditorGUILayout.LabelField("Release Status: " + avatar.releaseStatus);
-
-            if (avatar.authorId != APIUser.CurrentUser.id)
-            {
-                GUIStyle labelStyle = new GUIStyle(EditorStyles.label) {richText = true, wordWrap = true};
-                EditorGUILayout.LabelField("<color=yellow>Warning: You don't own this avatar and won't be able to upload to it</color>", labelStyle);
-            }
+            string releaseStatus = model is ApiWorld ? ((ApiWorld)model).releaseStatus : ((ApiAvatar)model).releaseStatus;
+            EditorGUILayout.LabelField("Release Status: " + releaseStatus);
 
             GUILayout.FlexibleSpace();
 
@@ -88,9 +114,24 @@ namespace BocuD.VRChatApiTools
 
             GUILayout.FlexibleSpace();
 
-            if (GUILayout.Button("Copy ID to clipboard", GUILayout.Width(160)))
+            if (!small)
             {
-                GUIUtility.systemCopyBuffer = avatar.id;
+                if (GUILayout.Button("Open in browser", GUILayout.Width(140)))
+                {
+                    Application.OpenURL(isWorld
+                        ? $"https://vrchat.com/home/world/{model.id}"
+                        : $"https://vrchat.com/home/avatar/{model.id}");
+                }
+
+                if (GUILayout.Button("Copy ID to clipboard", GUILayout.Width(160)))
+                {
+                    GUIUtility.systemCopyBuffer = model.id;
+                }
+            }
+
+            foreach (Action b in secondaryButtons)
+            {
+                b.Invoke();
             }
 
             EditorGUILayout.EndHorizontal();
@@ -100,7 +141,7 @@ namespace BocuD.VRChatApiTools
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.Space();
         }
-        
+
         public static bool HandleLogin(EditorWindow repaintOnSucces = null, bool displayLoginStatus = true)
         {
             if (!APIUser.IsLoggedIn)
@@ -114,7 +155,7 @@ namespace BocuD.VRChatApiTools
                     if (GUILayout.Button("Open VRCSDK Control Panel"))
                     {
                         VRCSettings.ActiveWindowPanel = 0;
-                        VRCSdkControlPanel controlPanel = EditorWindow.GetWindow<VRCSdkControlPanel>();
+                        EditorWindow.GetWindow<VRCSdkControlPanel>();
                     }
                 }
                 else
@@ -323,14 +364,15 @@ namespace BocuD.VRChatApiTools
             avatarID = EditorGUILayout.TextField("Avatar blueprint ID", avatarID);
             if (GUILayout.Button("Load Avatar"))
             {
-                if (!VRChatApiTools.avatarCache.ContainsKey(avatarID))
+                if (!VRChatApiTools.blueprintCache.ContainsKey(avatarID))
                     VRChatApiTools.FetchApiAvatar(avatarID);
             }
             
             EditorGUILayout.EndHorizontal();
 
-            if (VRChatApiTools.avatarCache.TryGetValue(avatarID, out ApiAvatar avatar))
+            if (VRChatApiTools.blueprintCache.TryGetValue(avatarID, out ApiModel model))
             {
+                ApiAvatar avatar = (ApiAvatar) model;
                 EditorGUILayout.BeginHorizontal();
                 if (VRChatApiTools.ImageCache.ContainsKey(avatarID))
                 {

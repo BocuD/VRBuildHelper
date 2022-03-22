@@ -2,7 +2,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using UnityEditor;
@@ -22,15 +24,16 @@ namespace BocuD.VRChatApiTools
         public static List<ApiAvatar> uploadedAvatars;
         
         [NonSerialized] public static List<string> currentlyFetching = new List<string>();
-        [NonSerialized] public static List<string> currentlyFetchingAvatars = new List<string>();
+        [NonSerialized] public static List<string> invalidBlueprints = new List<string>();
 
-        [NonSerialized] public static List<string> invalidWorlds = new List<string>();
-        [NonSerialized] public static List<string> invalidAvatars = new List<string>();
-
+        [NonSerialized] public static Dictionary<string, ApiModel> blueprintCache = new Dictionary<string, ApiModel>();
         [NonSerialized] public static Dictionary<string, ApiWorld> worldCache = new Dictionary<string, ApiWorld>();
         [NonSerialized] public static Dictionary<string, ApiAvatar> avatarCache = new Dictionary<string, ApiAvatar>();
 
         public static Action<string, string> DownloadImage;
+        
+        public const string avatar_regex = "avtr_[A-Za-z0-9]{8}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{12}";
+        public const string world_regex = "wrld_[A-Za-z0-9]{8}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{12}";
         
         #region Editor Tools Menu
 
@@ -66,37 +69,17 @@ namespace BocuD.VRChatApiTools
         
         #endregion
         
+        #region Fetching data
+        
         public static void ClearCaches()
         {
             uploadedWorlds = null;
             uploadedAvatars = null;
 
             ImageCache.Clear();
-
             currentlyFetching.Clear();
-            currentlyFetchingAvatars.Clear();
-
-            invalidWorlds.Clear();
-            invalidAvatars.Clear();
-
-            worldCache.Clear();
-            avatarCache.Clear();
-        }
-
-        public static bool TryGetApiWorld(string blueprintID, out ApiWorld apiWorld)
-        {
-            if (!worldCache.TryGetValue(blueprintID, out apiWorld))
-            {
-                if (!invalidWorlds.Contains(blueprintID))
-                {
-                    FetchApiWorld(blueprintID);
-                    return true;
-                }
-
-                return false;
-            }
-            
-            return true;
+            invalidBlueprints.Clear();
+            blueprintCache.Clear();
         }
 
         public static void FetchApiWorld(string blueprintID)
@@ -114,7 +97,7 @@ namespace BocuD.VRChatApiTools
                     if (c.Code == 404)
                     {
                         currentlyFetching.Remove(world.id);
-                        invalidWorlds.Add(world.id);
+                        invalidBlueprints.Add(world.id);
                         Logger.Log($"World '{blueprintID}' doesn't exist so couldn't be loaded.");
                         ApiCache.Invalidate<ApiWorld>(blueprintID);
                     }
@@ -161,9 +144,9 @@ namespace BocuD.VRChatApiTools
 
         public static void FetchApiAvatar(string blueprintID)
         {
-            if (currentlyFetchingAvatars.Contains(blueprintID)) return;
+            if (currentlyFetching.Contains(blueprintID)) return;
 
-            currentlyFetchingAvatars.Add(blueprintID);
+            currentlyFetching.Add(blueprintID);
 
             ApiAvatar avatar = API.FromCacheOrNew<ApiAvatar>(blueprintID);
 
@@ -172,13 +155,13 @@ namespace BocuD.VRChatApiTools
                 {
                     if (c.Code == 404)
                     {
-                        currentlyFetchingAvatars.Remove(avatar.id);
-                        invalidAvatars.Add(avatar.id);
+                        currentlyFetching.Remove(avatar.id);
+                        invalidBlueprints.Add(avatar.id);
                         Logger.Log($"Avatar '{blueprintID}' doesn't exist so couldn't be loaded.");
                         ApiCache.Invalidate<ApiAvatar>(blueprintID);
                     }
                     else
-                        currentlyFetchingAvatars.Remove(avatar.id);
+                        currentlyFetching.Remove(avatar.id);
                 });
         }
         
@@ -217,15 +200,15 @@ namespace BocuD.VRChatApiTools
         private static void AddWorldToCache(string blueprintID, ApiWorld world)
         {
             currentlyFetching.Remove(world.id);
-            worldCache.Add(blueprintID, world);
+            blueprintCache.Add(blueprintID, world);
             
             DownloadImage?.Invoke(blueprintID, world.thumbnailImageUrl);
         }
 
         private static void AddAvatarToCache(string blueprintID, ApiAvatar avatar)
         {
-            currentlyFetchingAvatars.Remove(avatar.id);
-            avatarCache.Add(blueprintID, avatar);
+            currentlyFetching.Remove(avatar.id);
+            blueprintCache.Add(blueprintID, avatar);
             
             DownloadImage?.Invoke(blueprintID, avatar.thumbnailImageUrl);
         }
@@ -256,6 +239,48 @@ namespace BocuD.VRChatApiTools
                 autoLoginFailed = false;
             }
         }
+
+        public static void SetupWorldData(List<ApiWorld> worlds)
+        {
+            if (worlds == null || uploadedWorlds == null)
+                return;
+
+            worlds.RemoveAll(w => w?.name == null || uploadedWorlds.Any(w2 => w2.id == w.id));
+
+            if (worlds.Count <= 0) return;
+            
+            uploadedWorlds.AddRange(worlds);
+            
+            foreach (ApiWorld world in uploadedWorlds)
+            {
+                if (!blueprintCache.TryGetValue(world.id, out ApiModel test))
+                {
+                    blueprintCache.Add(world.id, world);
+                }
+            }
+        }
+
+        public static void SetupAvatarData(List<ApiAvatar> avatars)
+        {
+            if (avatars == null || uploadedAvatars == null)
+                return;
+
+            avatars.RemoveAll(a => a?.name == null || uploadedAvatars.Any(a2 => a2.id == a.id));
+
+            if (avatars.Count <= 0) return;
+            
+            uploadedAvatars.AddRange(avatars);
+
+            foreach (ApiAvatar avatar in uploadedAvatars)
+            {
+                if (!blueprintCache.TryGetValue(avatar.id, out ApiModel test))
+                {
+                    blueprintCache.Add(avatar.id, avatar);
+                }
+            }
+        }
+        
+        #endregion
         
         public static async Task<bool> TryAutoLoginAsync()
         {
@@ -296,47 +321,7 @@ namespace BocuD.VRChatApiTools
 
             return succes;
         }
-        
-        public static void SetupWorldData(List<ApiWorld> worlds)
-        {
-            if (worlds == null || uploadedWorlds == null)
-                return;
 
-            worlds.RemoveAll(w => w?.name == null || uploadedWorlds.Any(w2 => w2.id == w.id));
-
-            if (worlds.Count <= 0) return;
-            
-            uploadedWorlds.AddRange(worlds);
-            
-            foreach (ApiWorld world in uploadedWorlds)
-            {
-                if (!worldCache.TryGetValue(world.id, out ApiWorld test))
-                {
-                    worldCache.Add(world.id, world);
-                }
-            }
-        }
-
-        public static void SetupAvatarData(List<ApiAvatar> avatars)
-        {
-            if (avatars == null || uploadedAvatars == null)
-                return;
-
-            avatars.RemoveAll(a => a?.name == null || uploadedAvatars.Any(a2 => a2.id == a.id));
-
-            if (avatars.Count <= 0) return;
-            
-            uploadedAvatars.AddRange(avatars);
-
-            foreach (ApiAvatar avatar in uploadedAvatars)
-            {
-                if (!avatarCache.TryGetValue(avatar.id, out ApiAvatar test))
-                {
-                    avatarCache.Add(avatar.id, avatar);
-                }
-            }
-        }
-        
         public static PipelineManager FindPipelineManager()
         {
             Scene currentScene = SceneManager.GetActiveScene();
@@ -382,19 +367,74 @@ namespace BocuD.VRChatApiTools
             return text.Substring(0, pos) + replace + text.Substring(pos + search.Length);
         }
         
+        public static string ToReadableBytes(this long i)
+        {
+            // Get absolute value
+            long absolute_i = (i < 0 ? -i : i);
+            // Determine the suffix and readable value
+            string suffix;
+            double readable;
+            if (absolute_i >= 0x1000000000000000) // Exabyte
+            {
+                suffix = "EB";
+                readable = (i >> 50);
+            }
+            else if (absolute_i >= 0x4000000000000) // Petabyte
+            {
+                suffix = "PB";
+                readable = (i >> 40);
+            }
+            else if (absolute_i >= 0x10000000000) // Terabyte
+            {
+                suffix = "TB";
+                readable = (i >> 30);
+            }
+            else if (absolute_i >= 0x40000000) // Gigabyte
+            {
+                suffix = "GB";
+                readable = (i >> 20);
+            }
+            else if (absolute_i >= 0x100000) // Megabyte
+            {
+                suffix = "MB";
+                readable = (i >> 10);
+            }
+            else if (absolute_i >= 0x400) // Kilobyte
+            {
+                suffix = "KB";
+                readable = i;
+            }
+            else
+            {
+                return i.ToString("0 B"); // Byte
+            }
+            // Divide by 1024 to get fractional value
+            readable = (readable / 1024);
+            // Return formatted number with suffix
+            return readable.ToString("0.### ") + suffix;
+        }
+
+        public static string GetFileName(this string filePath)
+        {
+            string[] split = filePath.Split('/');
+            return split[split.Length - 1];
+        }
+
         [Serializable]
-        public class WorldInfo
+        public class BlueprintInfo
         {
             public string name = "";
-            public string description = "";
-            public List<string> tags = new List<string>();
-            public int capacity;
-
             public string blueprintID = "";
-
+            public string description = "";
             public string newImagePath = "";
         }
-        
+
+        public class WorldInfo : BlueprintInfo
+        {
+            public List<string> tags = new List<string>();
+            public int capacity;
+        }
+
         public enum Platform
         {
             Windows,
@@ -437,6 +477,20 @@ namespace BocuD.VRChatApiTools
 
         public static string GetFriendlyWorldFileName(string type, ApiWorld apiWorld, Platform platform) =>
             $"World - {apiWorld.name} - {type} - {Application.unityVersion}_{ApiWorld.VERSION.ApiVersion}_{platform.ToApiString()}_{API.GetServerEnvironmentForApiUrl()}";
+        
+        public static string ComputeFileMD5(string filepath)
+        {
+            if (!File.Exists(filepath)) return "";
+            
+            using (MD5 md5 = MD5.Create())
+            {
+                using (FileStream stream = File.OpenRead(filepath))
+                {
+                    byte[] hash = md5.ComputeHash(stream);
+                    return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+                }
+            }
+        }
     }
 }
 

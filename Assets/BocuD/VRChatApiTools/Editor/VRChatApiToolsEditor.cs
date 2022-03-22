@@ -1,8 +1,9 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using UnityEditor;
-using UnityEngine;
 using VRC.Core;
 
 namespace BocuD.VRChatApiTools
@@ -15,7 +16,27 @@ namespace BocuD.VRChatApiTools
         
         static VRChatApiToolsEditor()
         {
+            //gotta love this
             VRChatApiTools.DownloadImage = DownloadImage;
+            
+            //get access to AsyncProgressBar methods through reflection https://answers.unity.com/questions/1104823/using-editors-built-in-progress-bar.html
+            Type type = typeof(Editor).Assembly.GetTypes().FirstOrDefault(t => t.Name == "AsyncProgressBar");
+            if (type == null) return;
+            
+            _display = type.GetMethod("Display");
+            _clear = type.GetMethod("Clear");
+        }
+        
+        private static MethodInfo _display = null;
+        private static MethodInfo _clear = null;
+
+        public static void ShowGIProgressBar(string aText, float aProgress)
+        {
+            _display?.Invoke(null, new object[] { aText, aProgress });
+        }
+        public static void ClearGIProgressBar()
+        {
+            _clear?.Invoke(null, null);
         }
         
         [MenuItem("Tools/VRChatApiTools/Refresh data")]
@@ -26,6 +47,8 @@ namespace BocuD.VRChatApiTools
             EditorCoroutine.Start(FetchUploadedData());
         }
         
+        #region Fetch worlds and avatars owned by user
+        //Almost 1:1 reimplementation of SDK methods
         public static IEnumerator FetchUploadedData()
         {
             VRChatApiTools.uploadedWorlds = new List<ApiWorld>();
@@ -55,7 +78,7 @@ namespace BocuD.VRChatApiTools
                     if (worlds.FirstOrDefault() != null)
                         fetchingWorlds = EditorCoroutine.Start(() =>
                         {
-                            var list = worlds.ToList();
+                            List<ApiWorld> list = worlds.ToList();
                             int count = list.Count;
                             VRChatApiTools.SetupWorldData(list);
                             FetchWorlds(offset + count);
@@ -99,7 +122,7 @@ namespace BocuD.VRChatApiTools
                     if (avatars.FirstOrDefault() != null)
                         fetchingAvatars = EditorCoroutine.Start(() =>
                         {
-                            var list = avatars.ToList();
+                            List<ApiAvatar> list = avatars.ToList();
                             int count = list.Count;
                             VRChatApiTools.SetupAvatarData(list);
                             FetchAvatars(offset + count);
@@ -132,15 +155,14 @@ namespace BocuD.VRChatApiTools
                 false
             );
         }
+        #endregion
         
         public static void DownloadImage(string blueprintID, string url)
         {
             if (string.IsNullOrEmpty(url)) return;
             if (VRChatApiTools.ImageCache.ContainsKey(blueprintID) && VRChatApiTools.ImageCache[blueprintID] != null) return;
 
-            EditorCoroutine.Start(VRCCachedWebRequest.Get(url, succes));
-
-            void succes(Texture2D texture)
+            EditorCoroutine.Start(VRCCachedWebRequest.Get(url, texture =>
             {
                 if (texture != null)
                 {
@@ -150,7 +172,7 @@ namespace BocuD.VRChatApiTools
                 {
                     VRChatApiTools.ImageCache.Remove(blueprintID);
                 }
-            }
+            }));
         }
     }
 }
