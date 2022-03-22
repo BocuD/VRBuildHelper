@@ -42,6 +42,13 @@ namespace BocuD.BuildHelper
             public Progress progress;
             public WorldInfo worldInfo;
 
+            public bool Stop
+            {
+                get => _failed || status.abort;
+            }
+            
+            public bool _failed;
+
             public AutonomousBuildData()
             {
                 activeBuild = true;
@@ -110,7 +117,7 @@ namespace BocuD.BuildHelper
                     FinishAutonomousPublish();
                     break;
                 default:
-                    //todo error out here
+                    status.OnError("Platform switch failed", "Target platform after platform switch incorrect");
                     break;
             }
         }
@@ -124,6 +131,8 @@ namespace BocuD.BuildHelper
 
             await BuildAndPublish(status.buildInfo.initialTarget);
 
+            if (status.buildInfo.Stop) { status.Aborted(); return; }
+
             status.buildInfo.progress = Progress.PostInitialBuild;
 
             SwitchPlatform(status.buildInfo.secondaryTarget);
@@ -133,6 +142,8 @@ namespace BocuD.BuildHelper
         {
             await BuildAndPublish(status.buildInfo.secondaryTarget);
 
+            if (status.buildInfo.Stop) { status.Aborted(); return; }
+            
             status.buildInfo.progress = Progress.PostSecondaryBuild;
             
             SwitchPlatform(status.buildInfo.initialTarget);
@@ -150,8 +161,7 @@ namespace BocuD.BuildHelper
             {
                 if (!await TryAutoLoginAsync())
                 {
-                    status.currentState = AutonomousBuildState.failed;
-                    status.failReason = "Login failed";
+                    status.OnError("Login failed", "Automatic login failed");
                     return;
                 }
 
@@ -159,27 +169,27 @@ namespace BocuD.BuildHelper
                 status.currentState = AutonomousBuildState.building;
 
                 await Task.Delay(100);
+                
+                if (status.buildInfo.Stop) { status.Aborted(); return; }
 
                 string buildPath = BuildHelperBuilder.ExportAssetBundle();
 
                 if (!await TryAutoLoginAsync())
                 {
-                    status.currentState = AutonomousBuildState.failed;
-                    status.failReason = "Login failed";
+                    status.OnError("Login failed", "Automatic login failed");
                     return;
                 }
                 
+                if (status.buildInfo.Stop) { status.Aborted(); return; }
+
                 EditorApplication.LockReloadAssemblies();
 
                 status.currentState = AutonomousBuildState.uploading;
 
                 VRChatApiUploaderAsync uploader = new VRChatApiUploaderAsync();
-                uploader.OnProgress = status.UploadProgress;
-                uploader.OnError = (header, details) =>
-                {
-                    status.buildInfo.activeBuild = false;
-                    status.UploadError(header, details);
-                };
+                uploader.OnStatus = status.UploadStatus;
+                uploader.OnUploadProgress = status.UploadProgress;
+                uploader.OnError = status.OnError;
                 uploader.Log = contents => status.AddLog($"<b>{contents}</b>");
                 uploader.cancelQuery = () => status.abort;
 
@@ -188,7 +198,7 @@ namespace BocuD.BuildHelper
                 BuildHelperData data = BuildHelperData.GetDataBehaviour();
                 if (data != null)
                 {
-                    await data.OnSuccesfulPublish(status.buildInfo.worldInfo, DateTime.Now);
+                    await data.OnSuccesfulPublish(data.dataObject.CurrentBranch, data.dataObject.CurrentBranch.ToWorldInfo(), DateTime.Now);
                     DeploymentManager.TrySaveBuild(data.dataObject.CurrentBranch, buildPath, true);
                 }
 
@@ -196,9 +206,18 @@ namespace BocuD.BuildHelper
             }
             catch (Exception e)
             {
-                status.currentState = AutonomousBuildState.failed;
-                status.failReason = "Unhandled Exception: " + e.Message;
-                VRChatApiTools.Logger.LogError(e.Message);
+                if (e is OperationCanceledException)
+                {
+                    status.currentState = AutonomousBuildState.aborted;
+                    status.failReason = e.Message;
+                    VRChatApiTools.Logger.LogError(e.Message);
+                }
+                else
+                {
+                    status.currentState = AutonomousBuildState.failed;
+                    status.failReason = e.Message;
+                    VRChatApiTools.Logger.LogError(e.Message);
+                }
             }
             finally
             {
