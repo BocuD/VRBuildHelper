@@ -43,19 +43,35 @@ namespace BocuD.BuildHelper
         public string uploadHeader;
         public string uploadStatus;
         
-        public void UploadProgress(string header, float progress, string status = null, string subStatus = null)
+        public void UploadStatus(string header, string status = null, string subStatus = null)
         {
             uploadHeader = header;
-            uploadProgress = progress;
             uploadStatus = status;
             Repaint();
         }
-        
-        public void UploadError(string header, string details)
+
+        public void UploadProgress(long uploaded, long total)
+        {
+            uploadProgress = (float)uploaded / total;
+            uploadStatus = $"Uploading: {uploaded.ToReadableBytes()} / {total.ToReadableBytes()} ({(uploadProgress * 100):N1} %)";
+            Repaint();
+        }
+
+        public void OnError(string header, string details)
         {
             currentState = AutonomousBuildState.failed;
             failReason = $"{header}: {details}";
+            buildInfo._failed = true;
+            buildInfo.activeBuild = false;
             AddLog($"<color=red>{header}: {details}</color>");
+            Repaint();
+        }
+
+        public void Aborted()
+        {
+            currentState = AutonomousBuildState.aborted;
+            buildInfo._failed = true;
+            buildInfo.activeBuild = false;
             Repaint();
         }
         
@@ -139,17 +155,42 @@ namespace BocuD.BuildHelper
         {
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField($"Autonomous Builder Status:");
-            if (_currentState == AutonomousBuildState.aborting)
-                if (GUILayout.Button("Force close"))
+            if (_currentState != AutonomousBuildState.aborted && _currentState != AutonomousBuildState.finished && _currentState != AutonomousBuildState.aborting)
+            {
+                if (GUILayout.Button("Abort"))
                 {
                     if (EditorUtility.DisplayDialog("Autonomous Builder",
-                        "Are you sure you want to close the Autonomous Builder? Only do this if its stuck, it will continue building anyways if its not 'hanging'.",
-                        "Yes", "No"))
+                            "Are you sure you want to abort the Autonomous Build?",
+                            "Yes", "No"))
                     {
-                        currentState = AutonomousBuildState.finished;
+                        abort = true;
+                        currentState = AutonomousBuildState.aborting;
+                        //DestroyImmediate(this);
+                    }
+                }
+            }
+            else
+            {
+                if (GUILayout.Button("Close"))
+                {
+                    if (_currentState == AutonomousBuildState.aborting)
+                    {
+                        if (EditorUtility.DisplayDialog("Autonomous Builder",
+                                "The current autonomous build task is already being aborted. If you force it to close now, the task may not be properly aborted. Are you sure you want to continue?",
+                                "Yes", "No"))
+                        {
+                            _currentState = AutonomousBuildState.aborted;
+                            Close();
+                            DestroyImmediate(this);
+                        }
+                    }
+                    else
+                    {
+                        Close();
                         DestroyImmediate(this);
                     }
                 }
+            }
 
             EditorGUILayout.EndHorizontal();
 
@@ -224,22 +265,22 @@ namespace BocuD.BuildHelper
                         currentState = AutonomousBuildState.failed;
                     }
 
-                    if (logString.Contains("Error building Player") &&
+                    else if (logString.Contains("Error building Player") &&
                         _currentState != AutonomousBuildState.failed)
                     {
                         failReason = "Error building Player";
                         currentState = AutonomousBuildState.failed;
                     }
             
-                    if (logString.Contains("AndroidPlayer") &&
-                        _currentState != AutonomousBuildState.failed)
+                    else if (logString.Contains("AndroidPlayer") &&
+                            _currentState != AutonomousBuildState.failed)
                     {
                         failReason = "Couldn't switch platform to Android";
                         currentState = AutonomousBuildState.failed;
                     }
 
-                    if (logString.Contains("Export Exception") &&
-                        _currentState != AutonomousBuildState.failed)
+                    else if (logString.Contains("Export Exception") &&
+                            _currentState != AutonomousBuildState.failed)
                     {
                         failReason = "Export Exception";
                         currentState = AutonomousBuildState.failed;
