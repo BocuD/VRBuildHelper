@@ -168,48 +168,16 @@ namespace BocuD.BuildHelper.Editor
                 {
                     if (!w.name.ToLowerInvariant().Contains(searchString.ToLowerInvariant()))
                     {
-                        continue;
-                    }
-
-                    EditorGUILayout.BeginHorizontal(EditorStyles.helpBox, GUILayout.Height(108));
-                    EditorGUILayout.BeginHorizontal();
-
-                    if (VRChatApiTools.ImageCache.ContainsKey(w.id))
-                    {
-                        GUILayout.Box(VRChatApiTools.ImageCache[w.id], GUILayout.Width(128), GUILayout.Height(99));
-                    }
-                    else
-                    {
-                        GUILayout.Box("Loading image...", GUILayout.Width(128), GUILayout.Height(99));
-                    }
-
-                    EditorGUILayout.BeginVertical();
-                    EditorGUILayout.LabelField(w.name, EditorStyles.boldLabel);
-                    EditorGUILayout.LabelField(w.id);
-
-                    EditorGUILayout.LabelField("Release Status: " + w.releaseStatus);
-
-                    GUILayout.FlexibleSpace();
-                    
-                    EditorGUILayout.BeginHorizontal();
-                    
-                    GUILayout.FlexibleSpace();
-                    
-                    if (GUILayout.Button("Copy ID to branch", GUILayout.Width(140)))
-                    {
-                        newID = w.id;
+                        return;
                     }
                     
-                    if (GUILayout.Button("Copy ID to clipboard", GUILayout.Width(160)))
+                    VRChatApiToolsGUI.DrawBlueprintInspector(w, false, () =>
                     {
-                        GUIUtility.systemCopyBuffer = w.id;
-                    }
-                    EditorGUILayout.EndHorizontal();
-
-                    EditorGUILayout.EndVertical();
-                    EditorGUILayout.EndHorizontal();
-                    EditorGUILayout.EndHorizontal();
-                    EditorGUILayout.Space();
+                        if (GUILayout.Button("Copy ID to branch", GUILayout.Width(140)))
+                        {
+                            newID = w.id;
+                        }
+                    });
                 }
             }
 
