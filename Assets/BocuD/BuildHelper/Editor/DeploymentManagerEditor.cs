@@ -117,7 +117,7 @@ namespace BocuD.BuildHelper.Editor
             foreach (DeploymentUnit deploymentUnit in data.dataObject.branches[dataIndex].deploymentData.units)
             {
                 //Fetch ApiWorld used by this deployment unit
-                if (!worldCache.TryGetValue(deploymentUnit.pipelineID, out ApiWorld empty))
+                if (!blueprintCache.TryGetValue(deploymentUnit.pipelineID, out ApiModel empty))
                 {
                     FetchApiWorld(deploymentUnit.pipelineID);
                 }
@@ -190,7 +190,7 @@ namespace BocuD.BuildHelper.Editor
                 EditorGUI.BeginDisabledGroup(deploymentUnit.platform == Platform.Android);
                 if (GUILayout.Button("Test locally in VRChat"))
                 {
-                    BuildHelperBuilder.TestExistingBuild(deploymentUnit);
+                    BuildHelperBuilder.TestExistingBuild(deploymentUnit.filePath);
                 }
                 EditorGUI.EndDisabledGroup();
 
@@ -198,7 +198,7 @@ namespace BocuD.BuildHelper.Editor
                 if (GUILayout.Button("Publish this build"))
                 {
                     //run account checks
-                    if (worldCache.TryGetValue(deploymentUnit.pipelineID, out ApiWorld apiWorld))
+                    if (blueprintCache.TryGetValue(deploymentUnit.pipelineID, out ApiModel model) && model is ApiWorld apiWorld)
                     {
                         if (apiWorld.authorId != APIUser.CurrentUser.id)
                         {
