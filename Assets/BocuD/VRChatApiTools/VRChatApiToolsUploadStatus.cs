@@ -1,6 +1,7 @@
 ﻿#if UNITY_EDITOR && !COMPILER_UDONSHARP
 
 using System;
+using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 using VRC.Udon.Serialization.OdinSerializer.Utilities;
@@ -48,7 +49,14 @@ namespace BocuD.VRChatApiTools
         private float currentProgress;
         public bool cancelRequested;
         public bool uploadInProgress = true;
-
+        
+        public bool userConfirm = false;
+        public string confirmHeader = "";
+        public string confirmButton = "";
+        public Action confirmAction;
+        public Action failAction;
+        public Action confirmUI;
+        
         public enum UploadState
         {
             uploading,
@@ -62,6 +70,12 @@ namespace BocuD.VRChatApiTools
 
         private void OnGUI()
         {
+            if (userConfirm)
+            {
+                DrawUserConfirmUI();
+                return;
+            }
+
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Upload Status");
 
@@ -148,6 +162,38 @@ namespace BocuD.VRChatApiTools
             EditorGUILayout.EndScrollView();
         }
 
+        public void ConfirmButton(string header, string button, Action onSucces, Action onFail, Action contentDrawer = null)
+        {
+            userConfirm = true;
+            confirmHeader = header;
+            confirmButton = button;
+            confirmAction = onSucces;
+            failAction = onFail;
+            confirmUI = contentDrawer;
+        }
+
+        private void DrawUserConfirmUI()
+        {
+            GUIStyle bigLabel = new GUIStyle(GUI.skin.label) { fontSize = 24, wordWrap = true };
+            EditorGUILayout.LabelField(confirmHeader, bigLabel);
+            confirmUI?.Invoke();
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button(confirmButton))
+            {
+                userConfirm = false;
+                confirmAction?.Invoke();
+            }
+                
+            if (GUILayout.Button("Abort"))
+            {
+                userConfirm = false;
+                uploadState = UploadState.aborted;
+                failAction?.Invoke();
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+
         private void Awake()
         {
             Logger.statusWindow = this;
@@ -156,6 +202,8 @@ namespace BocuD.VRChatApiTools
         private void OnDestroy()
         {
             Logger.statusWindow = null;
+            if(userConfirm)
+                failAction?.Invoke();
         }
 
         public void SetUploadState(UploadState newState)
@@ -168,17 +216,20 @@ namespace BocuD.VRChatApiTools
             Repaint();
         }
 
-        public void SetProgress(string header, float progress, string status = null, string subStatus = null)
+        public void SetStatus(string header, string status = null, string subStatus = null)
         {
-            if (header != _header || status != _status || subStatus != _subStatus)
-            {
-                AddLog($"{(_status.IsNullOrWhitespace() ? $"{_header}" : $"{_status}{(_subStatus.IsNullOrWhitespace() ? "" : $": {_subStatus}")}")}");
-            }
+            AddLog($"{(_status.IsNullOrWhitespace() ? $"{_header}" : $"{_status}{(_subStatus.IsNullOrWhitespace() ? "" : $": {_subStatus}")}")}");
 
             _header = header;
             _status = status;
             _subStatus = subStatus;
-            currentProgress = progress;
+            Repaint();
+        }
+
+        public void SetUploadProgress(long uploaded, long total)
+        {
+            currentProgress = (float)uploaded / total;
+            _status = $"Uploading: {uploaded.ToReadableBytes()} / {total.ToReadableBytes()} ({(currentProgress * 100):N1} %)";
             Repaint();
         }
 
@@ -189,6 +240,7 @@ namespace BocuD.VRChatApiTools
             _status = details;
             AddLog($"<color=red>{details}</color>");
             Repaint();
+            Logger.statusWindow = null;
         }
 
         public void AddLog(string contents)

@@ -16,12 +16,16 @@ namespace BocuD.VRChatApiTools
 {
     public class VRChatApiUploaderAsync
     { 
-        public delegate void SetProgressFunc(string header, float progress, string status = null, string subStatus = null);
+        public delegate void SetStatusFunc(string header, string status = null, string subStatus = null);
+        public delegate void SetUploadProgressFunc(long done, long total);
         public delegate void SetUploadStateFunc(VRChatApiToolsUploadStatus.UploadState state);
         public delegate void SetErrorStateFunc(string header, string details);
         public delegate void LoggerFunc(string contents);
 
-        public SetProgressFunc OnProgress = (header, progress, status, subStatus) => { };
+        public VRChatApiToolsUploadStatus uploadStatus;
+        
+        public SetStatusFunc OnStatus = (header, status, subStatus) => { };
+        public SetUploadProgressFunc OnUploadProgress = (done, total) => { };
         public SetUploadStateFunc OnUploadState = state => { };
         public SetErrorStateFunc OnError = (header, details) => { };
         public LoggerFunc Log = contents => Logger.Log(contents);
@@ -32,9 +36,10 @@ namespace BocuD.VRChatApiTools
 
         public void UseStatusWindow()
         {
-            VRChatApiToolsUploadStatus uploadStatus = VRChatApiToolsUploadStatus.GetNew();
+            uploadStatus = VRChatApiToolsUploadStatus.GetNew();
             
-            OnProgress = uploadStatus.SetProgress;
+            OnStatus = uploadStatus.SetStatus;
+            OnUploadProgress = uploadStatus.SetUploadProgress;
             OnUploadState = uploadStatus.SetUploadState;
             OnError = uploadStatus.SetErrorState;
             cancelQuery = () => uploadStatus.cancelRequested;
@@ -60,7 +65,7 @@ namespace BocuD.VRChatApiTools
         {
             bool doneUploading = false;
 
-            OnProgress("Applying Avatar Changes", 0);
+            OnStatus("Applying Avatar Changes");
             
             avatar.Save(
                 c => { AnalyticsSDK.AvatarUploaded(avatar, true); doneUploading = true; },
@@ -71,31 +76,6 @@ namespace BocuD.VRChatApiTools
 
             while (!doneUploading)
                 await Task.Delay(33);
-        }
-
-        private static string SaveImageTemp(Texture2D input)
-        {
-            byte[] png = input.EncodeToPNG();
-            string path = ImageName(input.width, input.height, "image", Application.temporaryCachePath);
-            File.WriteAllBytes(path, png);
-            return path;
-        }
-
-        private static string ImageName(int width, int height, string name, string savePath) =>
-            $"{savePath}/{name}_{width}x{height}_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.png";
-
-        public async Task<string> UploadImage(string existingFileUrl, string friendlyFileName, string newImagePath)
-        {
-            Log($"Preparing image upload for {newImagePath}...");
-            
-            string newUrl = null;
-
-            if (!string.IsNullOrEmpty(newImagePath))
-            {
-                newUrl = await PrepareFileUpload(newImagePath, existingFileUrl, friendlyFileName, "Image");
-            }
-            
-            return newUrl;
         }
 
         public async Task UploadWorld(string assetbundlePath, string unityPackagePath, VRChatApiTools.WorldInfo worldInfo = null)
@@ -190,7 +170,7 @@ namespace BocuD.VRChatApiTools
             
             if (assetBundleUrl.IsNullOrWhitespace()) 
             {
-                OnProgress("Failed", 1, "Asset bundle upload failed");
+                OnStatus("Failed", "Asset bundle upload failed");
                 return;
             }
 
@@ -232,7 +212,7 @@ namespace BocuD.VRChatApiTools
             apiWorld.assetUrl = newAssetUrl.IsNullOrWhitespace() ? apiWorld.assetUrl : newAssetUrl;
             apiWorld.unityPackageUrl = newPackageUrl.IsNullOrWhitespace() ? apiWorld.unityPackageUrl : newPackageUrl;
             
-            OnProgress("Applying Blueprint Changes", 0);
+            OnStatus("Applying Blueprint Changes");
             
             bool success = false;
             apiWorld.Save(c =>
@@ -327,43 +307,59 @@ namespace BocuD.VRChatApiTools
 
             return success;
         }
+        
+        public async Task<string> UploadImage(string existingFileUrl, string friendlyFileName, string newImagePath)
+        {
+            Log($"Preparing image upload for {newImagePath}...");
+            
+            string newUrl = null;
 
-        public async Task<string> PrepareFileUpload(string filename, string existingFileUrl, string friendlyFileName, string fileType)
+            if (!string.IsNullOrEmpty(newImagePath))
+            {
+                newUrl = await PrepareFileUpload(newImagePath, existingFileUrl, friendlyFileName, "Image");
+            }
+            
+            return newUrl;
+        }
+
+        private static string SaveImageTemp(Texture2D input)
+        {
+            byte[] png = input.EncodeToPNG();
+            string path = ImageName(input.width, input.height, "image", Application.temporaryCachePath);
+            File.WriteAllBytes(path, png);
+            return path;
+        }
+
+        private static string ImageName(int width, int height, string name, string savePath) =>
+            $"{savePath}/{name}_{width}x{height}_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.png";
+
+        public async Task<string> PrepareFileUpload(string filePath, string existingFileUrl, string friendlyFileName,
+            string fileType)
         {
             string newFileUrl = "";
-            
-            if (string.IsNullOrEmpty(filename))
+
+            if (string.IsNullOrEmpty(filePath))
             {
                 LogError("Null file passed to UploadFileAsync");
                 return newFileUrl;
             }
 
-            Log($"Uploading {fileType}({filename}) ...");
+            Log($"Uploading {fileType} ({filePath.GetFileName()}) ...");
 
-            OnProgress($"Uploading {fileType}...", 0);
+            OnStatus($"Uploading {fileType}...");
 
             string fileId = ApiFile.ParseFileIdFromFileAPIUrl(existingFileUrl);
-            
-            ApiFileHelperAsync fileHelperAsync = new ApiFileHelperAsync();
-            
-            Stopwatch stopwatch = Stopwatch.StartNew();
 
-            await fileHelperAsync.UploadFile(filename, fileId, fileType, friendlyFileName,
-                (apiFile, message) =>
-                {
-                    newFileUrl = apiFile.GetFileURL();
-                    Log($"<color=green>{fileType} upload succeeded: {message}</color>");
-                    stopwatch.Stop();
-                    OnProgress("Upload Succesful", 1, $"Finished upload in {stopwatch.Elapsed:mm\\:ss}");
-                },
-                (error, details) =>
-                {
-                    OnError(error, details);
-                    LogError($"{fileType} upload failed: {error} ({filename}): {details}");
-                },
-                (status, subStatus, progress) => OnProgress(status, progress, subStatus),
-                cancelQuery
-            );
+            ApiFileHelperAsync fileHelperAsync = new ApiFileHelperAsync();
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            newFileUrl = await fileHelperAsync.UploadFile(filePath, fileId, fileType, friendlyFileName,
+                (status, subStatus) => OnStatus(status, subStatus), (done, total) => OnUploadProgress(done, total),
+                cancelQuery);
+
+            Log($"<color=green>{fileType} upload succeeded</color>");
+            stopwatch.Stop();
+            OnStatus("Upload Succesful", $"Finished upload in {stopwatch.Elapsed:mm\\:ss}");
 
             return newFileUrl;
         }
