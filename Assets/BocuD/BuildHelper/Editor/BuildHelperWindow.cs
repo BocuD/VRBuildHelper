@@ -76,6 +76,7 @@ namespace BocuD.BuildHelper.Editor
         {
             buildHelperBehaviour = BuildHelperData.GetDataBehaviour();
             pipelineManager = FindObjectOfType<PipelineManager>();
+            BuildHelperData.RunLastBuildChecks();
 
             if (buildHelperBehaviour)
             {
@@ -896,23 +897,22 @@ namespace BocuD.BuildHelper.Editor
             GUILayout.EndHorizontal();
 
             ApiWorld apiWorld = null;
+            
             bool apiWorldLoaded = true;
             bool isNewWorld = false;
             bool loadError = false;
 
             if (branch.blueprintID != "")
             {
-                if (Application.isPlaying)
-                {
-                    EditorGUILayout.HelpBox("Loading world information from VRChat in playmode is not supported.",
-                        MessageType.Info);
-                    apiWorldLoaded = false;
-                }
-                else if (!worldCache.TryGetValue(branch.blueprintID, out apiWorld))
+                if (!blueprintCache.TryGetValue(branch.blueprintID, out ApiModel model))
                 {
                     if (!invalidBlueprints.Contains(branch.blueprintID))
                         FetchApiWorld(branch.blueprintID);
                     else isNewWorld = true;
+                }
+                else
+                {
+                    apiWorld = (ApiWorld)model;
                 }
 
                 if (invalidBlueprints.Contains(branch.blueprintID))
@@ -923,7 +923,7 @@ namespace BocuD.BuildHelper.Editor
                         MessageType.Error);
                     apiWorldLoaded = false;
                 }
-                else if (!isNewWorld && apiWorld == null && !Application.isPlaying)
+                else if (!isNewWorld && model == null && !Application.isPlaying)
                 {
                     EditorGUILayout.LabelField("Loading world information...");
                     apiWorldLoaded = false;
@@ -1303,9 +1303,11 @@ namespace BocuD.BuildHelper.Editor
             {
                 VRChatApiUploaderAsync uploader = new VRChatApiUploaderAsync();
                 uploader.UseStatusWindow();
-                
+
                 apiWorld.imageUrl = await uploader.UploadImage(apiWorld.imageUrl, GetFriendlyWorldFileName("Image", apiWorld, CurrentPlatform()), branch.overrideImagePath);
                 branch.vrcImageHasChanges = false;
+                
+                uploader.OnUploadState(VRChatApiToolsUploadStatus.UploadState.finished);
             }
 
             apiWorld.Save(c =>
@@ -1326,6 +1328,16 @@ namespace BocuD.BuildHelper.Editor
                 VRChatApiToolsEditor.RefreshData();
                 applying = false;
             });
+
+            await Task.Delay(3000);
+            
+            ClearCaches();
+
+            FetchApiWorld(branch.blueprintID);
+            
+            await Task.Delay(200);
+            
+            Repaint();
         }
 
         private void CacheWorldInfo(Branch branch, ApiWorld apiWorld)
@@ -1446,53 +1458,56 @@ namespace BocuD.BuildHelper.Editor
             GUIStyle styleRichTextLabel = new GUIStyle(GUI.skin.label) { richText = true };
 
             GUILayout.Label("<b>Build Information</b>", styleRichTextLabel);
-
-            Rect buildRectBase = EditorGUILayout.GetControlRect();
-            Rect buildRect = new Rect(5, buildRectBase.y + 7, 32,
-                32);
-            GUI.DrawTexture(buildRect, _iconBuild);
-            buildRect.y += 48;
-            GUI.DrawTexture(buildRect, _iconCloud);
-
-            Rect BuildStatusTextRect = new Rect(buildRect.x + 37, buildRect.y - 51, position.width,
-                EditorGUIUtility.singleLineHeight);
-
-            GUIStyle buildStatusStyle = new GUIStyle(GUI.skin.label)
-            {
-                wordWrap = false,
-                fixedWidth = 400
-            };
-
+            
             PlatformBuildInfo pcBuild = buildData.pcData;
             PlatformBuildInfo androidBuild = buildData.androidData;
-            
-            GUI.Label(BuildStatusTextRect, $"Last PC build: {(pcBuild.buildVersion == -1 ? "Unknown" : $"build {pcBuild.buildVersion} ({pcBuild.BuildTime})")}",
-                buildStatusStyle);
-            BuildStatusTextRect.y += EditorGUIUtility.singleLineHeight * 1f;
-            GUI.Label(BuildStatusTextRect, $"Last Android build: {(androidBuild.buildVersion == -1 ? "Unknown" : $"build {androidBuild.buildVersion} ({androidBuild.BuildTime})")}",
-                buildStatusStyle);
-            BuildStatusTextRect.y += EditorGUIUtility.singleLineHeight * 1.64f;
-            GUI.Label(BuildStatusTextRect, $"Last PC upload: {(pcBuild.uploadVersion == -1 ? "Unknown" : $"build {pcBuild.uploadVersion} ({pcBuild.UploadTime})")}",
-                buildStatusStyle);
-            BuildStatusTextRect.y += EditorGUIUtility.singleLineHeight * 1f;
-            GUI.Label(BuildStatusTextRect, $"Last Android upload: {(androidBuild.uploadVersion == -1 ? "Unknown" : $"build {androidBuild.uploadVersion} ({androidBuild.UploadTime})")}",
-                buildStatusStyle);
 
-            //ayes
-            //todo get rid of this mess
-            EditorGUILayout.Space();
-            EditorGUILayout.Space();
-            EditorGUILayout.Space();
-            EditorGUILayout.Space();
-            EditorGUILayout.Space();
-            EditorGUILayout.Space();
-            EditorGUILayout.Space();
-            EditorGUILayout.Space();
-            EditorGUILayout.Space();
-            EditorGUILayout.Space();
-            EditorGUILayout.Space();
-            EditorGUILayout.Space();
-            EditorGUILayout.Space();
+            GUIContent build = new GUIContent(_iconBuild);
+            GUIContent cloud = new GUIContent(_iconCloud);
+            
+            buildStatusStyle = new GUIStyle(GUI.skin.label)
+            {
+                wordWrap = false,
+                fixedWidth = 400,
+                contentOffset = new Vector2(-12, 5)
+            };
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField(build, GUILayout.Width(48), GUILayout.Height(48));
+            EditorGUILayout.BeginVertical();
+            DrawBuildInfoLine(Platform.Windows, pcBuild, false);
+            DrawBuildInfoLine(Platform.Android, androidBuild, false); 
+            EditorGUILayout.EndVertical();
+            EditorGUILayout.EndHorizontal();
+            
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField(cloud, GUILayout.Width(48), GUILayout.Height(48));
+            EditorGUILayout.BeginVertical();
+            DrawBuildInfoLine(Platform.Windows, pcBuild, true);
+            DrawBuildInfoLine(Platform.Android, androidBuild, true);
+            EditorGUILayout.EndVertical();
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private GUIStyle buildStatusStyle;
+        
+        private void DrawBuildInfoLine(Platform platform, PlatformBuildInfo info, bool isUpload)
+        {
+            int ver = isUpload ? info.uploadVersion : info.buildVersion;
+            bool hasTime = ver != -1;
+            string time = isUpload
+                ? hasTime ? info.UploadTime.ToString() : "Unknown"
+                : hasTime ? info.BuildTime.ToString() : "Unknown";
+
+            string tooltip = hasTime
+                ? $"Build {ver}\n" +
+                  (isUpload ? $"Uploaded at {time}" : $"Built at {time}\nBuild path: {info.buildPath}\nBuild hash: {info.buildHash}\n{(info.buildValid ? "Verified build" : "Couldn't verify build")}")
+                : $"Couldn't find a last {(isUpload ? "upload" : "build")} for this platform";
+            GUIContent content = new GUIContent(
+                $"Last {platform} {(isUpload ? "upload" : "build")}: {(hasTime ? $"build {ver} ({time})" : "Unknown")}",
+                tooltip);
+            
+            EditorGUILayout.LabelField(content, buildStatusStyle);
         }
 
         private static void DrawBuildVersionWarnings(Branch selectedBranch)
@@ -1566,8 +1581,7 @@ namespace BocuD.BuildHelper.Editor
             
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("");
-            EditorGUILayout.LabelField(
-                new GUIContent("Watch for changes",
+            EditorGUILayout.LabelField(new GUIContent("Watch for changes",
                     "When enabled, launched VRChat clients will watch for new builds and reload the world when a new build is detected."),
                 GUILayout.Width(140));
             VRCSettings.WatchWorlds = EditorGUILayout.Toggle(VRCSettings.WatchWorlds, GUILayout.Width(140));
@@ -1581,27 +1595,26 @@ namespace BocuD.BuildHelper.Editor
             //Prevent local testing on Android
 
             bool localTestBlocked = CurrentPlatform() == Platform.Android;
+            bool lastBuildBlocked = !CheckLastBuiltBranch();
+            string lastBuildBlockedTooltip = $"Your last build for the current platform couldn't be found or the hash doesn't match the last {CurrentPlatform()} build for this branch.";
+            
             EditorGUI.BeginDisabledGroup(localTestBlocked);
 
             GUIContent lastBuildTextTest = new GUIContent("Last Build",
                 localTestBlocked
-                    ? "Local testing is not supported for Android"
+                    ? "Local testing is not supported for Android" : lastBuildBlocked ? lastBuildBlockedTooltip
                     : "Equivalent to the (Last build) Build & Test option in the VRChat SDK");
+            
+            EditorGUI.BeginDisabledGroup(lastBuildBlocked);
             if (GUILayout.Button(lastBuildTextTest, buttonStyle))
             {
-                if (CheckLastBuiltBranch())
-                {
-                    if (CheckLastBuild())
-                    {
-                        BuildHelperBuilder.TestLastBuild();
-                    }
-                }
+                BuildHelperBuilder.TestExistingBuild(buildHelperData.CurrentBranch.buildData.CurrentPlatformBuildData().buildPath);
             }
+            EditorGUI.EndDisabledGroup();
 
             GUIContent newBuildTextTest = new GUIContent("New Build",
-                localTestBlocked
-                    ? "Local testing is not supported for Android"
-                    : "Equivalent to the Build & Test option in the VRChat SDK");
+                localTestBlocked ? "Local testing is not supported for Android"
+                        : "Equivalent to the Build & Test option in the VRChat SDK");
 
             if (GUILayout.Button(newBuildTextTest, buttonStyle))
             {
@@ -1613,24 +1626,21 @@ namespace BocuD.BuildHelper.Editor
             EditorGUILayout.EndHorizontal();
             
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("Reload local test clients");
+            EditorGUILayout.LabelField("Reload existing test clients");
             
             EditorGUI.BeginDisabledGroup(localTestBlocked);
             
             GUIContent lastBuildTextReload = new GUIContent("Last Build",
                 localTestBlocked
-                    ? "Local testing is not supported for Android"
+                    ? "Local testing is not supported for Android" : lastBuildBlocked ? lastBuildBlockedTooltip
                     : "Equivalent to using the (Last build) Enable World Reload option in the VRChat SDK with number of clients set to 0");
+            
+            EditorGUI.BeginDisabledGroup(lastBuildBlocked);
             if (GUILayout.Button(lastBuildTextReload, buttonStyle))
             {
-                if (CheckLastBuiltBranch())
-                {
-                    if (CheckLastBuild())
-                    {
-                        BuildHelperBuilder.ReloadLastBuild();
-                    }
-                }
+                BuildHelperBuilder.ReloadExistingBuild(buildHelperData.CurrentBranch.buildData.CurrentPlatformBuildData().buildPath);
             }
+            EditorGUI.EndDisabledGroup();
 
             GUIContent newBuildTextReload = new GUIContent("New Build",
                 localTestBlocked
@@ -1657,17 +1667,12 @@ namespace BocuD.BuildHelper.Editor
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Publish to VRChat");
 
-            bool lastBuildPublishBlocked = !CheckLastBuildPlatform() || buildHelperData.lastBuiltBranch != buildHelperData.CurrentBranch.branchID;
-            
-            EditorGUI.BeginDisabledGroup(lastBuildPublishBlocked);
+            EditorGUI.BeginDisabledGroup(lastBuildBlocked);
             
             GUIContent lastBuildPublish = new GUIContent("Last Build",
-                !CheckLastBuildPlatform()
-                    ? $"Your last build was for a different target platform ({buildHelperData.lastBuiltPlatform}). Your current platform is {CurrentPlatform()}."
+                lastBuildBlocked
+                    ? lastBuildBlockedTooltip
                     : "Equivalent to (Last build) Build & Publish in the VRChat SDK");
-
-            if (lastBuildPublishBlocked && CheckLastBuildPlatform())
-                lastBuildPublish.tooltip = "Your last build was for a different branch.";
 
             if (GUILayout.Button(lastBuildPublish, buttonStyle))
             {
@@ -1676,7 +1681,7 @@ namespace BocuD.BuildHelper.Editor
                     Branch targetBranch = buildHelperData.CurrentBranch;
 
                     bool canPublish = true;
-                    if (!targetBranch.remoteExists && !targetBranch.HasVRCDataChanges())
+                    if (!targetBranch.remoteExists && !targetBranch.HasVRCDataChanges() && BuildHelperEditorPrefs.UseAsyncPublish)
                     {
                         canPublish = EditorUtility.DisplayDialog("Build Helper",
                             $"You are about to publish a new world, but you haven't edited any world details. The async publisher doesn't enter playmode to let you edit world details, so your world will be uploaded as '{targetBranch.editedName}'. Do you want to continue?",
@@ -1687,10 +1692,10 @@ namespace BocuD.BuildHelper.Editor
                     {
                         if (BuildHelperEditorPrefs.UseAsyncPublish)
                         {
-                            BuildHelperBuilder.PublishLastBuildAsync(buildHelperData.CurrentBranch.ToWorldInfo(), info =>
+                            Branch b = buildHelperData.CurrentBranch;
+                            BuildHelperBuilder.PublishWorldAsync(b.buildData.CurrentPlatformBuildData().buildPath, "", b.ToWorldInfo(), info =>
                             {
-                                //todo check this crap
-                                Task verify = buildHelperBehaviour.OnSuccesfulPublish(info, DateTime.Now);
+                                Task verify = buildHelperBehaviour.OnSuccesfulPublish(buildHelperData.CurrentBranch, info, DateTime.Now);
                             });
                         }
                         else BuildHelperBuilder.PublishLastBuild();
@@ -1706,7 +1711,7 @@ namespace BocuD.BuildHelper.Editor
                 Branch targetBranch = buildHelperData.CurrentBranch;
                 
                 bool canPublish = true;
-                if (!targetBranch.remoteExists && !targetBranch.HasVRCDataChanges())
+                if (!targetBranch.remoteExists && !targetBranch.HasVRCDataChanges() && BuildHelperEditorPrefs.UseAsyncPublish)
                 {
                     canPublish = EditorUtility.DisplayDialog("Build Helper",
                         $"You are about to publish a new world, but you haven't edited any world details. The async publisher doesn't enter playmode to let you edit world details, so your world will be uploaded as '{targetBranch.editedName}'. Do you want to continue?",
@@ -1719,7 +1724,7 @@ namespace BocuD.BuildHelper.Editor
                     {
                         BuildHelperBuilder.PublishNewBuildAsync(buildHelperData.CurrentBranch.ToWorldInfo(), info =>
                         {
-                            Task verify = buildHelperBehaviour.OnSuccesfulPublish(info, DateTime.Now);
+                            Task verify = buildHelperBehaviour.OnSuccesfulPublish(buildHelperData.CurrentBranch, info, DateTime.Now);
                         });
                     }
                     else BuildHelperBuilder.PublishNewBuild();
@@ -1792,39 +1797,10 @@ namespace BocuD.BuildHelper.Editor
             }
             EditorGUILayout.EndHorizontal();
         }
-
-        private bool CheckLastBuild()
-        {
-            if (CheckLastBuiltBranch())
-            {
-                if (buildHelperData.lastBuiltPlatform == Platform.Android)
-                {
-                    if (EditorUtility.DisplayDialog("Build Helper",
-                        "The last detected build was for Android. You may continue, but VRChat will fail while loading the world. Are you sure you want to continue?",
-                        "Yes", "No"))
-                    {
-                        return true;
-                    }
-
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
+        
         private bool CheckLastBuiltBranch()
         {
-            if (buildHelperData.lastBuiltBranch == buildHelperData.CurrentBranch.branchID) return true;
-            
-            return EditorUtility.DisplayDialog("Build Helper",
-                "The last detected build was for a different branch. Are you sure you want to continue? The build for the other branch will be used instead.",
-                "Yes", "No");
-        }
-
-        private bool CheckLastBuildPlatform()
-        {
-            return buildHelperData.lastBuiltPlatform == CurrentPlatform();
+            return buildHelperData.CurrentBranch.buildData.CurrentPlatformBuildData().buildValid;
         }
 
         private static bool CheckAccount(Branch target)
@@ -1834,9 +1810,9 @@ namespace BocuD.BuildHelper.Editor
                 return true;
             }
 
-            if (worldCache.TryGetValue(target.blueprintID, out ApiWorld apiWorld))
+            if (blueprintCache.TryGetValue(target.blueprintID, out ApiModel model))
             {
-                if (APIUser.CurrentUser.id != apiWorld.authorId)
+                if (APIUser.CurrentUser.id != ((ApiWorld)model).authorId)
                 {
                     if (EditorUtility.DisplayDialog("Build Helper",
                         "The world author for the selected branch doesn't match the currently logged in user. Publishing will result in an error. Do you still want to continue?",

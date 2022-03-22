@@ -27,6 +27,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Policy;
 using System.Threading.Tasks;
 using UdonSharpEditor;
 using UnityEditor;
@@ -48,10 +49,22 @@ namespace BocuD.BuildHelper
         
         private void Awake()
         {
-            #if UNITY_EDITOR
+#if UNITY_EDITOR
             if (linkedBehaviourGameObject != null)
                 linkedBehaviour = linkedBehaviourGameObject.GetUdonSharpComponent<BuildHelperUdon>();
-            #endif
+#endif
+        }
+
+        public static void RunLastBuildChecks()
+        {
+            foreach (Branch b in GetDataObject().branches)
+            {
+                foreach (PlatformBuildInfo info in b.buildData.PlatformBuildInfos())
+                {
+                    bool exists = File.Exists(info.buildPath);
+                    info.buildValid = exists && ComputeFileMD5(info.buildPath) == info.buildHash;
+                }
+            }
         }
 
         private void Reset()
@@ -177,21 +190,11 @@ namespace BocuD.BuildHelper
             return id;
         }
         
-        public async Task OnSuccesfulPublish(WorldInfo info, DateTime uploadTime, int uploadVersion = -1)
+        public async Task OnSuccesfulPublish(Branch b, BlueprintInfo blueprintInfo, DateTime uploadTime, int uploadVersion = -1)
         {
-            Branch target;
-            if (info.blueprintID == dataObject.CurrentBranch.blueprintID)
-            {
-                target = dataObject.CurrentBranch;
-            }
-            else if (dataObject.CurrentBranch.blueprintID == "")
-            {
-                target = dataObject.CurrentBranch;
-                target.blueprintID = FindPipelineManager().blueprintId;
-            }
-            else return;
+            Branch target = dataObject.branches.First(br => br.branchID == b.branchID);
             
-            ApiWorld world = await FetchApiWorldAsync(target.blueprintID);
+            ApiWorld world = await FetchApiWorldAsync(blueprintInfo.blueprintID);
             
             target.editedName = world.name;
             target.editedDescription = world.name;
@@ -202,10 +205,16 @@ namespace BocuD.BuildHelper
             target.descriptionChanged = false;
             target.capacityChanged = false;
             target.tagsChanged = false;
+
+            target.vrcImageHasChanges = false;
+            target.vrcImageWarning = "";
             
             target.buildData.CurrentPlatformBuildData().UploadTime = uploadTime;
             target.buildData.CurrentPlatformBuildData().uploadVersion = uploadVersion == -1 ? target.buildData.CurrentPlatformBuildData().buildVersion : uploadVersion;
             target.buildData.justUploaded = true;
+
+            if (target.blueprintID == null || target.blueprintID != blueprintInfo.blueprintID)
+                target.blueprintID = blueprintInfo.blueprintID;
 
             if (target.vrcImageHasChanges)
             {
@@ -240,8 +249,6 @@ namespace BocuD.BuildHelper
     public class BranchStorageObject
     {
         public int currentBranch;
-        public string lastBuiltBranch;
-        public Platform lastBuiltPlatform;
 
         public Branch[] branches;
         public Branch CurrentBranch
@@ -337,6 +344,11 @@ namespace BocuD.BuildHelper
             return CurrentPlatform() == Platform.Windows ? pcData : androidData;
         }
 
+        public IEnumerable<PlatformBuildInfo> PlatformBuildInfos()
+        {
+            return new [] { pcData, androidData };
+        }
+
         public BuildData()
         {
             pcData = new PlatformBuildInfo(Platform.Windows);
@@ -348,8 +360,11 @@ namespace BocuD.BuildHelper
     public class PlatformBuildInfo
     {
         //yes, these should be DateTime for sure.. they are strings because DateTime was not being serialised correctly somehow.. i hate it.
+        public string buildPath;
+        public string buildHash;
         public string buildTime;
         public int buildVersion;
+        public bool buildValid = false;
 
         public string uploadTime;
         public int uploadVersion;
