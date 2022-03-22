@@ -121,6 +121,14 @@ namespace BocuD.BuildHelper
                     return;
                 }
 
+                if (!appliedChanges && buildHelperData.CurrentBranch.HasVRCDataChanges())
+                {
+                    runtimeWorldCreation.blueprintName.text = buildHelperData.CurrentBranch.editedName;
+                    runtimeWorldCreation.blueprintDescription.text = buildHelperData.CurrentBranch.editedDescription;
+                    runtimeWorldCreation.worldCapacity.text = buildHelperData.CurrentBranch.editedCap.ToString();
+                    runtimeWorldCreation.userTags.text = DisplayTags(buildHelperData.CurrentBranch.editedTags);
+                }
+
                 if (!appliedImageChanges && buildHelperData.CurrentBranch.vrcImageHasChanges)
                 {
                     runtimeWorldCreation.shouldUpdateImageToggle.isOn = true;
@@ -128,7 +136,6 @@ namespace BocuD.BuildHelper
                     buildHelperToolsMenu.imageSourceDropdown.onValueChanged.Invoke(1);
                     buildHelperToolsMenu.OnFileSelected(Application.dataPath + "/Resources/BuildHelper/" + buildHelperBehaviour.sceneID + '_' + buildHelperData.CurrentBranch.branchID + "-edit.png");
                     appliedImageChanges = true;
-                    return;
                 }
             }
         }
@@ -243,11 +250,11 @@ namespace BocuD.BuildHelper
             Branch targetBranch = data.dataObject?.branches.FirstOrDefault(b => b.branchID == branchID);
 
             if (targetBranch == null) return;
-            
-            WorldInfo info = targetBranch.ToWorldInfo();
-            info.blueprintID = blueprintID;
 
-            await data.OnSuccesfulPublish(info, uploadTime, uploadVersion);
+            BlueprintInfo info = targetBranch.ToWorldInfo();
+            info.blueprintID = blueprintID;
+            
+            await data.OnSuccesfulPublish(targetBranch, info, uploadTime, uploadVersion);
 
             //clear everything so this doesn't get loaded again
             EditorPrefs.SetString(branchIDPath, "");
