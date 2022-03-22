@@ -22,6 +22,7 @@
 
 using System;
 using System.IO;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using BocuD.BuildHelper.Editor;
 using UnityEditor;
@@ -33,7 +34,7 @@ using VRC.SDKBase.Editor.BuildPipeline;
 
 namespace BocuD.BuildHelper
 {
-    using BocuD.VRChatApiTools;
+    using VRChatApiTools;
     
     public static class BuildHelperBuilder
     {
@@ -49,36 +50,26 @@ namespace BocuD.BuildHelper
                 VRC_SdkBuilder.PreBuildBehaviourPackaging();
 
                 VRC_SdkBuilder.ExportSceneResource();
-                return EditorPrefs.GetString("currentBuildingAssetBundlePath");
+                string output = EditorPrefs.GetString("currentBuildingAssetBundlePath");
+                
+                //save last build information
+                PlatformBuildInfo data = BuildHelperData.GetDataObject()?.CurrentBranch?.buildData?.CurrentPlatformBuildData();
+                if (data != null)
+                {
+                    data.buildPath = output;
+                    data.buildHash = VRChatApiTools.ComputeFileMD5(output);
+                    
+                    BuildHelperData.RunLastBuildChecks();
+                }
+
+                return output;
             }
 
             return "";
         }
         
-        public static void TestLastBuild()
+        public static void ReloadExistingBuild(string path)
         {
-            VRC_SdkBuilder.shouldBuildUnityPackage = false;
-            VRC_SdkBuilder.RunLastExportedSceneResource();
-        }
-
-        public static void TestNewBuild()
-        {
-            bool buildTestBlocked = !VRCBuildPipelineCallbacks.OnVRCSDKBuildRequested(VRCSDKRequestedBuildType.Scene);
-            if (!buildTestBlocked)
-            {
-                EnvConfig.ConfigurePlayerSettings();
-                VRC_SdkBuilder.shouldBuildUnityPackage = false;
-                AssetExporter.CleanupUnityPackageExport();
-                VRC_SdkBuilder.PreBuildBehaviourPackaging();
-
-                VRC_SdkBuilder.ExportSceneResourceAndRun();
-            }
-        }
-    
-        public static void ReloadLastBuild()
-        {
-            // Todo: get this from settings or make key a const
-            string path = EditorPrefs.GetString("lastVRCPath");
             if (File.Exists(path))
             {
                 File.SetLastWriteTimeUtc(path, DateTime.Now);
@@ -91,26 +82,32 @@ namespace BocuD.BuildHelper
 
         public static void ReloadNewBuild(Action onSuccess = null)
         {
-            bool buildTestBlocked = !VRCBuildPipelineCallbacks.OnVRCSDKBuildRequested(VRCSDKRequestedBuildType.Scene);
-            if (!buildTestBlocked)
-            {
-                EnvConfig.ConfigurePlayerSettings();
-                VRC_SdkBuilder.shouldBuildUnityPackage = false;
-                AssetExporter.CleanupUnityPackageExport();
-                VRC_SdkBuilder.PreBuildBehaviourPackaging();
-
-                VRC_SdkBuilder.ExportSceneResource();
-                onSuccess?.Invoke();
-            }
+            ExportAssetBundle();
+            onSuccess?.Invoke();
         }
-    
+
+        public static void TestExistingBuild(string path)
+        {
+            string actualLastBuild = EditorPrefs.GetString("lastVRCPath");
+            
+            EditorPrefs.SetString("lastVRCPath", path);
+            //EditorPrefs.SetString("currentBuildingAssetBundlePath", UnityWebRequest.UnEscapeURL(deploymentUnit.buildPath));
+            VRC_SdkBuilder.shouldBuildUnityPackage = false;
+            VRC_SdkBuilder.RunLastExportedSceneResource();
+            
+            EditorPrefs.SetString("lastVRCPath", actualLastBuild);
+        }
+
+        public static void TestNewBuild()
+        {
+            ExportAssetBundle();
+            VRC_SdkBuilder.RunLastExportedSceneResource();
+        }
+
         public static void PublishLastBuild()
         {
             if (APIUser.CurrentUser.canPublishWorlds)
             {
-                EditorPrefs.SetBool("VRC.SDKBase_StripAllShaders", false);
-                
-                VRC_SdkBuilder.shouldBuildUnityPackage = false;
                 VRC_SdkBuilder.UploadLastExportedSceneBlueprint();
             }
             else
@@ -119,104 +116,20 @@ namespace BocuD.BuildHelper
             }
         }
 
-        public static async Task PublishLastBuildAsync(VRChatApiTools.WorldInfo worldInfo = null, Action<VRChatApiTools.WorldInfo> onSucces = null)
-        {
-            if (APIUser.CurrentUser.canPublishWorlds)
-            {
-                VRChatApiUploaderAsync uploaderAsync = new VRChatApiUploaderAsync();
-                uploaderAsync.UseStatusWindow();
-
-                try
-                {
-                    EditorApplication.LockReloadAssemblies();
-
-                    string unityPackagePath = EditorPrefs.GetString("VRC_exportedUnityPackagePath");
-                    string assetbundlePath = EditorPrefs.GetString("currentBuildingAssetBundlePath");
-
-                    await uploaderAsync.UploadWorld(assetbundlePath, unityPackagePath, worldInfo);
-
-                    BranchStorageObject data = BuildHelperData.GetDataObject();
-                    if (data != null)
-                        DeploymentManager.TrySaveBuild(data.CurrentBranch, assetbundlePath);
-                }
-                catch (Exception e)
-                {
-                    uploaderAsync.OnError("Unhandled Exception", e.Message);
-                    BocuD.VRChatApiTools.Logger.LogError("" + e.Message);
-                }
-                finally
-                {
-                    EditorApplication.UnlockReloadAssemblies();
-                }
-
-                onSucces?.Invoke(worldInfo);
-            }
-            else
-            {
-                Logger.LogError("You need to be logged in to publish a world");
-            }
-        }
-    
         public static void PublishNewBuild()
         {
-            bool buildBlocked = !VRCBuildPipelineCallbacks.OnVRCSDKBuildRequested(VRCSDKRequestedBuildType.Scene);
-            if (!buildBlocked)
-            {
-                if (APIUser.CurrentUser.canPublishWorlds)
-                {
-                    EnvConfig.ConfigurePlayerSettings();
-                    EditorPrefs.SetBool("VRC.SDKBase_StripAllShaders", false);
+            ExportAssetBundle();
 
-                    VRC_SdkBuilder.shouldBuildUnityPackage = VRCSdkControlPanel.FutureProofPublishEnabled;
-                    VRC_SdkBuilder.PreBuildBehaviourPackaging();
-                    VRC_SdkBuilder.ExportAndUploadSceneBlueprint();
-                }
-                else
-                {
-                    Logger.LogError("You need to be logged in to publish a world");
-                }
-            }
+            VRC_SdkBuilder.RunUploadLastExportedSceneBlueprint();
         }
-        
-        public static async void PublishNewBuildAsync(VRChatApiTools.WorldInfo worldInfo = null, Action<VRChatApiTools.WorldInfo> onSucces = null)
+
+        public static void PublishNewBuildAsync(VRChatApiTools.WorldInfo worldInfo = null, Action<VRChatApiTools.WorldInfo> onSucces = null)
         {
-            bool buildTestBlocked = !VRCBuildPipelineCallbacks.OnVRCSDKBuildRequested(VRCSDKRequestedBuildType.Scene);
-            if (!buildTestBlocked)
-            {
-                if (APIUser.CurrentUser.canPublishWorlds)
-                {
-                    EnvConfig.ConfigurePlayerSettings();
-                    EditorPrefs.SetBool("VRC.SDKBase_StripAllShaders", false);
+            string assetBundlePath = ExportAssetBundle();
 
-                    VRC_SdkBuilder.shouldBuildUnityPackage = VRCSdkControlPanel.FutureProofPublishEnabled;
-                    AssetExporter.CleanupUnityPackageExport();
-                    VRC_SdkBuilder.PreBuildBehaviourPackaging();
+            PublishWorldAsync(assetBundlePath, "", worldInfo, onSucces);
+        }
 
-                    VRC_SdkBuilder.ExportSceneResource();
-                    
-                    await PublishLastBuildAsync(worldInfo);
-                    
-                    onSucces?.Invoke(worldInfo);
-                }
-                else
-                {
-                    Logger.LogError("You need to be logged in to publish a world");
-                }
-            }
-        }
-        
-        public static void TestExistingBuild(DeploymentUnit deploymentUnit)
-        {
-            string actualLastBuild = EditorPrefs.GetString("lastVRCPath");
-            
-            EditorPrefs.SetString("lastVRCPath", deploymentUnit.filePath);
-            //EditorPrefs.SetString("currentBuildingAssetBundlePath", UnityWebRequest.UnEscapeURL(deploymentUnit.buildPath));
-            VRC_SdkBuilder.shouldBuildUnityPackage = false;
-            VRC_SdkBuilder.RunLastExportedSceneResource();
-            
-            EditorPrefs.SetString("lastVRCPath", actualLastBuild);
-        }
-        
         public static void PublishExistingBuild(DeploymentUnit deploymentUnit)
         {
             if (VRChatApiTools.FindPipelineManager().blueprintId != deploymentUnit.pipelineID)
@@ -233,6 +146,57 @@ namespace BocuD.BuildHelper
             EditorPrefs.SetString("lastBuiltAssetBundleBlueprintID", deploymentUnit.pipelineID);
             AssetExporter.CleanupUnityPackageExport();
             VRCWorldAssetExporter.LaunchSceneBlueprintUploader();
+        }
+        
+        public static void PublishWorldAsync(string assetbundlePath, string unityPackagePath, VRChatApiTools.WorldInfo worldInfo = null, Action<VRChatApiTools.WorldInfo> onSucces = null)
+        {
+            if (APIUser.CurrentUser.canPublishWorlds)
+            {
+                VRChatApiUploaderAsync uploaderAsync = new VRChatApiUploaderAsync();
+                uploaderAsync.UseStatusWindow();
+
+                uploaderAsync.uploadStatus.ConfirmButton("Ready for upload", "Start Upload", UploadTask, () => Logger.LogError("Upload was aborted"),
+                    () =>
+                    {
+                        EditorGUILayout.LabelField("Target world: ");
+                        if (worldInfo != null)
+                        {
+                            VRChatApiToolsGUI.DrawBlueprintInspector(worldInfo.blueprintID);
+                        }
+                        else
+                        {
+                            EditorGUILayout.LabelField("Couldn't load world information");
+                        }
+                    });
+                
+                async void UploadTask()
+                {
+                    try
+                    {
+                        EditorApplication.LockReloadAssemblies();
+
+                        await uploaderAsync.UploadWorld(assetbundlePath, unityPackagePath, worldInfo);
+
+                        onSucces?.Invoke(worldInfo);
+
+                        BranchStorageObject data = BuildHelperData.GetDataObject();
+                        if (data != null) DeploymentManager.TrySaveBuild(data.CurrentBranch, assetbundlePath);
+                    }
+                    catch (Exception e)
+                    {
+                        uploaderAsync.OnError(e.Message, e.InnerException == null ? "" : e.InnerException.ToString());
+                        Logger.LogError($"Upload Exception: {e.Message} {(e.InnerException == null ? "" : $"({e.InnerException.Message})")}");
+                    }
+                    finally
+                    {
+                        EditorApplication.UnlockReloadAssemblies();
+                    }
+                }
+            }
+            else
+            {
+                Logger.LogError("You need to be logged in to publish a world");
+            }
         }
     }
 }
