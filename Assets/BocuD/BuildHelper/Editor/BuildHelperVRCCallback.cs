@@ -163,8 +163,6 @@ namespace BocuD.BuildHelper.Editor
                 buildData.justUploaded = false;
             }
 
-            buildHelperData.dataObject.lastBuiltBranch = buildHelperData.dataObject.CurrentBranch.branchID;
-            buildHelperData.dataObject.lastBuiltPlatform = CurrentPlatform();
             buildHelperData.SaveToJSON();
 
             if (buildHelperData.dataObject.CurrentBranch.hasUdonLink && buildHelperData.linkedBehaviourGameObject != null)
