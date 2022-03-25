@@ -25,30 +25,26 @@ namespace BocuD.BuildHelper
             {
                 if (width < 1200)
                 {
-                    feedback = "<color=yellow>" + "For best results, use a 4:3 image that is at least 1200x900.\n" + "</color>";
+                    feedback = "<color=yellow>" + "For best results, use a 4:3 image that is at least 1200x900." + "</color>";
                 }
                 else
                 {
-                    feedback = "<color=yellow>" + "For best results, use a 4:3 image.\n" + "</color>";
+                    feedback = "<color=yellow>" + "For best results, use a 4:3 image." + "</color>";
                 }
             }
             else
             {
                 if (width < 1200)
                 {
-                    feedback = "<color=yellow>" + "For best results, use an image that is at least 1200x900.\n" + "</color>";
+                    feedback = "<color=yellow>" + "For best results, use an image that is at least 1200x900." + "</color>";
                 }
                 else if (width == 1200)
                 {
-                    feedback = "<color=green>" +
-                               "Your new image is exactly 1200x900. This means it can be uploaded to VRChat in a 1:1 format. Awesome!\n" +
-                               "</color>";
+                    feedback = "Your new image is exactly 1200x900. This means it can be uploaded to VRChat in a 1:1 format. Awesome!";
                 }
                 else
                 {
-                    feedback = "<color=green>" +
-                               "Your new image has the correct aspect ratio and is high resolution. Nice!\nFor even better results, try using an image that is exactly 1200x900.\n" +
-                               "</color>";
+                    feedback = "Your new image has the correct aspect ratio and is high resolution. Nice!\nFor even better results, try using an image that is exactly 1200x900.";
                 }
             }
 
