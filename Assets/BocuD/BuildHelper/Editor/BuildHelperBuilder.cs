@@ -58,6 +58,7 @@ namespace BocuD.BuildHelper
                 {
                     data.buildPath = output;
                     data.buildHash = VRChatApiTools.ComputeFileMD5(output);
+                    data.blueprintID = VRChatApiTools.FindPipelineManager().blueprintId;
                     
                     BuildHelperData.RunLastBuildChecks();
                 }

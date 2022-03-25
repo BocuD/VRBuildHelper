@@ -279,6 +279,7 @@ namespace BocuD.BuildHelper
         public int cachedCap = 16;
         public string cachedRelease = "New world";
         public List<string> cachedTags = new List<string>();
+        public ApiModel.SupportedPlatforms cachedPlatforms;
 
         public string editedName = "New VRChat World";
         public string editedDescription = "Fancy description for your world";
@@ -292,7 +293,8 @@ namespace BocuD.BuildHelper
         public bool vrcImageHasChanges = false;
         public string overrideImagePath = "";
         public string vrcImageWarning = "";
-    
+        public ApiWorld.ReleaseStatus TargetReleaseStatus;
+
         //VRCCam state
         public bool saveCamPos = true;
         public bool uniqueCamPos = false;
@@ -365,7 +367,8 @@ namespace BocuD.BuildHelper
         public string buildTime;
         public int buildVersion;
         public bool buildValid = false;
-
+        public string blueprintID;
+        
         public string uploadTime;
         public int uploadVersion;
 
