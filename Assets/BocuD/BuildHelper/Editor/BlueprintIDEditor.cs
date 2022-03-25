@@ -119,58 +119,31 @@ namespace BocuD.BuildHelper.Editor
         private void RenderListContents()
         {
             if (VRChatApiTools.uploadedWorlds == null) return;
-            
-            EditorGUILayout.BeginHorizontal();
-            GUILayout.FlexibleSpace();
-            GUILayout.BeginHorizontal();
 
-            GUILayout.BeginVertical();
+            GUILayout.BeginHorizontal(GUI.skin.FindStyle("Toolbar"));
+            EditorGUILayout.LabelField("Search in uploaded worlds", GUILayout.Width(155));
+            searchString = GUILayout.TextField(searchString, GUI.skin.FindStyle("ToolbarSeachTextField"));
 
-            EditorGUILayout.BeginHorizontal();
-
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Uploaded worlds", EditorStyles.boldLabel, GUILayout.Width(110));
-
-            float searchFieldShrinkOffset = searchString == "" ? 0 : 20f;
-            
-            GUILayoutOption layoutOption = (GUILayout.Width(position.width - searchFieldShrinkOffset));
-            searchString = EditorGUILayout.TextField(searchString, GUI.skin.FindStyle("SearchTextField"), layoutOption);
-            
-            GUIStyle searchButtonStyle = searchString == string.Empty
-                ? GUI.skin.FindStyle("SearchCancelButtonEmpty")
-                : GUI.skin.FindStyle("SearchCancelButton");
-            
-            if (GUILayout.Button("", searchButtonStyle))
+            if (GUILayout.Button("", GUI.skin.FindStyle("ToolbarSeachCancelButton")))
             {
+                // Remove focus if cleared
                 searchString = "";
                 GUI.FocusControl(null);
             }
 
-            EditorGUILayout.EndHorizontal();
-            EditorGUILayout.EndVertical();
-            EditorGUILayout.EndHorizontal();
+            GUILayout.EndHorizontal();
 
-            GUILayout.FlexibleSpace();
-            EditorGUILayout.EndHorizontal();
-            
             EditorGUILayout.Space();
-            
-            GUILayout.BeginHorizontal();
-            GUILayout.FlexibleSpace();
 
-            worldListScroll = EditorGUILayout.BeginScrollView(worldListScroll, GUILayout.Width(position.width));
+            worldListScroll = EditorGUILayout.BeginScrollView(worldListScroll);
 
-            List<ApiWorld> displayedWorlds = VRChatApiTools.uploadedWorlds.OrderByDescending(x => x.updated_at).ToList();
+            List<ApiWorld> displayedWorlds = VRChatApiTools.uploadedWorlds.OrderByDescending(x => x.updated_at)
+                .Where(w => w.name.IndexOf(searchString, StringComparison.InvariantCultureIgnoreCase) >= 0).ToList();
             
             if (displayedWorlds.Count > 0)
             {
                 foreach (ApiWorld w in displayedWorlds)
                 {
-                    if (!w.name.ToLowerInvariant().Contains(searchString.ToLowerInvariant()))
-                    {
-                        return;
-                    }
-                    
                     VRChatApiToolsGUI.DrawBlueprintInspector(w, false, () =>
                     {
                         if (GUILayout.Button("Copy ID to branch", GUILayout.Width(140)))
@@ -182,9 +155,11 @@ namespace BocuD.BuildHelper.Editor
             }
 
             EditorGUILayout.EndScrollView();
-
-            GUILayout.FlexibleSpace();
-            GUILayout.EndHorizontal();
+        }
+        
+        private void OnDestroy()
+        {
+            searchString = "";
         }
     }
 }
