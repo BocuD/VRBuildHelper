@@ -165,7 +165,7 @@ namespace BocuD.VRChatApiTools
                 });
         }
         
-        public static async Task<ApiContainer> FetchApiAvatarAsync(string blueprintID)
+        public static async Task<ApiAvatar> FetchApiAvatarAsync(string blueprintID)
         {
             ApiAvatar avatar = API.Fetch<ApiAvatar>(blueprintID);
             ApiContainer result = new ApiContainer();
@@ -194,7 +194,7 @@ namespace BocuD.VRChatApiTools
                 await Task.Delay(100);
             }
 
-            return result;
+            return result.Model as ApiAvatar;
         }
 
         private static void AddWorldToCache(string blueprintID, ApiWorld world)
@@ -429,6 +429,7 @@ namespace BocuD.VRChatApiTools
             public string newImagePath = "";
         }
 
+        [Serializable]
         public class WorldInfo : BlueprintInfo
         {
             public List<string> tags = new List<string>();
@@ -469,6 +470,27 @@ namespace BocuD.VRChatApiTools
                     return "android";
                 default:
                     return "unknownplatform";
+            }
+        }
+
+        public static string ToPrettyString(this ApiModel.SupportedPlatforms platforms)
+        {
+            switch (platforms)
+            {
+                case ApiModel.SupportedPlatforms.None:
+                    return "None";
+                        
+                case ApiModel.SupportedPlatforms.StandaloneWindows:
+                    return "Windows";
+                        
+                case ApiModel.SupportedPlatforms.Android:
+                    return "Android";
+                        
+                case ApiModel.SupportedPlatforms.All:
+                    return "Cross Platform";
+                
+                default:
+                    return "Unknown";
             }
         }
 

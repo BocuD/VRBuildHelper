@@ -20,7 +20,35 @@ namespace BocuD.VRChatApiTools
         /// <param name="secondaryButtons">Action params that can be implemented to add extra GUI functionality to inspector</param>
         public static void DrawBlueprintInspector(string blueprintID, bool small = true, params Action[] secondaryButtons)
         {
-            if (blueprintID.IsNullOrWhitespace()) return;
+            if (blueprintID.IsNullOrWhitespace())
+            {
+                EditorGUILayout.BeginHorizontal(EditorStyles.helpBox, GUILayout.Height(108));
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Box("Can't load image: empty blueprint", GUILayout.Width(128), GUILayout.Height(99));
+
+                EditorGUILayout.BeginVertical();
+                EditorGUILayout.LabelField("No selected blueprint", EditorStyles.boldLabel);
+
+                GUILayout.FlexibleSpace();
+
+                EditorGUILayout.BeginHorizontal();
+
+                GUILayout.FlexibleSpace();
+
+                foreach (Action b in secondaryButtons)
+                {
+                    b.Invoke();
+                }
+
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.EndVertical();
+                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.Space();
+                return;
+            }
+
             if (!HandleLogin(null, false)) return;
 
             //already cached

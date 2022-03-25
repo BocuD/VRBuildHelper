@@ -45,14 +45,14 @@ namespace BocuD.VRChatApiTools
             cancelQuery = () => uploadStatus.cancelRequested;
         }
 
-        public void SetupAvatarImageUpdate(ApiAvatar apiAvatar, Texture2D newImage)
+        public async void SetupAvatarImageUpdate(ApiAvatar apiAvatar, Texture2D newImage)
         {
             string imagePath = SaveImageTemp(newImage);
             
-            UpdateAvatarImage(apiAvatar, imagePath);
+            await UpdateAvatarImage(apiAvatar, imagePath);
         }
 
-        public async void UpdateAvatarImage(ApiAvatar avatar, string newImagePath)
+        public async Task UpdateAvatarImage(ApiAvatar avatar, string newImagePath)
         {
             avatar.imageUrl = await UploadImage(avatar.imageUrl, VRChatApiTools.GetFriendlyAvatarFileName("Image", avatar.id, VRChatApiTools.CurrentPlatform()), newImagePath);
 
@@ -322,7 +322,7 @@ namespace BocuD.VRChatApiTools
             return newUrl;
         }
 
-        private static string SaveImageTemp(Texture2D input)
+        public static string SaveImageTemp(Texture2D input)
         {
             byte[] png = input.EncodeToPNG();
             string path = ImageName(input.width, input.height, "image", Application.temporaryCachePath);
