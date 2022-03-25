@@ -22,7 +22,6 @@
 
 using System;
 using System.Threading.Tasks;
-using BocuD.BuildHelper.Editor;
 using BocuD.VRChatApiTools;
 using UnityEditor;
 using UnityEditor.Build;
