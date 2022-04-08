@@ -60,12 +60,16 @@ namespace BocuD.BuildHelper.Editor
         private GUIContent addTagButton;
 
         private GUIContent localTestingHeader;
+        private GUIContent buildOnlyHeader;
         private GUIContent publishHeader;
 
         private GUIContent refreshButton;
         
         private GUIContent lastBuildButton;
         private GUIContent newBuildButton;
+        
+        private GUIContent windowsTargetButton;
+        private GUIContent androidTargetButton;
 
         private Texture2D _iconGitHub;
         private Texture2D _iconVRChat;
@@ -79,7 +83,6 @@ namespace BocuD.BuildHelper.Editor
 
         private Vector2 scrollPosition;
         private bool settings;
-        private bool dirty;
 
         private PipelineManager pipelineManager;
 
@@ -175,12 +178,31 @@ namespace BocuD.BuildHelper.Editor
                 EditorGUILayout.BeginVertical("Helpbox");
                 EditorGUILayout.Space(2);
                 EditorGUILayout.LabelField("Welcome to VR Build Helper", welcomeLabel, GUILayout.Height(23));
-                EditorGUILayout.LabelField("To get started, click the '+' button to create a new branch. For documentation, please visit the wiki on GitHub.", textArea);
+                EditorGUILayout.LabelField("To get started, create a new branch. For documentation, please visit the wiki on GitHub.", textArea);
                 EditorGUILayout.Space(2);
+
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("Create new branch"))
+                {
+                    Undo.RecordObject(buildHelperBehaviour, "Create new branch");
+                    Branch newBranch = new Branch
+                        { name = "new branch", buildData = new BuildData(), branchID = BuildHelperData.GetUniqueID() };
+                    ArrayUtility.Add(ref buildHelperData.branches, newBranch);
+
+                    OverrideContainer newContainer = new OverrideContainer
+                        { ExclusiveGameObjects = new GameObject[0], ExcludedGameObjects = new GameObject[0] };
+                    ArrayUtility.Add(ref buildHelperBehaviour.overrideContainers, newContainer);
+
+                    branchList.index = Array.IndexOf(buildHelperData.branches, newBranch);
+                    TrySave();
+                }
+                
                 if (GUILayout.Button("Open Wiki"))
                 {
                     Application.OpenURL("https://github.com/BocuD/VRBuildHelper/wiki/Getting-Started");
                 }
+                EditorGUILayout.EndHorizontal();
+                
                 EditorGUILayout.EndVertical();
             }
 
@@ -219,6 +241,18 @@ namespace BocuD.BuildHelper.Editor
             {
                 EditorGUILayout.BeginVertical("Helpbox");
                 EditorGUILayout.LabelField("<b>Scene Options</b>", labelStyle);
+                
+                GUIContent[] mainPlatform =
+                {
+                    windowsTargetButton,
+                    androidTargetButton
+                };
+            
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField(new GUIContent("Primary Platform", "The primary platform you are developing for. For proper version management, when building for the secondary platform you should mark "), GUILayout.Width(150));
+                GUILayout.FlexibleSpace();
+                buildHelperData.CurrentBranch.targetPlatform = (Platform)GUILayout.Toolbar((int)buildHelperData.CurrentBranch.targetPlatform, mainPlatform, GUILayout.Width(250));
+                EditorGUILayout.EndHorizontal();
                 
                 if (buildHelperBehaviour.gameObject.hideFlags == HideFlags.None)
                 {
@@ -265,11 +299,6 @@ namespace BocuD.BuildHelper.Editor
             EditorGUILayout.LabelField("<b>Global VR Build Helper Options</b>", labelStyle);
 
             EditorGUILayout.BeginHorizontal();
-            BuildHelperEditorPrefs.AutoSave = EditorGUILayout.Toggle(BuildHelperEditorPrefs.AutoSave, GUILayout.Width(15));
-            EditorGUILayout.LabelField("Auto save");
-            EditorGUILayout.EndHorizontal();
-
-            EditorGUILayout.BeginHorizontal();
             bool asyncPublishTemp = BuildHelperEditorPrefs.UseAsyncPublish;
             BuildHelperEditorPrefs.UseAsyncPublish = EditorGUILayout.Toggle(BuildHelperEditorPrefs.UseAsyncPublish, GUILayout.Width(15));
             if (asyncPublishTemp != BuildHelperEditorPrefs.UseAsyncPublish && BuildHelperEditorPrefs.UseAsyncPublish)
@@ -296,11 +325,11 @@ namespace BocuD.BuildHelper.Editor
             
             GUIContent[] platformSwitchModes =
             {
-                new GUIContent("For every build", "Build Helper will always ask you if it should match build numbers between PC and Android right after switching between them."),
-                new GUIContent("Only after switching", "Build Helper will always increment the build number when doing a new build. The Autonomous publisher should be used if you want version detection to work.")
+                new GUIContent("For every build", "Build Helper will always ask you if it should match build numbers between the PC and Android versions."),
+                new GUIContent("Only after switching", "Build Helper will only ask to increment the build number right after switching to Android, and then increment automatically.")
             }; 
             EditorGUILayout.Space(5);
-            EditorGUILayout.LabelField("<i>When building for Android</i>", labelStyle);
+            EditorGUILayout.LabelField("<i>When building for secondary platform</i>", labelStyle);
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Ask to match build number", GUILayout.Width(250));
             GUILayout.FlexibleSpace();
@@ -463,30 +492,6 @@ namespace BocuD.BuildHelper.Editor
         private bool SceneChecks()
         {
             bool sceneIssues = !UpdateLayers.AreLayersSetup() || !UpdateLayers.IsCollisionLayerMatrixSetup();
-            
-            // if (!UpdateLayers.AreLayersSetup())
-            // {
-            //     if (GUILayout.Button("Setup Layers for VRChat", GUILayout.Width(172)))
-            //     {
-            //         if (EditorUtility.DisplayDialog("Build Helper",
-            //             "This will set up all VRChat reserved layers. Custom layers will be moved down the layer list. Any GameObjects currently using custom layers will have to be reassigned. Are you sure you want to continue?",
-            //             "Yes", "No"))
-            //             UpdateLayers.SetupEditorLayers();
-            //     }
-            // }
-            //
-            // if (!UpdateLayers.IsCollisionLayerMatrixSetup())
-            // {
-            // if (GUILayout.Button("Set Collision Matrix", GUILayout.Width(172)))
-            // {
-            //     if(EditorUtility.DisplayDialog("Build Helper",
-            //         "This will set up the Collision Matrix according to VRChats requirements. Are you sure you want to continue?",
-            //         "Yes", "No"))
-            //     {
-            //         UpdateLayers.SetupCollisionLayerMatrix();
-            //     }
-            // }
-            // }
 
             if (sceneIssues)
             {
@@ -509,15 +514,16 @@ namespace BocuD.BuildHelper.Editor
                     }
                 }
 
-                EditorGUI.BeginDisabledGroup(!UpdateLayers.AreLayersSetup());
-                if (!UpdateLayers.IsCollisionLayerMatrixSetup())
+                using (new EditorGUI.DisabledScope(!UpdateLayers.AreLayersSetup()))
                 {
-                    if (GUILayout.Button("Set Collision Matrix", GUILayout.Width(172)))
+                    if (!UpdateLayers.IsCollisionLayerMatrixSetup())
                     {
-                        UpdateLayers.SetupCollisionLayerMatrix();
+                        if (GUILayout.Button("Set Collision Matrix", GUILayout.Width(172)))
+                        {
+                            UpdateLayers.SetupCollisionLayerMatrix();
+                        }
                     }
                 }
-                EditorGUI.EndDisabledGroup();
 
                 EditorGUILayout.EndHorizontal();
             }
@@ -528,8 +534,13 @@ namespace BocuD.BuildHelper.Editor
         public static void SwitchBranch(BuildHelperData data, int targetBranch)
         {
             BranchStorageObject storageObject = data.dataObject;
-            
-            //prevent indexoutofrangeexception
+
+            if (targetBranch >= storageObject.branches.Length || targetBranch == -1)
+            {
+                Logger.LogError($"Can't switch to branch with ID {targetBranch}, branch was probably deleted");
+                return;
+            }
+
             if (storageObject.currentBranch < storageObject.branches.Length && storageObject.currentBranch > -1)
             {
                 //reverse override container state
@@ -617,8 +628,37 @@ namespace BocuD.BuildHelper.Editor
 
             if (GUILayout.Button("Change", GUILayout.Width(55)))
             {
+                int currentBranch = buildHelperData.currentBranch;
+                
                 //spawn editor window
-                BlueprintIDEditor.SpawnEditor(buildHelperBehaviour, selectedBranch);
+                BlueprintPicker.BlueprintSelector<ApiWorld>(world =>
+                {
+                    if (currentBranch < buildHelperData.branches.Length)
+                    {
+                        Branch branch = buildHelperData.branches[currentBranch];
+
+                        branch.blueprintID = world == null ? "" : world.id;
+
+                        branch.cachedName = "Unpublished VRChat world";
+                        branch.cachedDescription = "";
+                        branch.cachedCap = 16;
+                        branch.cachedRelease = "private";
+                        branch.cachedTags = new List<string>();
+
+                        if (world == null)
+                        {
+                            branch.editedName = "New VRChat World";
+                            branch.editedDescription = "Fancy description for your world";
+                        }
+
+                        branch.nameChanged = false;
+                        branch.descriptionChanged = false;
+                        branch.capacityChanged = false;
+                        branch.tagsChanged = false;
+
+                        SwitchBranch(buildHelperBehaviour, Array.IndexOf(buildHelperData.branches, branch));
+                    }
+                }, true, buildHelperData.CurrentBranch.blueprintID);
             }
 
             EditorGUILayout.EndHorizontal();
@@ -1369,7 +1409,7 @@ namespace BocuD.BuildHelper.Editor
                 VRChatApiUploaderAsync uploader = new VRChatApiUploaderAsync();
                 uploader.UseStatusWindow();
 
-                apiWorld.imageUrl = await uploader.UploadImage(apiWorld.imageUrl, GetFriendlyWorldFileName("Image", apiWorld, CurrentPlatform()), branch.overrideImagePath);
+                apiWorld.imageUrl = await uploader.UploadImage(apiWorld, branch.overrideImagePath);
                 branch.vrcImageHasChanges = false;
                 
                 uploader.OnUploadState(VRChatApiToolsUploadStatus.UploadState.finished);
@@ -1673,20 +1713,28 @@ namespace BocuD.BuildHelper.Editor
         private void DrawLocalTestingOptions()
         {
             GUIStyle styleRichTextLabel = new GUIStyle(GUI.skin.label) { richText = true };
-            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { fixedWidth = 140 };
-
+            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { fixedWidth = 140, fixedHeight = EditorGUIUtility.singleLineHeight };
 
             if (CurrentPlatform() == Platform.Android)
             {
                 EditorGUILayout.BeginVertical("Helpbox");
 
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField(localTestingHeader, styleRichTextLabel);
+                EditorGUILayout.LabelField(buildOnlyHeader, styleRichTextLabel);
 
                 EditorGUILayout.LabelField("Local testing is not supported for Android");
                 EditorGUILayout.EndHorizontal();
                 
-                GUILayout.Space(5);
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("Build assetbundle");
+
+                newBuildButton.tooltip = "You can use this option to do a clean build, either for analysis or to upload later.";
+                if (GUILayout.Button(newBuildButton, buttonStyle))
+                {
+                    BuildHelperBuilder.ExportAssetBundle();
+                }
+
+                EditorGUILayout.EndHorizontal();
                 
                 EditorGUILayout.EndVertical();
                 return;
@@ -1723,23 +1771,22 @@ namespace BocuD.BuildHelper.Editor
                 $"Your last build for the current platform couldn't be found, its hash doesn't match the last {CurrentPlatform()} build for this branch, or was built for a different blueprint ID.";
 
 
-            GUIContent lastBuildTextTest = new GUIContent("Last Build", lastBuildBlocked
+            lastBuildButton.tooltip = lastBuildBlocked
                 ? lastBuildBlockedTooltip
-                : "Equivalent to the (Last build) Build & Test option in the VRChat SDK");
+                : "Equivalent to the (Last build) Build & Test option in the VRChat SDK";
 
             using (new EditorGUI.DisabledScope(lastBuildBlocked))
             {
-                if (GUILayout.Button(lastBuildTextTest, buttonStyle))
+                if (GUILayout.Button(lastBuildButton, buttonStyle))
                 {
                     BuildHelperBuilder.TestExistingBuild(buildHelperData.CurrentBranch.buildData
                         .CurrentPlatformBuildData().buildPath);
                 }
             }
 
-            GUIContent newBuildTextTest = new GUIContent("New Build",
-                "Equivalent to the Build & Test option in the VRChat SDK");
+            newBuildButton.tooltip = "Equivalent to the Build & Test option in the VRChat SDK";
 
-            if (GUILayout.Button(newBuildTextTest, buttonStyle))
+            if (GUILayout.Button(newBuildButton, buttonStyle))
             {
                 BuildHelperBuilder.TestNewBuild();
             }
@@ -1752,22 +1799,22 @@ namespace BocuD.BuildHelper.Editor
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField("Reload existing test clients");
 
-                GUIContent lastBuildTextReload = new GUIContent("Last Build", lastBuildBlocked
+                lastBuildButton.tooltip = lastBuildBlocked
                     ? lastBuildBlockedTooltip
-                    : "Equivalent to using the (Last build) Enable World Reload option in the VRChat SDK with number of clients set to 0");
+                    : "Equivalent to using the (Last build) Enable World Reload option in the VRChat SDK with number of clients set to 0";
 
                 using (new EditorGUI.DisabledScope(lastBuildBlocked))
                 {
-                    if (GUILayout.Button(lastBuildTextReload, buttonStyle))
+                    if (GUILayout.Button(lastBuildButton, buttonStyle))
                     {
                         BuildHelperBuilder.ReloadExistingBuild(buildHelperData.CurrentBranch.buildData
                             .CurrentPlatformBuildData().buildPath);
                     }
                 }
 
-                GUIContent newBuildTextReload = new GUIContent("New Build",
-                    "Equivalent to using the Enable World Reload option in the VRChat SDK with number of clients set to 0");
-                if (GUILayout.Button(newBuildTextReload, buttonStyle))
+                newBuildButton.tooltip = "Equivalent to using the Enable World Reload option in the VRChat SDK with number of clients set to 0";
+                
+                if (GUILayout.Button(newBuildButton, buttonStyle))
                 {
                     BuildHelperBuilder.ReloadNewBuild();
                 }
@@ -1799,10 +1846,9 @@ namespace BocuD.BuildHelper.Editor
 
             using (new EditorGUI.DisabledScope(lastBuildBlocked))
             {
-                GUIContent lastBuildPublish = new GUIContent("Last Build",
-                    lastBuildBlocked
-                        ? lastBuildBlockedTooltip
-                        : "Equivalent to (Last build) Build & Publish in the VRChat SDK");
+                lastBuildButton.tooltip = lastBuildBlocked
+                    ? lastBuildBlockedTooltip
+                    : "Equivalent to (Last build) Build & Publish in the VRChat SDK";
 
                 if (GUILayout.Button(lastBuildButton, buttonStyle))
                 {
@@ -1838,7 +1884,7 @@ namespace BocuD.BuildHelper.Editor
                 }
             }
 
-            GUIContent newBuildPublish = new GUIContent("New Build", "Equivalent to Build & Publish in the VRChat SDK");
+            newBuildButton.tooltip = "Equivalent to Build & Publish in the VRChat SDK";
 
             if (GUILayout.Button(newBuildButton, buttonStyle))
             {
@@ -1989,8 +2035,10 @@ namespace BocuD.BuildHelper.Editor
             GameObject dataObj = new GameObject("BuildHelperData");
 
             buildHelperBehaviour = dataObj.AddComponent<BuildHelperData>();
-            buildHelperData.branches = new Branch[0];
             buildHelperBehaviour.overrideContainers = new OverrideContainer[0];
+            
+            buildHelperData = buildHelperBehaviour.dataObject;
+            buildHelperData.branches = new Branch[0];
 
             dataObj.AddComponent<BuildHelperRuntime>();
             dataObj.hideFlags = HideFlags.HideInHierarchy;
@@ -2007,18 +2055,13 @@ namespace BocuD.BuildHelper.Editor
 
         private void TrySave()
         {
-            if (BuildHelperEditorPrefs.AutoSave)
-            {
-                Save();
-            }
-            else
-            {
-                dirty = true;
-            }
+            Save();
         }
 
         private void Save()
         {
+            EditorUtility.SetDirty(buildHelperBehaviour);
+            
             if (buildHelperData != null)
                 buildHelperBehaviour.SaveToJSON();
             else Logger.LogError("Error while saving, Data Object not found");
@@ -2070,8 +2113,22 @@ namespace BocuD.BuildHelper.Editor
                 onAddCallback = list =>
                 {
                     Undo.RecordObject(buildHelperBehaviour, "Create new branch");
+
+                    PipelineManager manager = FindPipelineManager();
+
+                    string blueprintID = "";
+                    if (manager != null && manager.completedSDKPipeline)
+                    {
+                        if (EditorUtility.DisplayDialog("Build Helper",
+                                "An existing scene descriptor was found in the scene. Do you want to use its blueprint ID for your initial branch?",
+                                "Yes (recommended)", "No"))
+                        {
+                            blueprintID = manager.blueprintId;
+                        }
+                    }
+                    
                     Branch newBranch = new Branch
-                        { name = "new branch", buildData = new BuildData(), branchID = BuildHelperData.GetUniqueID() };
+                        { name = "Main", buildData = new BuildData(), branchID = BuildHelperData.GetUniqueID(), blueprintID = blueprintID};
                     ArrayUtility.Add(ref buildHelperData.branches, newBranch);
 
                     OverrideContainer newContainer = new OverrideContainer
@@ -2272,6 +2329,12 @@ namespace BocuD.BuildHelper.Editor
                 image = EditorGUIUtility.IconContent("d_BuildSettings.Standalone.Small").image
             };
             
+            buildOnlyHeader = new GUIContent
+            {
+                text = " Build Only",
+                image = EditorGUIUtility.IconContent("d_ModelImporter Icon").image
+            };
+            
             publishHeader = new GUIContent
             {
                 text = " Publishing Options",
@@ -2295,6 +2358,18 @@ namespace BocuD.BuildHelper.Editor
                 text = " New Build",
                 image = EditorGUIUtility.IconContent("d_ModelImporter Icon").image
             };
+            
+            windowsTargetButton = new GUIContent
+            {
+                text = " Windows",
+                image = EditorGUIUtility.IconContent("d_BuildSettings.Metro.Small").image
+            };
+            
+            androidTargetButton = new GUIContent
+            {
+                text = " Android",
+                image = EditorGUIUtility.IconContent("d_BuildSettings.Android.Small").image
+            };
         }
 
         private void GetUIAssets()
@@ -2316,14 +2391,6 @@ namespace BocuD.BuildHelper.Editor
             GUILayout.FlexibleSpace();
 
             float iconSize = EditorGUIUtility.singleLineHeight;
-
-            if (dirty && !BuildHelperEditorPrefs.AutoSave)
-            {
-                if (GUILayout.Button("Save Changes"))
-                {
-                    Save();
-                }
-            }
 
             GUIContent buttonVRChat = new GUIContent("", "VRChat");
             GUIStyle styleVRChat = new GUIStyle(GUI.skin.box);
