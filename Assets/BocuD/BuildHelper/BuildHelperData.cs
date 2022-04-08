@@ -57,6 +57,8 @@ namespace BocuD.BuildHelper
 
         public static void RunLastBuildChecks()
         {
+            if (GetDataObject() == null) return;
+            
             foreach (Branch b in GetDataObject().branches)
             {
                 foreach (PlatformBuildInfo info in b.buildData.PlatformBuildInfos())
@@ -307,6 +309,7 @@ namespace BocuD.BuildHelper
         public DeploymentData deploymentData;
 
         public bool hasUdonLink = false;
+        public Platform targetPlatform = 0; //windows by default
 
         public bool HasVRCDataChanges()
         {
