@@ -27,8 +27,6 @@ namespace BocuD.VRChatApiTools
         [NonSerialized] public static List<string> invalidBlueprints = new List<string>();
 
         [NonSerialized] public static Dictionary<string, ApiModel> blueprintCache = new Dictionary<string, ApiModel>();
-        [NonSerialized] public static Dictionary<string, ApiWorld> worldCache = new Dictionary<string, ApiWorld>();
-        [NonSerialized] public static Dictionary<string, ApiAvatar> avatarCache = new Dictionary<string, ApiAvatar>();
 
         public static Action<string, string> DownloadImage;
         
@@ -75,6 +73,7 @@ namespace BocuD.VRChatApiTools
         {
             uploadedWorlds = null;
             uploadedAvatars = null;
+                        
 
             ImageCache.Clear();
             currentlyFetching.Clear();
