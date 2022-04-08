@@ -56,7 +56,7 @@ namespace BocuD.BuildHelper.Editor
             {
                 return true;
             }
-
+            
             buildHelperData.PrepareExcludedGameObjects();
             buildHelperData.overrideContainers[buildHelperData.dataObject.currentBranch].ApplyStateChanges();
             
@@ -81,60 +81,58 @@ namespace BocuD.BuildHelper.Editor
             }
             else //autonomous builder is not active: determine what the build number should be
             {
-                //todo: implement the new ask every time option
                 switch (BuildHelperEditorPrefs.BuildNumberMode)
                 {
                     //On Build
                     case 0:
-                        //if our current platform is the one with the newest build, just increment the build number again
-                        if (buildData.CurrentPlatformBuildData().buildVersion >=
-                            buildData.GetLatestBuild().buildVersion)
+                        //if we are on android we need to ask the user instead of just incrementing blindly
+                        if (CurrentPlatform() != buildHelperData.dataObject.CurrentBranch.targetPlatform)
                         {
+                            switch (BuildHelperEditorPrefs.PlatformSwitchMode)
+                            {
+                                //always ask if on android
+                                case 0:
+                                    int newBuild = EditorUtility.DisplayDialogComplex("Build Helper",
+                                        "You are about to build for Android. Should the build number for this build be incremented or matched to the last PC build?",
+                                        "Match", "Cancel", "Increment");
+                                    switch (newBuild)
+                                    {
+                                        //Match
+                                        case 0:
+                                            buildData.CurrentPlatformBuildData().buildVersion =
+                                                buildData.GetLatestBuild().buildVersion;
+                                            break;
+                                        
+                                        //Cancel
+                                        case 1:
+                                            return false;
+                                        
+                                        //Increment
+                                        case 2:
+                                            buildData.CurrentPlatformBuildData().buildVersion =
+                                                buildData.GetLatestBuild().buildVersion + 1;
+                                            break;
+                                    }
+                                    break;
+                                
+                                //after switching
+                                case 1:
+                                    if (buildData.CurrentPlatformBuildData().buildVersion >=
+                                        buildData.GetLatestBuild().buildVersion)
+                                    {
+                                        
+                                    }
+                                    break;
+                            }
+
                             buildData.SaveBuildTime();
                             buildData.CurrentPlatformBuildData().buildVersion++;
                         }
                         else
                         {
-                            PlatformBuildInfo latestBuild = buildData.GetLatestBuild();
-                            double minutesSinceLastBuild = (DateTime.Now - latestBuild.BuildTime).TotalMinutes;
-
-                            switch (BuildHelperEditorPrefs.PlatformSwitchMode)
-                            {
-                                //ask
-                                case 0:
-                                    int newBuild = EditorUtility.DisplayDialogComplex("Build Helper",
-                                        $"The last build on this branch was for a different platform. " +
-                                        $"If you made any changes to the scene since the last build, (build {latestBuild.buildVersion}, {(long)minutesSinceLastBuild} minutes ago for {latestBuild.platform}) " +
-                                        $"you should probably mark this build as a new build.\n\n" +
-                                        $"Increment build number: This build will be marked as build {latestBuild.buildVersion + 1}. Keep in mind that this will make this build count as a new version for World Update Detection, so you should reupload for {latestBuild.platform} as well.\n\n" +
-                                        $"Match build number: This build will be marked as the {CurrentPlatform()} version of build {latestBuild.buildVersion}.",
-                                        "Increment", "Cancel", "Match");
-
-                                    switch (newBuild)
-                                    {
-                                        //new build
-                                        case 0:
-                                            buildData.CurrentPlatformBuildData().buildVersion =
-                                                buildData.GetLatestBuild().buildVersion + 1;
-                                            break;
-                                        //cancel
-                                        case 1:
-                                            return false;
-                                        //equivalent build
-                                        case 2:
-                                            buildData.CurrentPlatformBuildData().buildVersion =
-                                                buildData.GetLatestBuild().buildVersion;
-                                            break;
-                                    }
-
-                                    break;
-
-                                //always increment
-                                case 1:
-                                    buildData.CurrentPlatformBuildData().buildVersion =
-                                        buildData.GetLatestBuild().buildVersion + 1;
-                                    break;
-                            }
+                            //for PC builds just always increment
+                            buildData.CurrentPlatformBuildData().buildVersion =
+                                buildData.GetLatestBuild().buildVersion + 1;
                         }
                         break;
                     
@@ -155,7 +153,6 @@ namespace BocuD.BuildHelper.Editor
                                     buildData.GetLatestBuild().buildVersion;
                             }
                         }
-
                         break;
                 }
                 
