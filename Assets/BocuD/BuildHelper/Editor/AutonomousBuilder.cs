@@ -115,9 +115,6 @@ namespace BocuD.BuildHelper
                 case Progress.PostSecondaryBuild when status.buildInfo.initialTarget == CurrentPlatform():
                     FinishAutonomousPublish();
                     break;
-                default:
-                    status.OnError("Platform switch failed", "Target platform after platform switch incorrect");
-                    break;
             }
         }
         
