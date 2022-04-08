@@ -25,7 +25,7 @@ namespace BocuD.BuildHelper.Editor
             CommunityLabsPublisher publisher = CreateInstance<CommunityLabsPublisher>();
             publisher.world = target;
             publisher.publish = false;
-            publisher.minSize = new Vector2(400, 300);
+            publisher.minSize = new Vector2(440, 300);
             publisher.currentState = CurrentState.waiting;
             publisher.ShowUtility();
         }
@@ -66,12 +66,11 @@ namespace BocuD.BuildHelper.Editor
                     {
                         EditorGUILayout.LabelField("You are about to publish the following world to community labs.");
                         VRChatApiToolsGUI.DrawBlueprintInspector(world);
-                        EditorGUILayout.HelpBox("Publishing this world will put it in to the Community Labs.\n" +
-                                                "Other users will be able to see your world, and it will either stay in the Labs, get promoted to Public status, or be placed back in to Private status, based on community response.\n" +
-                                                "We encourage you to get the word out about your world if you want it to survive!\n" +
-                                                "If your world violates our Community Guidelines, you could get in trouble by posting it!\n" +
-                                                "You're only allowed to publish one world per week, so make sure to put your best foot forward!",
-                            MessageType.Warning);
+                        EditorGUILayout.HelpBox("Publishing this world will move it to Community Labs.\n" +
+                                                "Other users will be able to see your world, and it will either stay in Labs, get promoted to Public status, or be set back to Private, based on community response. " +
+                                                "Make sure your world follows the VRChat Community Guidelines.\n" +
+                                                "Publishing to community labs can only be done once a week.",
+                            MessageType.Info);
 
                         if (APIUser.CurrentUser.hasKnownTrustLevel)
                         {
@@ -114,7 +113,7 @@ namespace BocuD.BuildHelper.Editor
                         EditorGUILayout.LabelField("You are about to unpublish the following world.");
                         VRChatApiToolsGUI.DrawBlueprintInspector(world);
                         EditorGUILayout.HelpBox("Unpublishing this world will remove it from Public.\n" +
-                                                "If you want to make it public again, it will need to go through Community Labs.\n" +
+                                                "Other users will not be able to see it anymore or create public instances. If you want to make it public again, it will need to go through Community Labs again as well.\n" +
                                                 "You're only allowed to publish one world per week, and when you remove a world from the labs, you don't get your one world back. Are you sure?",
                             MessageType.Warning);
                         if (GUILayout.Button("Unpublish this world"))
