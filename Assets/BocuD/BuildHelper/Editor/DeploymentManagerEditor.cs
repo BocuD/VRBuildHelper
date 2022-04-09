@@ -263,6 +263,8 @@ namespace BocuD.BuildHelper.Editor
     {
         public static void RefreshDeploymentData(Branch branch)
         {
+            branch.deploymentData.units = new DeploymentUnit[0];
+                
             if (branch.deploymentData.initialBranchName != "unused")
             {
                 RefreshDeploymentDataLegacy(branch);
@@ -271,6 +273,8 @@ namespace BocuD.BuildHelper.Editor
         
         public static void RefreshDeploymentDataNew(Branch branch)
         {
+            if (!Directory.Exists(Application.dataPath + branch.deploymentData.deploymentPath)) return;
+            
             string[] files = Directory.GetFiles(Application.dataPath + branch.deploymentData.deploymentPath, "*.vrcw", SearchOption.TopDirectoryOnly);
 
             branch.deploymentData.units = files
@@ -314,6 +318,8 @@ namespace BocuD.BuildHelper.Editor
         
         public static void RefreshDeploymentDataLegacy(Branch branch)
         {
+            if (!Directory.Exists(Application.dataPath + branch.deploymentData.deploymentPath)) return;
+            
             string[] files = Directory.GetFiles(Application.dataPath + branch.deploymentData.deploymentPath, "*.vrcw", SearchOption.TopDirectoryOnly);
 
             branch.deploymentData.units = files
