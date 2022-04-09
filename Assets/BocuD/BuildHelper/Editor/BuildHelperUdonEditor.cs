@@ -141,6 +141,7 @@ namespace BocuD.BuildHelper
             if (target != null)
             {
                 //yes this is bad and performance shit but muh undo
+                //todo: fix the performance for these variableinstructions
                 inspectorBehaviour = (BuildHelperUdon) target;
                 variableInstructions = ImportFromUdonBehaviour();
             }
@@ -184,19 +185,23 @@ namespace BocuD.BuildHelper
             
             EditorGUILayout.BeginVertical("Helpbox");
             EditorGUI.BeginChangeCheck();
+
+            EditorGUILayout.BeginHorizontal();
             bool checkVersion = EditorGUILayout.Toggle("Detect World Updates", inspectorBehaviour.checkVersion);
             if (EditorGUI.EndChangeCheck())
             {
                 Undo.RecordObject(inspectorBehaviour, "Change BuildHelper Version Checking Settings");
                 inspectorBehaviour.checkVersion = checkVersion;
             }
+
+            if (GUILayout.Button("Open Documentation"))
+            {
+                Application.OpenURL("https://github.com/BocuD/VRBuildHelper/wiki/Udon-Link#world-update-detection");
+            }
+            EditorGUILayout.EndHorizontal();
+            
             if (checkVersion)
             {
-                EditorGUILayout.HelpBox(
-                    "Build Helper can check the world version of the instance master when joining an existing instance, and send out an event when a mismatch is detected. " +
-                    "Mismatches can happen quite often when you update your world (as people that are already in an instance when updating will still be on the old version). " +
-                    "You can use the mismatch and timeout events to alert the user (and master) that they should rejoin the world.", MessageType.Info);
-
                 if (BuildHelperEditorPrefs.PlatformSwitchMode == 1)
                 {
                     EditorGUILayout.HelpBox(
@@ -291,16 +296,16 @@ namespace BocuD.BuildHelper
                     }
 
                     EditorGUI.indentLevel--;
-                }
-                
-                EditorGUILayout.Space(6);
+                    
+                    EditorGUILayout.Space(6);
 
-                EditorGUI.BeginChangeCheck();
-                allowUpdates = EditorGUILayout.Toggle(new GUIContent("Allow Updates", "When this is enabled, the moment the old master leaves, the world version number will be updated."), allowUpdates);
-                if (EditorGUI.EndChangeCheck())
-                {
-                    Undo.RecordObject(inspectorBehaviour, "Change BuildHelper Event Target");
-                    inspectorBehaviour.allowUpdates = allowUpdates;
+                    EditorGUI.BeginChangeCheck();
+                    allowUpdates = EditorGUILayout.Toggle(new GUIContent("Allow Updates", "When this is enabled, the moment the old master leaves, the world version number will be updated."), allowUpdates);
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        Undo.RecordObject(inspectorBehaviour, "Change BuildHelper Event Target");
+                        inspectorBehaviour.allowUpdates = allowUpdates;
+                    }
                 }
             }
 
@@ -312,7 +317,7 @@ namespace BocuD.BuildHelper
             EditorGUILayout.BeginVertical("Helpbox");
             EditorGUI.BeginChangeCheck();
             bool setProgramVariable =
-                EditorGUILayout.Toggle("SetProgramVariable", inspectorBehaviour.setProgramVariable);
+                EditorGUILayout.Toggle("Export build information", inspectorBehaviour.setProgramVariable);
             if (EditorGUI.EndChangeCheck())
             {
                 Undo.RecordObject(inspectorBehaviour, "Change BuildHelper settings");
