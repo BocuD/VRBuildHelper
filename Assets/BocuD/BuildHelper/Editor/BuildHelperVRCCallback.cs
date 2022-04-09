@@ -20,7 +20,6 @@
  SOFTWARE.
 */
 
-using System;
 using System.Collections.Generic;
 using UdonSharpEditor;
 using UnityEditor;
@@ -58,7 +57,7 @@ namespace BocuD.BuildHelper.Editor
             }
             
             buildHelperData.PrepareExcludedGameObjects();
-            buildHelperData.overrideContainers[buildHelperData.dataObject.currentBranch].ApplyStateChanges();
+            buildHelperData.dataObject.CurrentBranch.overrideContainer?.ApplyStateChanges();
             
             //handle autonomous build version assignments
             AutonomousBuildData autonomousBuild = GetAutonomousBuildData();
@@ -85,15 +84,15 @@ namespace BocuD.BuildHelper.Editor
                 {
                     //On Build
                     case 0:
-                        //if we are on android we need to ask the user instead of just incrementing blindly
-                        if (CurrentPlatform() != buildHelperData.dataObject.CurrentBranch.targetPlatform)
+                        //if we are on the secondary platform we need to ask the user instead of just incrementing blindly
+                        if (CurrentPlatform() != buildHelperData.targetPlatform)
                         {
                             switch (BuildHelperEditorPrefs.PlatformSwitchMode)
                             {
-                                //always ask if on android
+                                //always ask if on secondary platform
                                 case 0:
                                     int newBuild = EditorUtility.DisplayDialogComplex("Build Helper",
-                                        "You are about to build for Android. Should the build number for this build be incremented or matched to the last PC build?",
+                                        $"You are about to build for {CurrentPlatform()}. Should the build number for this build be incremented or matched to the last {buildHelperData.targetPlatform} build?",
                                         "Match", "Cancel", "Increment");
                                     switch (newBuild)
                                     {
@@ -117,10 +116,37 @@ namespace BocuD.BuildHelper.Editor
                                 
                                 //after switching
                                 case 1:
+                                    //we didn't just switch as the build numbers already match
                                     if (buildData.CurrentPlatformBuildData().buildVersion >=
                                         buildData.GetLatestBuild().buildVersion)
                                     {
+                                        buildData.CurrentPlatformBuildData().buildVersion =
+                                            buildData.GetLatestBuild().buildVersion + 1;
+                                    }
+                                    else
+                                    {
+                                        //display same message
+                                        int newBuild2 = EditorUtility.DisplayDialogComplex("Build Helper",
+                                            $"You are about to build for {CurrentPlatform()}. Should the build number for this build be incremented or matched to the last {buildHelperData.targetPlatform} build?",
+                                            "Match", "Cancel", "Increment");
+                                        switch (newBuild2)
+                                        {
+                                            //Match
+                                            case 0:
+                                                buildData.CurrentPlatformBuildData().buildVersion =
+                                                    buildData.GetLatestBuild().buildVersion;
+                                                break;
                                         
+                                            //Cancel
+                                            case 1:
+                                                return false;
+                                        
+                                            //Increment
+                                            case 2:
+                                                buildData.CurrentPlatformBuildData().buildVersion =
+                                                    buildData.GetLatestBuild().buildVersion + 1;
+                                                break;
+                                        }
                                     }
                                     break;
                             }
@@ -141,8 +167,35 @@ namespace BocuD.BuildHelper.Editor
                     case 1:
                         if (buildData.justUploaded)
                         {
-                            buildData.CurrentPlatformBuildData().buildVersion =
-                                buildData.GetLatestBuild().buildVersion + 1;
+                            if (CurrentPlatform() != buildHelperData.targetPlatform)
+                            {
+                                int newBuild = EditorUtility.DisplayDialogComplex("Build Helper",
+                                    $"You are about to build for {CurrentPlatform()}. Should the build number for this build be incremented or matched to the last {buildHelperData.targetPlatform} build?",
+                                    "Match", "Cancel", "Increment");
+                                switch (newBuild)
+                                {
+                                    //Match
+                                    case 0:
+                                        buildData.CurrentPlatformBuildData().buildVersion =
+                                            buildData.GetLatestBuild().buildVersion;
+                                        break;
+                                        
+                                    //Cancel
+                                    case 1:
+                                        return false;
+                                        
+                                    //Increment
+                                    case 2:
+                                        buildData.CurrentPlatformBuildData().buildVersion =
+                                            buildData.GetLatestBuild().buildVersion + 1;
+                                        break;
+                                }
+                            }
+                            else
+                            {
+                                buildData.CurrentPlatformBuildData().buildVersion =
+                                    buildData.GetLatestBuild().buildVersion + 1;
+                            }
                         }
                         else
                         {

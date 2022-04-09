@@ -24,6 +24,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using BocuD.VRChatApiTools;
 using UdonSharpEditor;
@@ -121,6 +122,7 @@ namespace BocuD.BuildHelper.Editor
             {
                 GetUIAssets();
                 InitializeStyles();
+                InitGameObjectContainerLists();
                 init = false;
             }
             
@@ -178,6 +180,10 @@ namespace BocuD.BuildHelper.Editor
                 EditorGUILayout.BeginVertical("Helpbox");
                 EditorGUILayout.Space(2);
                 EditorGUILayout.LabelField("Welcome to VR Build Helper", welcomeLabel, GUILayout.Height(23));
+                EditorGUILayout.LabelField(
+                    "VR Build Helper is an integrated editor toolset that adds a number of quality of life features to assist in managing your project. In practice it will function as a replacement for the VRChat SDK Control panel for 99% of tasks.",
+                    textArea);
+                GUILayout.Space(5);
                 EditorGUILayout.LabelField("To get started, create a new branch. For documentation, please visit the wiki on GitHub.", textArea);
                 EditorGUILayout.Space(2);
 
@@ -185,13 +191,23 @@ namespace BocuD.BuildHelper.Editor
                 if (GUILayout.Button("Create new branch"))
                 {
                     Undo.RecordObject(buildHelperBehaviour, "Create new branch");
-                    Branch newBranch = new Branch
-                        { name = "new branch", buildData = new BuildData(), branchID = BuildHelperData.GetUniqueID() };
-                    ArrayUtility.Add(ref buildHelperData.branches, newBranch);
+                    
+                    PipelineManager manager = FindPipelineManager();
 
-                    OverrideContainer newContainer = new OverrideContainer
-                        { ExclusiveGameObjects = new GameObject[0], ExcludedGameObjects = new GameObject[0] };
-                    ArrayUtility.Add(ref buildHelperBehaviour.overrideContainers, newContainer);
+                    string blueprintID = "";
+                    if (manager != null && Regex.IsMatch(manager.blueprintId, world_regex))
+                    {
+                        if (EditorUtility.DisplayDialog("Build Helper",
+                                "An existing scene descriptor was found in the scene. Do you want to use its blueprint ID for your initial branch?",
+                                "Yes (recommended)", "No"))
+                        {
+                            blueprintID = manager.blueprintId;
+                        }
+                    }
+                    
+                    Branch newBranch = new Branch
+                        { name = "main", buildData = new BuildData(), branchID = BuildHelperData.GetUniqueID(), blueprintID = blueprintID };
+                    ArrayUtility.Add(ref buildHelperData.branches, newBranch);
 
                     branchList.index = Array.IndexOf(buildHelperData.branches, newBranch);
                     TrySave();
@@ -251,7 +267,7 @@ namespace BocuD.BuildHelper.Editor
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField(new GUIContent("Primary Platform", "The primary platform you are developing for. For proper version management, when building for the secondary platform you should mark "), GUILayout.Width(150));
                 GUILayout.FlexibleSpace();
-                buildHelperData.CurrentBranch.targetPlatform = (Platform)GUILayout.Toolbar((int)buildHelperData.CurrentBranch.targetPlatform, mainPlatform, GUILayout.Width(250));
+                buildHelperBehaviour.targetPlatform = (Platform)GUILayout.Toolbar((int)buildHelperBehaviour.targetPlatform, mainPlatform, GUILayout.Width(250));
                 EditorGUILayout.EndHorizontal();
                 
                 if (buildHelperBehaviour.gameObject.hideFlags == HideFlags.None)
@@ -380,7 +396,50 @@ namespace BocuD.BuildHelper.Editor
 
         private void DrawUpgradeUI()
         {
-            if (buildHelperBehaviour.sceneID != "") return;
+            if (buildHelperBehaviour.sceneID != "")
+            {
+                if (buildHelperBehaviour.overrideContainers != null &&
+                    buildHelperBehaviour.overrideContainers.Length > 0)
+                {
+                    EditorGUILayout.HelpBox(
+                        "This scene still uses the previous GameObject override save system. You will have to upgrade your old data in order to use it.",
+                        MessageType.Error);
+                    if (GUILayout.Button("Upgrade data"))
+                    {
+                        try
+                        {
+                            if (buildHelperData.branches != null)
+                            {
+                                for (int i = 0;
+                                     i < buildHelperBehaviour.overrideContainers.Length &&
+                                     i < buildHelperData.branches.Length;
+                                     i++)
+                                {
+                                    buildHelperData.branches[i].overrideContainer =
+                                        buildHelperBehaviour.overrideContainers[i];
+
+                                    OverrideContainer targetContainer = buildHelperData.branches[i].overrideContainer;
+                                    if (targetContainer.ExcludedGameObjects.Length > 0 ||
+                                        targetContainer.ExclusiveGameObjects.Length > 0)
+                                    {
+                                        targetContainer.hasOverrides = true;
+                                    }
+                                }
+                            }
+
+                            buildHelperBehaviour.overrideContainers = null;
+                            
+                            //reset override container serializedproperties and lists
+                            InitGameObjectContainerLists();
+                        }
+                        catch (Exception e)
+                        {
+                            Logger.LogError($"Error occured while trying to convert data: {e.Message}");
+                        }
+                    }
+                }
+                return;
+            }
 
             EditorGUILayout.HelpBox(
                 "This scene still uses the non GUID based identifier for scene identification. You should consider upgrading using the button below.",
@@ -397,7 +456,7 @@ namespace BocuD.BuildHelper.Editor
                 }
                 catch (Exception e)
                 {
-                    Logger.LogError($"Error occured while trying to convert data to GUID system: {e}");
+                    Logger.LogError($"Error occured while trying to convert data to GUID system: {e.Message}");
                 }
             }
         }
@@ -534,18 +593,15 @@ namespace BocuD.BuildHelper.Editor
         public static void SwitchBranch(BuildHelperData data, int targetBranch)
         {
             BranchStorageObject storageObject = data.dataObject;
-
-            if (targetBranch >= storageObject.branches.Length || targetBranch == -1)
-            {
-                Logger.LogError($"Can't switch to branch with ID {targetBranch}, branch was probably deleted");
-                return;
-            }
-
+            
+            //prevent indexoutofrangeexception
             if (storageObject.currentBranch < storageObject.branches.Length && storageObject.currentBranch > -1)
             {
+                OverrideContainer overrideContainer = storageObject.CurrentBranch.overrideContainer;
+                
                 //reverse override container state
-                if (storageObject.branches[storageObject.currentBranch].hasOverrides)
-                    data.overrideContainers[storageObject.currentBranch].ResetStateChanges();
+                if (overrideContainer.hasOverrides)
+                    overrideContainer.ResetStateChanges();
             }
 
             storageObject.currentBranch = targetBranch;
@@ -555,8 +611,10 @@ namespace BocuD.BuildHelper.Editor
 
             if (storageObject.branches.Length > targetBranch)
             {
-                if (storageObject.branches[storageObject.currentBranch].hasOverrides)
-                    data.overrideContainers[storageObject.currentBranch].ApplyStateChanges();
+                OverrideContainer overrideContainer = storageObject.CurrentBranch.overrideContainer;
+                
+                if (overrideContainer.hasOverrides)
+                    overrideContainer.ApplyStateChanges();
 
                 ApplyPipelineID(storageObject.CurrentBranch.blueprintID);
             }
@@ -678,25 +736,27 @@ namespace BocuD.BuildHelper.Editor
 
             EditorGUILayout.Space();
         }
-
+        
         private void DrawGameObjectEditor(Branch selectedBranch)
         {
             EditorGUI.BeginChangeCheck();
             GUILayout.BeginVertical("Helpbox");
-            selectedBranch.hasOverrides = EditorGUILayout.Toggle("GameObject Overrides", selectedBranch.hasOverrides);
-            if (selectedBranch.hasOverrides) gameObjectOverrides = EditorGUILayout.Foldout(gameObjectOverrides, "");
+
+            OverrideContainer container = selectedBranch.overrideContainer;
+            container.hasOverrides = EditorGUILayout.Toggle("GameObject Overrides", container.hasOverrides);
+            if (container.hasOverrides) gameObjectOverrides = EditorGUILayout.Foldout(gameObjectOverrides, "");
             if (EditorGUI.EndChangeCheck())
             {
                 TrySave();
             }
 
-            if (gameObjectOverrides && selectedBranch.hasOverrides)
+            if (gameObjectOverrides && container.hasOverrides)
             {
                 EditorGUILayout.HelpBox(
                     "GameObject overrides are rules that can be set up for a branch to exclude GameObjects from builds for that or other branches. Exclusive GameObjects are only included on branches which have them added to the exclusive list. Excluded GameObjects are excluded for branches that have them added.",
                     MessageType.Info);
 
-                _overrideContainer = buildHelperBehaviour.overrideContainers[buildHelperData.currentBranch];
+                _overrideContainer = container;
 
                 if (currentGameObjectContainerIndex != buildHelperData.currentBranch) InitGameObjectContainerLists();
                 if (exclusiveGameObjectsList == null) InitGameObjectContainerLists();
@@ -755,8 +815,11 @@ namespace BocuD.BuildHelper.Editor
 
                 if (deploymentEditor)
                 {
-                    if (selectedBranch.deploymentData.deploymentPath == "")
+                    bool deleted = !Directory.Exists(Application.dataPath + selectedBranch.deploymentData.deploymentPath);
+                    if (selectedBranch.deploymentData.deploymentPath == "" || deleted)
                     {
+                        EditorGUILayout.HelpBox("The previous deployment save location was deleted.", MessageType.Error);
+                        
                         EditorGUILayout.HelpBox(
                             "The Deployment Manager automatically saves uploaded builds so you can revisit or reupload them later.\nTo start using the Deployment Manager, please set a location to store uploaded builds.",
                             MessageType.Info);
@@ -1357,8 +1420,8 @@ namespace BocuD.BuildHelper.Editor
                     GUI.backgroundColor = Color.red;
                     if (GUILayout.Button("Delete world", GUILayout.ExpandWidth(false)))
                     {
-                        if (EditorUtility.DisplayDialog("Delete " + apiWorld.name + "?",
-                                $"Are you sure you want to delete the world '{apiWorld.name}'? This cannot be undone.", "Delete",
+                        if (EditorUtility.DisplayDialog("Confirm deletion",
+                                $"Are you sure you want to delete the world '{apiWorld.name}'? This will remove the world from VRChat permanently, and this is not reversible.", "Delete",
                                 "Cancel"))
                         {
                             branch.blueprintID = "";
@@ -1612,7 +1675,7 @@ namespace BocuD.BuildHelper.Editor
 
             string tooltip = hasTime
                 ? $"Build {ver}\n" +
-                  (isUpload ? $"Uploaded at {time}" : $"Built at {time}\nBuild path: {info.buildPath}\nBuild hash: {info.buildHash}\nBlueprint ID: {info.blueprintID}\n{(info.buildValid ? "Verified build" : "Couldn't verify build")}")
+                  (isUpload ? $"Uploaded at {time}" : $"Built at {time}\nBuild path: {info.buildPath}\nBuild hash: {info.buildHash}\nBlueprint ID: {info.blueprintID}\n{(info.buildValid ? "Verified build" : $"Couldn't verify build : {info.buildInvalidReason}")}")
                 : $"Couldn't find a last {(isUpload ? "upload" : "build")} for this platform";
             GUIContent content = new GUIContent(
                 $"Last {platform} {(isUpload ? "upload" : "build")}: {(hasTime ? $"build {ver} ({time})" : "Unknown")}",
@@ -2035,7 +2098,6 @@ namespace BocuD.BuildHelper.Editor
             GameObject dataObj = new GameObject("BuildHelperData");
 
             buildHelperBehaviour = dataObj.AddComponent<BuildHelperData>();
-            buildHelperBehaviour.overrideContainers = new OverrideContainer[0];
             
             buildHelperData = buildHelperBehaviour.dataObject;
             buildHelperData.branches = new Branch[0];
@@ -2092,10 +2154,10 @@ namespace BocuD.BuildHelper.Editor
                     SerializedProperty worldID = property.FindPropertyRelative("blueprintID");
                     
                     Rect nameRect = new Rect(rect)
-                        { y = rect.y + 1.5f, width = 110, height = EditorGUIUtility.singleLineHeight };
+                        { y = rect.y + 1.5f, width = 135, height = EditorGUIUtility.singleLineHeight };
                     Rect blueprintIDRect = new Rect(rect)
                     {
-                        x = 115, y = rect.y + 1.5f, width = EditorGUIUtility.currentViewWidth - 115,
+                        x = 165, y = rect.y + 1.5f, width = EditorGUIUtility.currentViewWidth - 115,
                         height = EditorGUIUtility.singleLineHeight
                     };
                     Rect selectedRect = new Rect(rect)
@@ -2113,27 +2175,10 @@ namespace BocuD.BuildHelper.Editor
                 onAddCallback = list =>
                 {
                     Undo.RecordObject(buildHelperBehaviour, "Create new branch");
-
-                    PipelineManager manager = FindPipelineManager();
-
-                    string blueprintID = "";
-                    if (manager != null && manager.completedSDKPipeline)
-                    {
-                        if (EditorUtility.DisplayDialog("Build Helper",
-                                "An existing scene descriptor was found in the scene. Do you want to use its blueprint ID for your initial branch?",
-                                "Yes (recommended)", "No"))
-                        {
-                            blueprintID = manager.blueprintId;
-                        }
-                    }
                     
                     Branch newBranch = new Branch
-                        { name = "Main", buildData = new BuildData(), branchID = BuildHelperData.GetUniqueID(), blueprintID = blueprintID};
+                        { name = "new branch", buildData = new BuildData(), branchID = BuildHelperData.GetUniqueID() };
                     ArrayUtility.Add(ref buildHelperData.branches, newBranch);
-
-                    OverrideContainer newContainer = new OverrideContainer
-                        { ExclusiveGameObjects = new GameObject[0], ExcludedGameObjects = new GameObject[0] };
-                    ArrayUtility.Add(ref buildHelperBehaviour.overrideContainers, newContainer);
 
                     list.index = Array.IndexOf(buildHelperData.branches, newBranch);
                     TrySave();
@@ -2165,11 +2210,14 @@ namespace BocuD.BuildHelper.Editor
         private void InitGameObjectContainerLists()
         {
             if (!buildHelperBehaviour) return;
+            if (buildHelperData.branches == null || buildHelperData.branches.Length == 0) return;
             
             //setup exclusive list
             exclusiveGameObjectsList = new ReorderableList(buildHelperDataSO,
-                buildHelperDataSO.FindProperty("overrideContainers")
+                buildHelperDataSO.FindProperty("dataObject")
+                    .FindPropertyRelative("branches")
                     .GetArrayElementAtIndex(buildHelperData.currentBranch)
+                    .FindPropertyRelative("overrideContainer")
                     .FindPropertyRelative("ExclusiveGameObjects"), true,
                 true, true, true)
             {
@@ -2179,13 +2227,13 @@ namespace BocuD.BuildHelper.Editor
                 {
                     SerializedProperty property =
                         exclusiveGameObjectsList.serializedProperty.GetArrayElementAtIndex(index);
-                    EditorGUI.BeginChangeCheck();
+                    //EditorGUI.BeginChangeCheck();
                     EditorGUI.PropertyField(rect, property);
-                    if (EditorGUI.EndChangeCheck())
-                    {
-                        Undo.RecordObject(buildHelperBehaviour, "Modify GameObject list");
-                        TrySave();
-                    }
+                    // if (EditorGUI.EndChangeCheck())
+                    // {
+                    //     Undo.RecordObject(buildHelperBehaviour, "Modify GameObject list");
+                    //     TrySave();
+                    // }
                 },
                 onAddCallback = list =>
                 {
@@ -2201,7 +2249,7 @@ namespace BocuD.BuildHelper.Editor
 
                     bool existsInOtherList = false;
 
-                    foreach (OverrideContainer container in buildHelperBehaviour.overrideContainers)
+                    foreach (OverrideContainer container in buildHelperData.branches.Select(b => b.overrideContainer))
                     {
                         if (container == _overrideContainer) continue;
                         if (container.ExclusiveGameObjects.Contains(toRemove)) existsInOtherList = true;
@@ -2217,8 +2265,10 @@ namespace BocuD.BuildHelper.Editor
 
             //setup exclude list
             excludedGameObjectsList = new ReorderableList(buildHelperDataSO,
-                buildHelperDataSO.FindProperty("overrideContainers")
+                buildHelperDataSO.FindProperty("dataObject")
+                    .FindPropertyRelative("branches")
                     .GetArrayElementAtIndex(buildHelperData.currentBranch)
+                    .FindPropertyRelative("overrideContainer")
                     .FindPropertyRelative("ExcludedGameObjects"), true,
                 true, true, true)
             {
@@ -2228,13 +2278,13 @@ namespace BocuD.BuildHelper.Editor
                 {
                     SerializedProperty property =
                         excludedGameObjectsList.serializedProperty.GetArrayElementAtIndex(index);
-                    EditorGUI.BeginChangeCheck();
+                    //EditorGUI.BeginChangeCheck();
                     EditorGUI.PropertyField(rect, property);
-                    if (EditorGUI.EndChangeCheck())
-                    {
-                        Undo.RecordObject(buildHelperBehaviour, "Modify GameObject list");
-                        TrySave();
-                    }
+                    // if (EditorGUI.EndChangeCheck())
+                    // {
+                    //     Undo.RecordObject(buildHelperBehaviour, "Modify GameObject list");
+                    //     TrySave();
+                    // }
                 },
                 onAddCallback = list =>
                 {

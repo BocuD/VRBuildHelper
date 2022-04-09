@@ -41,11 +41,16 @@ namespace BocuD.BuildHelper
     public class BuildHelperData : MonoBehaviour
     {
         public string sceneID;
+        
+        //old data, purely exists to be able to import from old versions of buildhelper
         public OverrideContainer[] overrideContainers;
+        
         public BuildHelperUdon linkedBehaviour;
         public GameObject linkedBehaviourGameObject;
 
         public BranchStorageObject dataObject;
+        
+        public Platform targetPlatform = Platform.Windows;
         
         private void Awake()
         {
@@ -64,7 +69,21 @@ namespace BocuD.BuildHelper
                 foreach (PlatformBuildInfo info in b.buildData.PlatformBuildInfos())
                 {
                     bool exists = File.Exists(info.buildPath);
-                    info.buildValid = exists && ComputeFileMD5(info.buildPath) == info.buildHash;
+                    if (!exists)
+                    {
+                        info.buildValid = false;
+                        info.buildInvalidReason = "Couldn't locate build, file was probably deleted";
+                    }
+                    else if (ComputeFileMD5(info.buildPath) != info.buildHash)
+                    {
+                        info.buildValid = false;
+                        info.buildInvalidReason = "Located build doesn't match saved hash";
+                    }
+                    else
+                    {
+                        info.buildValid = true;
+                        info.buildInvalidReason = "";
+                    }
                 }
             }
         }
@@ -77,8 +96,6 @@ namespace BocuD.BuildHelper
             {
                 branches = new Branch[0],
             };
-
-            overrideContainers = new OverrideContainer[0];
         }
 
         private static BuildHelperData dataBehaviour;
@@ -99,12 +116,11 @@ namespace BocuD.BuildHelper
 
         public void PrepareExcludedGameObjects()
         {
-            for (int i = 0; i < dataObject.branches.Length; i++)
+            foreach (Branch branch in dataObject.branches)
             {
-                if (!dataObject.branches[i].hasOverrides) continue;
-            
-                OverrideContainer container = overrideContainers[i];
-                foreach (GameObject obj in container.ExclusiveGameObjects)
+                if (!branch.overrideContainer.hasOverrides) continue;
+                
+                foreach (GameObject obj in branch.overrideContainer.ExclusiveGameObjects)
                 {
                     obj.tag = "EditorOnly";
                     obj.SetActive(false);
@@ -241,7 +257,7 @@ namespace BocuD.BuildHelper
                 capacity = branch.capacityChanged ? branch.editedCap : branch.cachedCap,
                 
                 blueprintID = branch.blueprintID,
-                
+                newImage = branch.vrcImageHasChanges ? AssetDatabase.LoadAssetAtPath<Texture2D>(branch.overrideImagePath) : null,
                 newImagePath = branch.vrcImageHasChanges ? branch.overrideImagePath : ""
             };
         }
@@ -270,7 +286,6 @@ namespace BocuD.BuildHelper
     {
         //basic branch information
         public string name = "";
-        public bool hasOverrides = false;
         public string blueprintID = "";
         public string branchID = "";
         public bool remoteExists = false;
@@ -280,8 +295,8 @@ namespace BocuD.BuildHelper
         public string cachedDescription = "";
         public int cachedCap = 16;
         public string cachedRelease = "New world";
-        public List<string> cachedTags = new List<string>();
         public ApiModel.SupportedPlatforms cachedPlatforms;
+        public List<string> cachedTags = new List<string>();
 
         public string editedName = "New VRChat World";
         public string editedDescription = "Fancy description for your world";
@@ -295,25 +310,33 @@ namespace BocuD.BuildHelper
         public bool vrcImageHasChanges = false;
         public string overrideImagePath = "";
         public string vrcImageWarning = "";
-        public ApiWorld.ReleaseStatus TargetReleaseStatus;
-
+    
         //VRCCam state
         public bool saveCamPos = true;
         public bool uniqueCamPos = false;
         public Vector3 camPos = Vector3.zero;
         public Quaternion camRot = Quaternion.identity;
     
+        //build data
         public BuildData buildData;
 
+        //deployment manager
         public bool hasDeploymentData = false;
         public DeploymentData deploymentData;
 
         public bool hasUdonLink = false;
-        public Platform targetPlatform = 0; //windows by default
-
+        
+        public OverrideContainer overrideContainer;
+        
         public bool HasVRCDataChanges()
         {
             return nameChanged || descriptionChanged || capacityChanged || tagsChanged || vrcImageHasChanges;
+        }
+
+        public Branch()
+        {
+            overrideContainer = new OverrideContainer();
+            branchID = BuildHelperData.GetUniqueID();
         }
     }
 
@@ -369,7 +392,10 @@ namespace BocuD.BuildHelper
         public string buildHash;
         public string buildTime;
         public int buildVersion;
+        
         public bool buildValid = false;
+        public string buildInvalidReason;
+
         public string blueprintID;
         
         public string uploadTime;
@@ -402,6 +428,7 @@ namespace BocuD.BuildHelper
     [Serializable]
     public class OverrideContainer
     {
+        public bool hasOverrides = false;
         public GameObject[] ExclusiveGameObjects;
         public GameObject[] ExcludedGameObjects;
 
