@@ -26,6 +26,7 @@ using System.Security.Cryptography;
 using System.Threading.Tasks;
 using BocuD.BuildHelper.Editor;
 using UnityEditor;
+using UnityEngine;
 using UnityEngine.Networking;
 using VRC.Core;
 using VRC.SDK3.Editor.Builder;
@@ -162,7 +163,28 @@ namespace BocuD.BuildHelper
                         EditorGUILayout.LabelField("Target world: ");
                         if (worldInfo != null)
                         {
-                            VRChatApiToolsGUI.DrawBlueprintInspector(worldInfo.blueprintID);
+                            if (string.IsNullOrEmpty(worldInfo.blueprintID))
+                            {
+                                EditorGUILayout.BeginHorizontal(EditorStyles.helpBox, GUILayout.Height(108));
+                                EditorGUILayout.BeginHorizontal();
+                                GUILayout.Box(worldInfo.newImage, GUILayout.Width(128), GUILayout.Height(99));
+
+                                EditorGUILayout.BeginVertical();
+                                EditorGUILayout.LabelField(worldInfo.name, EditorStyles.boldLabel);
+
+                                EditorGUILayout.LabelField("New world");
+                                EditorGUILayout.LabelField("Release Status: private");
+                                EditorGUILayout.LabelField("Author: " + APIUser.CurrentUser.displayName);
+                                EditorGUILayout.EndVertical();
+                                
+                                EditorGUILayout.EndHorizontal();
+                                EditorGUILayout.EndHorizontal();
+                                EditorGUILayout.Space();
+                            }
+                            else
+                            {
+                                VRChatApiToolsGUI.DrawBlueprintInspector(worldInfo.blueprintID);
+                            }
                         }
                         else
                         {
