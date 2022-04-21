@@ -67,7 +67,7 @@ namespace BocuD.BuildHelper
                 if (_showBuildOnly == value) return;
                 
                 _showBuildOnly = value;
-                EditorPrefs.SetBool(asyncPublishPath, value);
+                EditorPrefs.SetBool(buildOnlyPath, value);
             }
             get => _showBuildOnly;
         }
