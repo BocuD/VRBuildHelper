@@ -8,12 +8,14 @@ namespace BocuD.BuildHelper
         private const string asyncPublishPath = "BuildHelperAsyncPublish";
         private const string buildNumberPath = "BuildHelperNumberMode";
         private const string platformSwitchPath = "BuildHelperNumberMode";
+        private const string buildOnlyPath = "BuildHelperBuildOnly";
         
         static BuildHelperEditorPrefs()
         {
             _useAsyncPublish = EditorPrefs.GetBool(asyncPublishPath);
             _buildNumberMode = EditorPrefs.GetInt(buildNumberPath);
             _platformSwitchMode = EditorPrefs.GetInt(platformSwitchPath);
+            _showBuildOnly = EditorPrefs.GetBool(buildOnlyPath);
         }
         
         private static bool _useAsyncPublish;
@@ -55,6 +57,19 @@ namespace BocuD.BuildHelper
             }
 
             get => _platformSwitchMode;
+        }
+        
+        private static bool _showBuildOnly;
+        public static bool ShowBuildOnly
+        {
+            set
+            {
+                if (_showBuildOnly == value) return;
+                
+                _showBuildOnly = value;
+                EditorPrefs.SetBool(asyncPublishPath, value);
+            }
+            get => _showBuildOnly;
         }
     }
 }

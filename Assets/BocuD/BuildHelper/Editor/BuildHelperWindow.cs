@@ -326,6 +326,11 @@ namespace BocuD.BuildHelper.Editor
             
             EditorGUILayout.LabelField("Use Async Publisher (beta)");
             EditorGUILayout.EndHorizontal();
+            
+            EditorGUILayout.BeginHorizontal();
+            BuildHelperEditorPrefs.ShowBuildOnly = EditorGUILayout.Toggle(BuildHelperEditorPrefs.ShowBuildOnly, GUILayout.Width(15));
+            EditorGUILayout.LabelField(new GUIContent("Always show build only options", "This will always show build only options instead of just when the target platform is Android"));
+            EditorGUILayout.EndHorizontal();
 
             GUIContent[] buildNumberModes =
             {
@@ -731,9 +736,7 @@ namespace BocuD.BuildHelper.Editor
             GUILayout.FlexibleSpace();
 
             DisplayBuildInformation(selectedBranch);
-
-            DrawBuildVersionWarnings(selectedBranch);
-
+            
             EditorGUILayout.Space();
         }
         
@@ -1643,7 +1646,8 @@ namespace BocuD.BuildHelper.Editor
             {
                 wordWrap = false,
                 fixedWidth = 400,
-                contentOffset = new Vector2(-12, 5)
+                contentOffset = new Vector2(-12, 5),
+                richText = true
             };
 
             EditorGUILayout.BeginHorizontal();
@@ -1657,15 +1661,15 @@ namespace BocuD.BuildHelper.Editor
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField(cloud, GUILayout.Width(48), GUILayout.Height(48));
             EditorGUILayout.BeginVertical();
-            DrawBuildInfoLine(Platform.Windows, pcBuild, true);
-            DrawBuildInfoLine(Platform.Android, androidBuild, true);
+            DrawBuildInfoLine(Platform.Windows, pcBuild, true, pcBuild.uploadVersion < buildData.GetLatestBuild().uploadVersion);
+            DrawBuildInfoLine(Platform.Android, androidBuild, true, androidBuild.uploadVersion < buildData.GetLatestBuild().uploadVersion);
             EditorGUILayout.EndVertical();
             EditorGUILayout.EndHorizontal();
         }
 
         private GUIStyle buildStatusStyle;
         
-        private void DrawBuildInfoLine(Platform platform, PlatformBuildInfo info, bool isUpload)
+        private void DrawBuildInfoLine(Platform platform, PlatformBuildInfo info, bool isUpload, bool isOutdated = false)
         {
             int ver = isUpload ? info.uploadVersion : info.buildVersion;
             bool hasTime = ver != -1;
@@ -1674,50 +1678,16 @@ namespace BocuD.BuildHelper.Editor
                 : hasTime ? info.BuildTime.ToString() : "Unknown";
 
             string tooltip = hasTime
-                ? $"Build {ver}\n" +
-                  (isUpload ? $"Uploaded at {time}" : $"Built at {time}\nBuild path: {info.buildPath}\nBuild hash: {info.buildHash}\nBlueprint ID: {info.blueprintID}\n{(info.buildValid ? "Verified build" : $"Couldn't verify build : {info.buildInvalidReason}")}")
+                ? $"{platform} Build {ver}\n" +
+                  (isUpload ? 
+                      $"Uploaded at {time}" + (isOutdated ? "\nThis build doesn't match the newest uploaded build, you should consider reuploading for this platform." : "") : 
+                      $"Built at {time}\nBuild path: {info.buildPath}\nBuild hash: {info.buildHash}\nBlueprint ID: {info.blueprintID}\n{(info.buildValid ? "Verified build" : $"Couldn't verify build : {info.buildInvalidReason}")}")
                 : $"Couldn't find a last {(isUpload ? "upload" : "build")} for this platform";
             GUIContent content = new GUIContent(
-                $"Last {platform} {(isUpload ? "upload" : "build")}: {(hasTime ? $"build {ver} ({time})" : "Unknown")}",
+                (isOutdated ? "<color=yellow>" : "") + $"Last {platform} {(isUpload ? "upload" : "build")}: {(hasTime ? $"build {ver} ({time})" : "Unknown")}" + (isOutdated ? "</color>" : ""),
                 tooltip);
             
             EditorGUILayout.LabelField(content, buildStatusStyle);
-        }
-
-        private static void DrawBuildVersionWarnings(Branch selectedBranch)
-        {
-            BuildData buildData = selectedBranch.buildData;
-
-            if (buildData.pcData.uploadVersion != buildData.androidData.uploadVersion)
-            {
-                if (buildData.pcData.uploadVersion > buildData.androidData.uploadVersion)
-                {
-                    if (buildData.androidData.uploadVersion != -1)
-                    {
-                        EditorGUILayout.HelpBox(
-                            "Your uploaded PC and Android builds currently don't match. The last uploaded PC build is newer than the last uploaded Android build. You should consider reuploading for Android to make them match.",
-                            MessageType.Warning);
-                    }
-                }
-                else
-                {
-                    if (buildData.pcData.uploadVersion != -1)
-                    {
-                        EditorGUILayout.HelpBox(
-                            "Your uploaded PC and Android builds currently don't match. The last uploaded Android build is newer than the last uploaded PC build. You should consider reuploading for PC to make them match.",
-                            MessageType.Warning);
-                    }
-                }
-            }
-            else
-            {
-                if (buildData.pcData.uploadVersion != -1 && buildData.androidData.uploadVersion != -1)
-                {
-                    EditorGUILayout.HelpBox(
-                        "Your uploaded PC and Android builds match. Awesome!",
-                        MessageType.Info);
-                }
-            }
         }
 
         private void DisplayBuildButtons()
@@ -1733,7 +1703,17 @@ namespace BocuD.BuildHelper.Editor
             
             if (!VRChatApiToolsGUI.HandleLogin(this, false)) return;
 
+            if (editMode)
+            {
+                EditorGUILayout.HelpBox("Please save all changes in the blueprint editor before building.", MessageType.Info);
+                return;
+            }
+            
             DrawBuildTargetSwitcher();
+
+            if (CurrentPlatform() == Platform.Android || BuildHelperEditorPrefs.ShowBuildOnly)
+                DrawBuildOnlyOptions();
+            
             DrawLocalTestingOptions();
             DrawPublishingOptions();
         }
@@ -1772,37 +1752,41 @@ namespace BocuD.BuildHelper.Editor
             }
             EditorGUILayout.EndHorizontal();
         }
+        
+        private void DrawBuildOnlyOptions()
+        {
+            GUIStyle styleRichTextLabel = new GUIStyle(GUI.skin.label) { richText = true };
+            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { fixedWidth = 140, fixedHeight = EditorGUIUtility.singleLineHeight };
+            
+            EditorGUILayout.BeginVertical("Helpbox");
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField(buildOnlyHeader, styleRichTextLabel);
+
+            if(CurrentPlatform() == Platform.Android)
+                EditorGUILayout.LabelField("Local testing is not supported for Android");
+            
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Build assetbundle");
+
+            newBuildButton.tooltip = "You can use this option to do a clean build, either for analysis or to upload later.";
+            if (GUILayout.Button(newBuildButton, buttonStyle))
+            {
+                BuildHelperBuilder.ExportAssetBundle();
+            }
+
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.EndVertical();
+        }
 
         private void DrawLocalTestingOptions()
         {
             GUIStyle styleRichTextLabel = new GUIStyle(GUI.skin.label) { richText = true };
             GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { fixedWidth = 140, fixedHeight = EditorGUIUtility.singleLineHeight };
 
-            if (CurrentPlatform() == Platform.Android)
-            {
-                EditorGUILayout.BeginVertical("Helpbox");
-
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField(buildOnlyHeader, styleRichTextLabel);
-
-                EditorGUILayout.LabelField("Local testing is not supported for Android");
-                EditorGUILayout.EndHorizontal();
-                
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField("Build assetbundle");
-
-                newBuildButton.tooltip = "You can use this option to do a clean build, either for analysis or to upload later.";
-                if (GUILayout.Button(newBuildButton, buttonStyle))
-                {
-                    BuildHelperBuilder.ExportAssetBundle();
-                }
-
-                EditorGUILayout.EndHorizontal();
-                
-                EditorGUILayout.EndVertical();
-                return;
-            }
-            
             EditorGUILayout.BeginVertical("Helpbox");
 
             EditorGUILayout.BeginHorizontal();
