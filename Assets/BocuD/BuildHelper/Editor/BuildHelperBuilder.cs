@@ -22,8 +22,6 @@
 
 using System;
 using System.IO;
-using System.Security.Cryptography;
-using System.Threading.Tasks;
 using BocuD.BuildHelper.Editor;
 using UnityEditor;
 using UnityEngine;
