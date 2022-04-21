@@ -23,6 +23,7 @@
 #if UNITY_EDITOR && !COMPILER_UDONSHARP
 
 using System;
+using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 using static BocuD.VRChatApiTools.VRChatApiTools;
@@ -153,6 +154,14 @@ namespace BocuD.BuildHelper
 
         private void OnGUI()
         {
+            //handle exporting assetbundle in OnGUI
+            if (shouldExportAssetBundle)
+            {
+                bundlePath = BuildHelperBuilder.ExportAssetBundle();
+                exportedAssetBundle = true;
+                shouldExportAssetBundle = false;
+            }
+            
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField($"Autonomous Builder Status:");
             if (_currentState != AutonomousBuildState.aborted && _currentState != AutonomousBuildState.finished && _currentState != AutonomousBuildState.aborting)
@@ -367,6 +376,25 @@ namespace BocuD.BuildHelper
 
                     break;
             }
+        }
+
+        private bool shouldExportAssetBundle = false;
+        private bool exportedAssetBundle = false;
+        private string bundlePath = "";
+        
+        //this is dumb but not calling exportassetbundle from ongui causes issues so... ¯\_(ツ)_/¯
+        public async Task<string> ExportAssetBundle()
+        {
+            shouldExportAssetBundle = true;
+            Repaint();
+
+            while (!exportedAssetBundle)
+            {
+                await Task.Delay(500);
+            }
+
+            exportedAssetBundle = false;
+            return bundlePath;
         }
     }
 

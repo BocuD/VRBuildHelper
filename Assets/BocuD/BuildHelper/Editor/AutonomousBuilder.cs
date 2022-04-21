@@ -168,7 +168,7 @@ namespace BocuD.BuildHelper
                 
                 if (status.buildInfo.Stop) { status.Aborted(); return; }
 
-                string buildPath = BuildHelperBuilder.ExportAssetBundle();
+                string buildPath = await status.ExportAssetBundle();
 
                 if (!await TryAutoLoginAsync())
                 {
