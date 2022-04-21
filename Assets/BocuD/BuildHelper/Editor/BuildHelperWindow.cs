@@ -1775,6 +1775,7 @@ namespace BocuD.BuildHelper.Editor
             if (GUILayout.Button(newBuildButton, buttonStyle))
             {
                 BuildHelperBuilder.ExportAssetBundle();
+                return;
             }
 
             EditorGUILayout.EndHorizontal();
@@ -1836,6 +1837,7 @@ namespace BocuD.BuildHelper.Editor
             if (GUILayout.Button(newBuildButton, buttonStyle))
             {
                 BuildHelperBuilder.TestNewBuild();
+                return;
             }
 
             EditorGUILayout.EndHorizontal();
@@ -1864,6 +1866,7 @@ namespace BocuD.BuildHelper.Editor
                 if (GUILayout.Button(newBuildButton, buttonStyle))
                 {
                     BuildHelperBuilder.ReloadNewBuild();
+                    return;
                 }
 
                 EditorGUILayout.EndHorizontal();
@@ -1956,6 +1959,8 @@ namespace BocuD.BuildHelper.Editor
                     }
                     else BuildHelperBuilder.PublishNewBuild();
                 }
+
+                return;
             }
 
             EditorGUILayout.EndHorizontal();
