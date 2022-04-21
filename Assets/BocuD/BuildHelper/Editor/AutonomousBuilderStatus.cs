@@ -157,9 +157,9 @@ namespace BocuD.BuildHelper
             //handle exporting assetbundle in OnGUI
             if (shouldExportAssetBundle)
             {
+                shouldExportAssetBundle = false;
                 bundlePath = BuildHelperBuilder.ExportAssetBundle();
                 exportedAssetBundle = true;
-                shouldExportAssetBundle = false;
             }
             
             EditorGUILayout.BeginHorizontal();
@@ -386,6 +386,7 @@ namespace BocuD.BuildHelper
         public async Task<string> ExportAssetBundle()
         {
             shouldExportAssetBundle = true;
+            bundlePath = "";
             Repaint();
 
             while (!exportedAssetBundle)
