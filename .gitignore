@@ -8,7 +8,6 @@
 !Assets
 Assets/*
 !Assets/Deployments/**
-!Assets/BocuD
-!Assets/BocuD/**
+!Assets/BocuD/BuildHelper/**
 !Assets/Plugins
 !Assets/Plugins/**
