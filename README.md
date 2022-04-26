@@ -13,7 +13,7 @@ An integrated editor toolset that adds a number of quality of life features to a
  - Save camera position before uploading
  - much more, read the documentation!
 
-![Main window](https://i.imgur.com/x62HJEm.png)
+![Main window](https://i.imgur.com/lt40krp.png)
 
 
 Special Thanks: 
