@@ -22,6 +22,7 @@ Special Thanks:
 
 ## Requirements
 - VRCSDK3 WORLD 2021.10.22.18.33 or later (earlier versions are untested but may work)
-- UdonSharp 0.20.0 or later (earlier versions are untested but may work)
+- UdonSharp v0.20.3 or later or UdonSharp v1.0 beta 11 or later (earlier versions are untested but may work)
+- VRChatApiTools v0.1 or later https://github.com/BocuD/VRChatApiTools/releases
 
 ### For complete documentation, please visit [the wiki](https://github.com/BocuD/VRBuildHelper/wiki).
