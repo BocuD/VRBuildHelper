@@ -23,13 +23,13 @@
 #if UNITY_EDITOR && !COMPILER_UDONSHARP
 
 using System;
-using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 using static BocuD.VRChatApiTools.VRChatApiTools;
 
 namespace BocuD.BuildHelper
 {
+    //todo: get rid of this class and use apitoolsuploadstatus where possible
     public class AutonomousBuilderStatus : EditorWindow
     {
         private AutonomousBuildState _currentState;
@@ -75,16 +75,20 @@ namespace BocuD.BuildHelper
             buildInfo.activeBuild = false;
             Repaint();
         }
-        
+
         public AutonomousBuildState currentState
         {
             set
             {
-                AutonomousBuilderStatus window = (AutonomousBuilderStatus) GetWindow(typeof(AutonomousBuilderStatus));
+                AutonomousBuilderStatus window = (AutonomousBuilderStatus)GetWindow(typeof(AutonomousBuilderStatus));
                 _currentState = value;
                 AddLog(GetStateString(_currentState));
                 window.Repaint();
-                if (_currentState == AutonomousBuildState.finished) Application.logMessageReceived -= Log;
+                if (_currentState == AutonomousBuildState.finished || _currentState == AutonomousBuildState.failed ||
+                    _currentState == AutonomousBuildState.aborted)
+                {
+                    Application.logMessageReceived -= Log;
+                }
             }
             get => _currentState;
         }
@@ -154,17 +158,9 @@ namespace BocuD.BuildHelper
 
         private void OnGUI()
         {
-            //handle exporting assetbundle in OnGUI
-            if (shouldExportAssetBundle)
-            {
-                shouldExportAssetBundle = false;
-                bundlePath = BuildHelperBuilder.ExportAssetBundle();
-                exportedAssetBundle = true;
-            }
-            
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField($"Autonomous Builder Status:");
-            if (_currentState != AutonomousBuildState.aborted && _currentState != AutonomousBuildState.finished && _currentState != AutonomousBuildState.aborting)
+            if (_currentState != AutonomousBuildState.aborted && _currentState != AutonomousBuildState.finished && _currentState != AutonomousBuildState.aborting && _currentState != AutonomousBuildState.failed)
             {
                 if (GUILayout.Button("Abort"))
                 {
@@ -272,6 +268,19 @@ namespace BocuD.BuildHelper
                     {
                         failReason = "Build was cancelled";
                         currentState = AutonomousBuildState.failed;
+                        buildInfo._failed = true;
+                        buildInfo.activeBuild = false;
+                    }
+                    
+                    else if (logString.Contains("The the VRCSDK build was aborted at the request of the") &&
+                             _currentState != AutonomousBuildState.failed)
+                    {
+                        string className = logString.Split('\'')[1];
+                        
+                        failReason = $"Aborted by '{className}'";
+                        currentState = AutonomousBuildState.failed;
+                        buildInfo._failed = true;
+                        buildInfo.activeBuild = false;
                     }
 
                     else if (logString.Contains("Error building Player") &&
@@ -279,6 +288,8 @@ namespace BocuD.BuildHelper
                     {
                         failReason = "Error building Player";
                         currentState = AutonomousBuildState.failed;
+                        buildInfo._failed = true;
+                        buildInfo.activeBuild = false;
                     }
             
                     else if (logString.Contains("AndroidPlayer") &&
@@ -286,6 +297,8 @@ namespace BocuD.BuildHelper
                     {
                         failReason = "Couldn't switch platform to Android";
                         currentState = AutonomousBuildState.failed;
+                        buildInfo._failed = true;
+                        buildInfo.activeBuild = false;
                     }
 
                     else if (logString.Contains("Export Exception") &&
@@ -293,6 +306,8 @@ namespace BocuD.BuildHelper
                     {
                         failReason = "Export Exception";
                         currentState = AutonomousBuildState.failed;
+                        buildInfo._failed = true;
+                        buildInfo.activeBuild = false;
                     }
                     break;
                 
@@ -376,26 +391,6 @@ namespace BocuD.BuildHelper
 
                     break;
             }
-        }
-
-        private bool shouldExportAssetBundle = false;
-        private bool exportedAssetBundle = false;
-        private string bundlePath = "";
-        
-        //this is dumb but not calling exportassetbundle from ongui causes issues so... ¯\_(ツ)_/¯
-        public async Task<string> ExportAssetBundle()
-        {
-            shouldExportAssetBundle = true;
-            bundlePath = "";
-            Repaint();
-
-            while (!exportedAssetBundle)
-            {
-                await Task.Delay(500);
-            }
-
-            exportedAssetBundle = false;
-            return bundlePath;
         }
     }
 

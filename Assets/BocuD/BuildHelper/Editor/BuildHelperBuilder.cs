@@ -91,7 +91,7 @@ namespace BocuD.BuildHelper
             string actualLastBuild = EditorPrefs.GetString("lastVRCPath");
             
             EditorPrefs.SetString("lastVRCPath", path);
-            //EditorPrefs.SetString("currentBuildingAssetBundlePath", UnityWebRequest.UnEscapeURL(deploymentUnit.buildPath));
+
             VRC_SdkBuilder.shouldBuildUnityPackage = false;
             VRC_SdkBuilder.RunLastExportedSceneResource();
             
@@ -100,8 +100,9 @@ namespace BocuD.BuildHelper
 
         public static void TestNewBuild()
         {
-            ExportAssetBundle();
-            VRC_SdkBuilder.RunLastExportedSceneResource();
+            string result = ExportAssetBundle();
+            if (result != "")
+                VRC_SdkBuilder.RunLastExportedSceneResource();
         }
 
         public static void PublishLastBuild()
@@ -126,6 +127,8 @@ namespace BocuD.BuildHelper
         public static void PublishNewBuildAsync(VRChatApiTools.WorldInfo worldInfo = null, Action<VRChatApiTools.WorldInfo> onSucces = null)
         {
             string assetBundlePath = ExportAssetBundle();
+
+            if (assetBundlePath == "") return;
 
             PublishWorldAsync(assetBundlePath, "", worldInfo, onSucces);
         }
@@ -205,7 +208,7 @@ namespace BocuD.BuildHelper
                     }
                     catch (Exception e)
                     {
-                        uploaderAsync.OnError(e.Message, e.InnerException == null ? "" : e.InnerException.ToString());
+                        uploaderAsync.OnError(e.Message, e.InnerException == null ? e.Message : e.InnerException.Message);
                         Logger.LogError($"Upload Exception: {e.Message} {(e.InnerException == null ? "" : $"({e.InnerException.Message})")}");
                     }
                     finally
