@@ -222,6 +222,18 @@ namespace BocuD.BuildHelper
                     status.failReason = e.Message;
                     Logger.LogError(e.Message);
                 }
+                //todo remove this check when new apitools version gets published
+                //funny edge case, maybe this shouldn't throw an exception
+                else if (e.Message.Contains("The file to upload matches the remote file already."))
+                {
+                    BuildHelperData data = BuildHelperData.GetDataBehaviour();
+                    if (data != null)
+                    {
+                        await data.OnSuccesfulPublish(data.dataObject.CurrentBranch, data.dataObject.CurrentBranch.ToWorldInfo(), DateTime.Now);
+                    }
+
+                    status.uploading = false;
+                }
                 else
                 {
                     status.currentState = AutonomousBuildState.failed;
