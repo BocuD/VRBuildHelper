@@ -47,6 +47,7 @@ namespace BocuD.BuildHelper
             }
             
             public bool _failed;
+            public bool singleTarget;
 
             public AutonomousBuildData()
             {
@@ -127,10 +128,21 @@ namespace BocuD.BuildHelper
 
             await BuildAndPublish(status.buildInfo.initialTarget);
 
-            if (status.buildInfo.Stop) { status.Aborted(); return; }
+            if (status.buildInfo.Stop || status.currentState == AutonomousBuildState.failed || status.currentState == AutonomousBuildState.aborted)
+            {
+                return;
+            }
 
             status.buildInfo.progress = Progress.PostInitialBuild;
 
+            if (buildInfo.singleTarget)
+            {
+                status.currentState = AutonomousBuildState.finished;
+                status.buildInfo.activeBuild = false;
+                return;
+            }
+
+            //switch platform will cause a recompile and domain reload so we can't continue from here
             SwitchPlatform(status.buildInfo.secondaryTarget);
         }
         
@@ -168,8 +180,10 @@ namespace BocuD.BuildHelper
                 
                 if (status.buildInfo.Stop) { status.Aborted(); return; }
 
-                string buildPath = await status.ExportAssetBundle();
+                string buildPath = BuildHelperBuilder.ExportAssetBundle();
 
+                if (buildPath == "") return;
+                    
                 if (!await TryAutoLoginAsync())
                 {
                     status.OnError("Login failed", "Automatic login failed");
@@ -206,13 +220,13 @@ namespace BocuD.BuildHelper
                 {
                     status.currentState = AutonomousBuildState.aborted;
                     status.failReason = e.Message;
-                    VRChatApiTools.Logger.LogError(e.Message);
+                    Logger.LogError(e.Message);
                 }
                 else
                 {
                     status.currentState = AutonomousBuildState.failed;
                     status.failReason = e.Message;
-                    VRChatApiTools.Logger.LogError(e.Message);
+                    Logger.LogError(e.Message);
                 }
             }
             finally

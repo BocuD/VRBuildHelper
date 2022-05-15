@@ -1992,7 +1992,7 @@ namespace BocuD.BuildHelper.Editor
 
 		            if (canPublish && CheckAccount(targetBranch))
 		            {
-			            InitAutonomousBuild();
+			            InitAutonomousBuild(true);
 		            }
                 }
 
@@ -2064,7 +2064,7 @@ namespace BocuD.BuildHelper.Editor
             return false;
         }
 
-        private void InitAutonomousBuild()
+        private void InitAutonomousBuild(bool singlePlatform = false)
         {
             if (buildHelperData.CurrentBranch.blueprintID == "")
             {
@@ -2079,7 +2079,9 @@ namespace BocuD.BuildHelper.Editor
             else
             {
                 if (!EditorUtility.DisplayDialog("Build Helper",
-                        "Build Helper will initiate a build and publish cycle for both PC and mobile in succesion.",
+                        singlePlatform 
+                            ? $"Build Helper will initiate a build and publish cycle for {CurrentPlatform()}" 
+                            : "Build Helper will initiate a build and publish cycle for both PC and mobile in succesion.",
                         "Proceed", "Cancel"))
                 {
                     return;
@@ -2087,16 +2089,14 @@ namespace BocuD.BuildHelper.Editor
             }
 
             AutonomousBuilder.AutonomousBuildData buildInfo = new AutonomousBuilder.AutonomousBuildData
-                {
-                    initialTarget = CurrentPlatform(),
-                    secondaryTarget = CurrentPlatform() == Platform.Windows ? Platform.Android : Platform.Windows,
-                    progress = AutonomousBuilder.AutonomousBuildData.Progress.PreInitialBuild
-                };
-            
-            WorldInfo worldInfo = buildHelperData.CurrentBranch.ToWorldInfo();
+            {
+                initialTarget = CurrentPlatform(),
+                secondaryTarget = CurrentPlatform() == Platform.Windows ? Platform.Android : Platform.Windows,
+                progress = AutonomousBuilder.AutonomousBuildData.Progress.PreInitialBuild,
+                worldInfo = buildHelperData.CurrentBranch.ToWorldInfo(),
+                singleTarget = singlePlatform
+            };
 
-            buildInfo.worldInfo = worldInfo;
-            
             AutonomousBuilder.StartAutonomousPublish(buildInfo);
         }
 
