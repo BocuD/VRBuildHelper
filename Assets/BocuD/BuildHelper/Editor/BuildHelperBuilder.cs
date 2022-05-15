@@ -27,6 +27,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
 using VRC.Core;
+using VRC.Editor;
 using VRC.SDK3.Editor.Builder;
 using VRC.SDKBase.Editor;
 using VRC.SDKBase.Editor.BuildPipeline;
