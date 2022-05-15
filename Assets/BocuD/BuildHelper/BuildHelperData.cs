@@ -122,6 +122,8 @@ namespace BocuD.BuildHelper
                 
                 foreach (GameObject obj in branch.overrideContainer.ExclusiveGameObjects)
                 {
+                    if(obj == null) continue;
+                    
                     obj.tag = "EditorOnly";
                     obj.SetActive(false);
                 }
