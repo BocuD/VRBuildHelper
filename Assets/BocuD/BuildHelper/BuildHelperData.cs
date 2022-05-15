@@ -62,7 +62,7 @@ namespace BocuD.BuildHelper
 
         public static void RunLastBuildChecks()
         {
-            if (GetDataObject() == null) return;
+            if (GetDataObject() == null || GetDataObject().branches == null) return;
             
             foreach (Branch b in GetDataObject().branches)
             {

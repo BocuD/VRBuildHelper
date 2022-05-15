@@ -72,6 +72,9 @@ namespace BocuD.BuildHelper.Editor
         private GUIContent windowsTargetButton;
         private GUIContent androidTargetButton;
 
+        private GUIContent currentPlatformPublish;
+        private GUIContent crossPlatformPublish;
+
         private Texture2D _iconGitHub;
         private Texture2D _iconVRChat;
         private Texture2D _iconCloud;
@@ -1968,16 +1971,37 @@ namespace BocuD.BuildHelper.Editor
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Autonomous Builder");
 
-            GUIStyle autoButtonStyle = new GUIStyle(GUI.skin.button) {fixedWidth = 283};
-
             using (new EditorGUI.DisabledScope(!BuildHelperEditorPrefs.UseAsyncPublish))
             {
-                GUIContent autonomousBuilderButton = new GUIContent("Build and publish for PC and Android",
+	            GUIContent autonomousBuilderButtonSingle = new GUIContent("Current platform",
+		            BuildHelperEditorPrefs.UseAsyncPublish
+			            ? "Publish your world autonomously"
+			            : "To use the autonomous builder, please enable Async Publishing in settings");
+
+	            if (GUILayout.Button(currentPlatformPublish, buttonStyle))
+	            {
+		            Branch targetBranch = buildHelperData.CurrentBranch;
+
+		            bool canPublish = true;
+		            if (!targetBranch.remoteExists && !targetBranch.HasVRCDataChanges())
+		            {
+			            canPublish = EditorUtility.DisplayDialog("Build Helper",
+				            $"You are about to publish a new world using the autonomous builder, but you haven't edited any world details. The autonomous builder doesn't enter playmode to let you edit world details, so your world will be uploaded as '{targetBranch.editedName}'. Do you want to continue?",
+				            "Continue", "Cancel");
+		            }
+
+		            if (canPublish && CheckAccount(targetBranch))
+		            {
+			            InitAutonomousBuild();
+		            }
+                }
+
+                GUIContent autonomousBuilderButton = new GUIContent("All platforms",
                     BuildHelperEditorPrefs.UseAsyncPublish
                         ? "Publish your world for both platforms simultaneously"
                         : "To use the autonomous builder, please enable Async Publishing in settings");
 
-                if (GUILayout.Button(autonomousBuilderButton, autoButtonStyle))
+                if (GUILayout.Button(crossPlatformPublish, buttonStyle))
                 {
                     Branch targetBranch = buildHelperData.CurrentBranch;
 
@@ -2325,7 +2349,7 @@ namespace BocuD.BuildHelper.Editor
                 text = "Android",
                 image = EditorGUIUtility.IconContent("d_BuildSettings.Android.Small").image
             };
-            
+
             switchToWindowsTarget = new GUIContent
             {
                 text = "  Switch to Windows",
@@ -2408,6 +2432,24 @@ namespace BocuD.BuildHelper.Editor
             {
                 text = " Android",
                 image = EditorGUIUtility.IconContent("d_BuildSettings.Android.Small").image
+            };
+
+            currentPlatformPublish = new GUIContent
+            {
+	            text = "Current Platform",
+                image = EditorGUIUtility.IconContent("d_winbtn_win_max_h@2x").image
+	            //image = CurrentPlatform() == Platform.Windows ? 
+		           // EditorGUIUtility.IconContent("d_BuildSettings.Metro.Small").image : 
+		           // EditorGUIUtility.IconContent("d_BuildSettings.Android.Small").image
+            };
+
+            crossPlatformPublish = new GUIContent
+            {
+	            text = "All Platforms",
+	            image = EditorGUIUtility.IconContent("d_winbtn_win_restore_h@2x").image
+	            //image = CurrentPlatform() == Platform.Windows ? 
+	            // EditorGUIUtility.IconContent("d_BuildSettings.Metro.Small").image : 
+	            // EditorGUIUtility.IconContent("d_BuildSettings.Android.Small").image
             };
         }
 
