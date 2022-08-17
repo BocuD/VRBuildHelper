@@ -203,12 +203,12 @@ namespace BocuD.BuildHelper
                 uploader.Log = contents => status.AddLog($"<b>{contents}</b>");
                 uploader.cancelQuery = () => status.abort;
 
-                await uploader.UploadWorld(buildPath, "", status.buildInfo.worldInfo);
+                string blueprintID = await uploader.UploadWorld(buildPath, "", status.buildInfo.worldInfo);
 
                 BuildHelperData data = BuildHelperData.GetDataBehaviour();
                 if (data != null)
                 {
-                    await data.OnSuccesfulPublish(data.dataObject.CurrentBranch, data.dataObject.CurrentBranch.ToWorldInfo(), DateTime.Now);
+                    await data.OnSuccesfulPublish(data.dataObject.CurrentBranch, blueprintID, DateTime.Now);
                     DeploymentManager.TrySaveBuild(data.dataObject.CurrentBranch, buildPath, true);
                 }
 
@@ -229,7 +229,7 @@ namespace BocuD.BuildHelper
                     BuildHelperData data = BuildHelperData.GetDataBehaviour();
                     if (data != null)
                     {
-                        await data.OnSuccesfulPublish(data.dataObject.CurrentBranch, data.dataObject.CurrentBranch.ToWorldInfo(), DateTime.Now);
+                        await data.OnSuccesfulPublish(data.dataObject.CurrentBranch, data.dataObject.CurrentBranch.blueprintID, DateTime.Now);
                     }
 
                     status.uploading = false;

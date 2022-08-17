@@ -36,7 +36,7 @@ namespace BocuD.BuildHelper
     {
         [Header("Build Information")]
         public string branchName;
-        public DateTime buildDate;
+        [VRC.Udon.Serialization.OdinSerializer.OdinSerialize] /* UdonSharp auto-upgrade: serialization */ public DateTime buildDate;
         public int buildNumber;
 
         [Header("Build Information Forwarding")]

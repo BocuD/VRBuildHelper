@@ -1927,7 +1927,7 @@ namespace BocuD.BuildHelper.Editor
                                     "", b.ToWorldInfo(), info =>
                                     {
                                         Task verify =
-                                            buildHelperBehaviour.OnSuccesfulPublish(buildHelperData.CurrentBranch, info,
+                                            buildHelperBehaviour.OnSuccesfulPublish(buildHelperData.CurrentBranch, info.blueprintID,
                                                 DateTime.Now);
                                     });
                             }
@@ -1957,7 +1957,7 @@ namespace BocuD.BuildHelper.Editor
                     {
                         BuildHelperBuilder.PublishNewBuildAsync(buildHelperData.CurrentBranch.ToWorldInfo(), info =>
                         {
-                            Task verify = buildHelperBehaviour.OnSuccesfulPublish(buildHelperData.CurrentBranch, info, DateTime.Now);
+                            Task verify = buildHelperBehaviour.OnSuccesfulPublish(buildHelperData.CurrentBranch, info.blueprintID, DateTime.Now);
                         });
                     }
                     else BuildHelperBuilder.PublishNewBuild();

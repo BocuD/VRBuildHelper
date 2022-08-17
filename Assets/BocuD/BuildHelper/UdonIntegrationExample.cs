@@ -28,10 +28,10 @@ namespace BocuD.BuildHelper
 {
     public class UdonIntegrationExample : UdonSharpBehaviour
     {
-        [SerializeField] private DateTime dateTime1;
-        [SerializeField] private DateTime dateTime2;
-        [SerializeField] private DateTime dateTime3;
-        [SerializeField] private DateTime dateTime4;
+        [SerializeField] [VRC.Udon.Serialization.OdinSerializer.OdinSerialize] /* UdonSharp auto-upgrade: serialization */  private DateTime dateTime1;
+        [SerializeField] [VRC.Udon.Serialization.OdinSerializer.OdinSerialize] /* UdonSharp auto-upgrade: serialization */  private DateTime dateTime2;
+        [SerializeField] [VRC.Udon.Serialization.OdinSerializer.OdinSerialize] /* UdonSharp auto-upgrade: serialization */  private DateTime dateTime3;
+        [SerializeField] [VRC.Udon.Serialization.OdinSerializer.OdinSerialize] /* UdonSharp auto-upgrade: serialization */  private DateTime dateTime4;
         
         [SerializeField] private int number1;
         [SerializeField] private uint number2;

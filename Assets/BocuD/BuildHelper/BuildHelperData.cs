@@ -210,11 +210,11 @@ namespace BocuD.BuildHelper
             return id;
         }
         
-        public async Task OnSuccesfulPublish(Branch b, BlueprintInfo blueprintInfo, DateTime uploadTime, int uploadVersion = -1)
+        public async Task OnSuccesfulPublish(Branch b, string blueprintID, DateTime uploadTime, int uploadVersion = -1)
         {
             Branch target = dataObject.branches.First(br => br.branchID == b.branchID);
             
-            ApiWorld world = await FetchApiWorldAsync(blueprintInfo.blueprintID);
+            ApiWorld world = await FetchApiWorldAsync(blueprintID);
             
             target.editedName = world.name;
             target.editedDescription = world.name;
@@ -233,8 +233,8 @@ namespace BocuD.BuildHelper
             target.buildData.CurrentPlatformBuildData().uploadVersion = uploadVersion == -1 ? target.buildData.CurrentPlatformBuildData().buildVersion : uploadVersion;
             target.buildData.justUploaded = true;
 
-            if (target.blueprintID == null || target.blueprintID != blueprintInfo.blueprintID)
-                target.blueprintID = blueprintInfo.blueprintID;
+            if (target.blueprintID == null || target.blueprintID != blueprintID)
+                target.blueprintID = blueprintID;
 
             if (target.vrcImageHasChanges)
             {

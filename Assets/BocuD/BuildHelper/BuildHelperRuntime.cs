@@ -251,10 +251,7 @@ namespace BocuD.BuildHelper
 
             if (targetBranch == null) return;
 
-            BlueprintInfo info = targetBranch.ToWorldInfo();
-            info.blueprintID = blueprintID;
-            
-            await data.OnSuccesfulPublish(targetBranch, info, uploadTime, uploadVersion);
+            await data.OnSuccesfulPublish(targetBranch, blueprintID, uploadTime, uploadVersion);
 
             //clear everything so this doesn't get loaded again
             EditorPrefs.SetString(branchIDPath, "");
