@@ -130,17 +130,6 @@ namespace BocuD.BuildHelper
             }
         }
 
-        public void SaveToJSON()
-        {
-            if (dataObject.branches == null) dataObject.branches = new Branch[0];
-
-            string savePath = GetSavePath(sceneID);
-            CheckIfFileExists(savePath);
-
-            string json = JsonUtility.ToJson(dataObject, true);
-            File.WriteAllText(savePath, json);
-        }
-
         public void LoadFromJSON()
         {
             string savePath = GetSavePath(sceneID);
@@ -271,6 +260,12 @@ namespace BocuD.BuildHelper
         public int currentBranch;
 
         public Branch[] branches;
+        
+        public Branch GetBranchByID(string id)
+        {
+            return branches.FirstOrDefault(br => br.branchID == id);
+        }
+        
         public Branch CurrentBranch
         {
             get

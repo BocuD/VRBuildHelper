@@ -213,8 +213,6 @@ namespace BocuD.BuildHelper.Editor
                 buildData.justUploaded = false;
             }
 
-            buildHelperData.SaveToJSON();
-
             if (buildHelperData.dataObject.CurrentBranch.hasUdonLink && buildHelperData.linkedBehaviourGameObject != null)
             {
                 BuildHelperUdon linkedUdon = buildHelperData.linkedBehaviourGameObject.GetUdonSharpComponent<BuildHelperUdon>();

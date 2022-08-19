@@ -192,7 +192,6 @@ namespace BocuD.BuildHelper
                 buildHelperData.CurrentBranch.vrcImageHasChanges = false;
                 buildHelperData.CurrentBranch.vrcImageWarning = "";
                 buildHelperData.branches[buildHelperData.currentBranch] = buildHelperData.CurrentBranch;
-                buildHelperBehaviour.SaveToJSON();
             }
         }
 
