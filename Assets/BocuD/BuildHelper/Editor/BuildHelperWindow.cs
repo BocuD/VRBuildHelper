@@ -74,6 +74,7 @@ namespace BocuD.BuildHelper.Editor
 
         private GUIContent replaceImageButton;
         private GUIContent setImageButton;
+        private GUIContent cameraButton;
 
         private GUIContent currentPlatformPublish;
         private GUIContent crossPlatformPublish;
@@ -1248,8 +1249,10 @@ namespace BocuD.BuildHelper.Editor
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField(apiWorldLoaded
                     ? "Release: " + apiWorld.releaseStatus + (apiWorld.IsCommunityLabsWorld ? " (Community labs)" : "")
-                    : "Release: " + branch.cachedRelease);
+                    : "Release: " + branch.cachedRelease, GUILayout.Width(100));
 
+                GUILayout.FlexibleSpace();
+                
                 if (apiWorldLoaded)
                 {
                     if (apiWorld.releaseStatus == "private")
@@ -1266,6 +1269,41 @@ namespace BocuD.BuildHelper.Editor
                             CommunityLabsPublisher.UnpublishWorld(apiWorld);
                         }
                     }
+                    
+                    Color temp = GUI.backgroundColor;
+                    GUI.backgroundColor = Color.red;
+                    if (GUILayout.Button("Delete world", GUILayout.Width(100)))
+                    {
+                        if (EditorUtility.DisplayDialog("Confirm deletion",
+                                $"Are you sure you want to delete the world '{apiWorld.name}'? This will remove the world from VRChat permanently, and this is not reversible.",
+                                "Delete",
+                                "Cancel"))
+                        {
+                            branch.blueprintID = "";
+
+                            branch.cachedName = "Unpublished VRChat world";
+                            branch.cachedDescription = "";
+                            branch.cachedCap = 16;
+                            branch.cachedRelease = "private";
+                            branch.cachedTags = new List<string>();
+
+                            branch.nameChanged = false;
+                            branch.descriptionChanged = false;
+                            branch.capacityChanged = false;
+                            branch.tagsChanged = false;
+
+                            SwitchBranch(buildHelperBehaviour, Array.IndexOf(buildHelperData.branches, branch));
+
+                            API.Delete<ApiWorld>(apiWorld.id);
+
+                            ClearCaches();
+                        }
+
+                        editMode = false;
+                        TrySave();
+                    }
+
+                    GUI.backgroundColor = temp;
                 }
 
                 EditorGUILayout.EndHorizontal();
@@ -1320,7 +1358,7 @@ namespace BocuD.BuildHelper.Editor
 
             GUIStyle infoStyle = new GUIStyle(EditorStyles.helpBox) { richText = true };
 
-            if (branch.vrcImageHasChanges)
+            if (branch.vrcImageHasChanges && !string.IsNullOrWhiteSpace(branch.vrcImageWarning))
             {
                 EditorGUILayout.LabelField(branch.vrcImageWarning, infoStyle);
             }
@@ -1335,7 +1373,7 @@ namespace BocuD.BuildHelper.Editor
 
             //draw buttons
             EditorGUILayout.BeginHorizontal();
-            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { fixedWidth = 100, fixedHeight = EditorGUIUtility.singleLineHeight, richText = true };
+            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { stretchWidth = false, fixedHeight = EditorGUIUtility.singleLineHeight, richText = true };
 
             if (!editMode)
             {
@@ -1475,6 +1513,12 @@ namespace BocuD.BuildHelper.Editor
                     NativeFilePicker.PickFile(OnImageSelected, allowedFileTypes);
                 }
 
+                if (GUILayout.Button(cameraButton, buttonStyle))
+                {
+                    imageBranch = branch;
+                    EditorCameraGUI.SetupCapture(UpdateBranchImage);
+                }
+
                 if (branch.vrcImageHasChanges)
                 {
                     if (GUILayout.Button("Revert image", buttonStyle))
@@ -1495,46 +1539,6 @@ namespace BocuD.BuildHelper.Editor
                             AssetDatabase.DeleteAsset(oldImagePath);
                         }
                     }
-                }
-                
-                buttonStyle.fixedWidth = 110;
-
-                if (apiWorldLoaded)
-                {
-                    Color temp = GUI.backgroundColor;
-                    GUI.backgroundColor = Color.red;
-                    if (GUILayout.Button("Delete world", buttonStyle))
-                    {
-                        if (EditorUtility.DisplayDialog("Confirm deletion",
-                                $"Are you sure you want to delete the world '{apiWorld.name}'? This will remove the world from VRChat permanently, and this is not reversible.",
-                                "Delete",
-                                "Cancel"))
-                        {
-                            branch.blueprintID = "";
-
-                            branch.cachedName = "Unpublished VRChat world";
-                            branch.cachedDescription = "";
-                            branch.cachedCap = 16;
-                            branch.cachedRelease = "private";
-                            branch.cachedTags = new List<string>();
-
-                            branch.nameChanged = false;
-                            branch.descriptionChanged = false;
-                            branch.capacityChanged = false;
-                            branch.tagsChanged = false;
-
-                            SwitchBranch(buildHelperBehaviour, Array.IndexOf(buildHelperData.branches, branch));
-
-                            API.Delete<ApiWorld>(apiWorld.id);
-
-                            ClearCaches();
-                        }
-
-                        editMode = false;
-                        TrySave();
-                    }
-
-                    GUI.backgroundColor = temp;
                 }
             }
 
@@ -1663,45 +1667,13 @@ namespace BocuD.BuildHelper.Editor
                     imageBranch.vrcImageWarning =
                         ImageTools.GenerateImageFeedback(overrideImage.width, overrideImage.height);
 
-                    //resize image if needed (for some reason i can just upload 8k images to 
+                    //resize image if needed (for some reason i can just upload 8k images to vrc's servers and it works fine..)
                     if (overrideImage.width != 1200 || overrideImage.height != 900)
                     {
                         overrideImage = ImageTools.Resize(overrideImage, 1200, 900);
                     }
 
-                    //encode image as PNG
-                    byte[] worldImagePNG = overrideImage.EncodeToPNG();
-
-                    string dirPath = Application.dataPath + "/Resources/BuildHelper/";
-                    if (!Directory.Exists(dirPath))
-                    {
-                        Directory.CreateDirectory(dirPath);
-                    }
-
-                    //write image
-                    File.WriteAllBytes(ImageTools.GetImagePath(buildHelperBehaviour.sceneID, imageBranch.branchID),
-                        worldImagePNG);
-
-                    string savePath = ImageTools.GetImageAssetPath(buildHelperBehaviour.sceneID, imageBranch.branchID);
-
-                    AssetDatabase.WriteImportSettingsIfDirty(savePath);
-                    AssetDatabase.ImportAsset(savePath);
-
-                    TextureImporter importer = (TextureImporter)AssetImporter.GetAtPath(savePath);
-                    importer.npotScale = TextureImporterNPOTScale.None;
-                    importer.textureCompression = TextureImporterCompression.Uncompressed;
-                    importer.maxTextureSize = 2048;
-                    EditorUtility.SetDirty(importer);
-                    AssetDatabase.WriteImportSettingsIfDirty(savePath);
-
-                    AssetDatabase.ImportAsset(savePath);
-
-                    imageBranch.vrcImageHasChanges = true;
-                    imageBranch.overrideImagePath = savePath;
-
-                    editModeChanges = true;
-
-                    TrySave();
+                    UpdateBranchImage(overrideImage);
                 }
                 else
                 {
@@ -1712,6 +1684,43 @@ namespace BocuD.BuildHelper.Editor
             {
                 Logger.LogError("Null filepath was passed to image processor, skipping process steps");
             }
+        }
+
+        private void UpdateBranchImage(Texture2D newImage)
+        {
+            //encode image as PNG
+            byte[] worldImagePNG = newImage.EncodeToPNG();
+
+            string dirPath = Application.dataPath + "/Resources/BuildHelper/";
+            if (!Directory.Exists(dirPath))
+            {
+                Directory.CreateDirectory(dirPath);
+            }
+
+            //write image
+            File.WriteAllBytes(ImageTools.GetImagePath(buildHelperBehaviour.sceneID, imageBranch.branchID),
+                worldImagePNG);
+
+            string savePath = ImageTools.GetImageAssetPath(buildHelperBehaviour.sceneID, imageBranch.branchID);
+
+            AssetDatabase.WriteImportSettingsIfDirty(savePath);
+            AssetDatabase.ImportAsset(savePath);
+
+            TextureImporter importer = (TextureImporter)AssetImporter.GetAtPath(savePath);
+            importer.npotScale = TextureImporterNPOTScale.None;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.maxTextureSize = 2048;
+            EditorUtility.SetDirty(importer);
+            AssetDatabase.WriteImportSettingsIfDirty(savePath);
+
+            AssetDatabase.ImportAsset(savePath);
+
+            imageBranch.vrcImageHasChanges = true;
+            imageBranch.overrideImagePath = savePath;
+
+            editModeChanges = true;
+
+            TrySave();
         }
 
         private void DisplayBuildInformation(Branch branch)
@@ -2574,6 +2583,13 @@ namespace BocuD.BuildHelper.Editor
                 text = " Add Image",
                 image = EditorGUIUtility.IconContent("d_RawImage Icon").image,
                 tooltip = "Add a thumbnail image to the current branch"
+            };
+            
+            cameraButton = new GUIContent
+            {
+                text = " Take picture",
+                image = EditorGUIUtility.IconContent("d_SceneViewCamera").image,
+                tooltip = "Add a thumbnail image by taking a picture"
             };
         }
 
