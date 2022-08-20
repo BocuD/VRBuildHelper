@@ -496,8 +496,6 @@ namespace BocuD.BuildHelper
 
         private VariableInstruction[] ImportFromUdonBehaviour()
         {
-            inspectorBehaviour.UpdateProxy();
-
             VariableInstruction[] output = new VariableInstruction[0];
             
             for (int index = 0; index < inspectorBehaviour.targetBehaviours.Length; index++)
@@ -532,7 +530,6 @@ namespace BocuD.BuildHelper
 
         private void ExportToUdonBehaviour(VariableInstruction[] toExport)
         {
-            inspectorBehaviour.UpdateProxy();
             inspectorBehaviour.targetBehaviours = new Component[toExport.Length];
             inspectorBehaviour.targetTypes = new string[toExport.Length];
             inspectorBehaviour.targetVariableNames = new string[toExport.Length];
@@ -551,7 +548,12 @@ namespace BocuD.BuildHelper
                 inspectorBehaviour.targetVariableNames[index] = instruction.variableNames[instruction.variableIndex];
             }
 
-            inspectorBehaviour.ApplyProxyModifications();
+            EditorUtility.SetDirty(inspectorBehaviour);
+
+            if (PrefabUtility.IsPartOfAnyPrefab(inspectorBehaviour))
+            {
+                PrefabUtility.RecordPrefabInstancePropertyModifications(inspectorBehaviour);
+            }
         }
 
         private static void GetValidVariables(UdonBehaviour udon, VariableInstruction.Source source, out List<string> vars, out List<Type> types)

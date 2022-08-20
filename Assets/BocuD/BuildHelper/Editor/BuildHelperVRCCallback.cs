@@ -215,12 +215,18 @@ namespace BocuD.BuildHelper.Editor
 
             if (buildHelperData.dataObject.CurrentBranch.hasUdonLink && buildHelperData.linkedBehaviourGameObject != null)
             {
-                BuildHelperUdon linkedUdon = buildHelperData.linkedBehaviourGameObject.GetUdonSharpComponent<BuildHelperUdon>();
-                linkedUdon.UpdateProxy();
+                BuildHelperUdon linkedUdon = buildHelperData.linkedBehaviourGameObject.GetComponent<BuildHelperUdon>();
+                
                 linkedUdon.branchName = buildHelperData.dataObject.CurrentBranch.name;
                 linkedUdon.buildNumber = buildData.CurrentPlatformBuildData().buildVersion;
                 linkedUdon.buildDate = buildData.CurrentPlatformBuildData().BuildTime;
-                linkedUdon.ApplyProxyModifications();
+                
+                EditorUtility.SetDirty(linkedUdon);
+
+                if (PrefabUtility.IsPartOfAnyPrefab(linkedUdon))
+                {
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(linkedUdon);
+                }
             } 
             else if (!buildHelperData.dataObject.CurrentBranch.hasUdonLink)
             {
@@ -229,7 +235,7 @@ namespace BocuD.BuildHelper.Editor
 
                 foreach (GameObject obj in currentScene.GetRootGameObjects())
                 {
-                    BuildHelperUdon[] behaviours = obj.GetUdonSharpComponentsInChildren<BuildHelperUdon>();
+                    BuildHelperUdon[] behaviours = obj.GetComponentsInChildren<BuildHelperUdon>();
                     foundBehaviours.AddRange(behaviours);
                 }
                     

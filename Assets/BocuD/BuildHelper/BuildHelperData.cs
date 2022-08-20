@@ -56,7 +56,7 @@ namespace BocuD.BuildHelper
         {
 #if UNITY_EDITOR
             if (linkedBehaviourGameObject != null)
-                linkedBehaviour = linkedBehaviourGameObject.GetUdonSharpComponent<BuildHelperUdon>();
+                linkedBehaviour = linkedBehaviourGameObject.GetComponent<BuildHelperUdon>();
 #endif
         }
 
