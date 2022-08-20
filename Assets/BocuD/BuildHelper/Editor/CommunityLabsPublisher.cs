@@ -161,7 +161,7 @@ namespace BocuD.BuildHelper.Editor
                 {
                     try
                     {
-                        if (dict["canPublish"] is bool)
+                        if (dict["canPublish"].Type == BestHTTP.JSON.Json.TokenType.Boolean)
                         {
                             canPublish = (bool) dict["canPublish"];
                         }
