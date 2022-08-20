@@ -38,7 +38,7 @@ namespace BocuD.BuildHelper
     
     public static class BuildHelperBuilder
     {
-        public static string ExportAssetBundle()
+        public static string ExportAssetBundle(string targetPath = "")
         {
             bool buildTestBlocked = !VRCBuildPipelineCallbacks.OnVRCSDKBuildRequested(VRCSDKRequestedBuildType.Scene);
             
@@ -51,6 +51,20 @@ namespace BocuD.BuildHelper
 
                 VRC_SdkBuilder.ExportSceneResource();
                 string output = EditorPrefs.GetString("currentBuildingAssetBundlePath");
+
+                if (targetPath != "")
+                {
+                    if (File.Exists(targetPath))
+                    {
+                        File.Delete(targetPath);
+                    }
+                    
+                    File.Move(output, targetPath);
+                    output = targetPath;
+                    
+                    EditorPrefs.SetString("currentBuildingAssetBundlePath", output);
+                    EditorPrefs.SetString("lastVRCPath", output);
+                }
                 
                 //save last build information
                 PlatformBuildInfo data = BuildHelperData.GetDataObject()?.CurrentBranch?.buildData?.CurrentPlatformBuildData();

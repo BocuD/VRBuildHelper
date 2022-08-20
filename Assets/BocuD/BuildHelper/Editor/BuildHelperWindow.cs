@@ -1796,7 +1796,9 @@ namespace BocuD.BuildHelper.Editor
             if (CurrentPlatform() == Platform.Android || BuildHelperEditorPrefs.ShowBuildOnly)
                 DrawBuildOnlyOptions();
 
-            DrawLocalTestingOptions();
+            if (CurrentPlatform() == Platform.Windows)
+                DrawLocalTestingOptions();
+            
             DrawPublishingOptions();
         }
 
@@ -1858,11 +1860,12 @@ namespace BocuD.BuildHelper.Editor
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Build assetbundle");
 
-            newBuildButton.tooltip =
-                "You can use this option to do a clean build, either for analysis or to upload later.";
+            newBuildButton.tooltip = "You can use this option to do a clean build, either for analysis or to upload later.";
             if (GUILayout.Button(newBuildButton, buttonStyle))
             {
-                BuildHelperBuilder.ExportAssetBundle();
+                string targetPath = EditorUtility.SaveFilePanel("Export AssetBundle as .vrcw", Application.dataPath, buildHelperData.CurrentBranch.cachedName, "vrcw");
+                BuildHelperBuilder.ExportAssetBundle(targetPath);
+
                 return;
             }
 
@@ -1916,8 +1919,17 @@ namespace BocuD.BuildHelper.Editor
             {
                 if (GUILayout.Button(lastBuildButton, buttonStyle))
                 {
-                    BuildHelperBuilder.TestExistingBuild(buildHelperData.CurrentBranch.buildData
-                        .CurrentPlatformBuildData().buildPath);
+                    BuildHelperData.RunLastBuildChecks();
+                    
+                    if (CheckLastBuiltBranch())
+                    {
+                        BuildHelperBuilder.TestExistingBuild(buildHelperData.CurrentBranch.buildData
+                            .CurrentPlatformBuildData().buildPath);
+                    }
+                    else
+                    {
+                        EditorUtility.DisplayDialog("BuildHelper", "Couldn't find the last build for this branch. Try building again.", "OK");
+                    }
                 }
             }
 
@@ -1945,8 +1957,17 @@ namespace BocuD.BuildHelper.Editor
                 {
                     if (GUILayout.Button(lastBuildButton, buttonStyle))
                     {
-                        BuildHelperBuilder.ReloadExistingBuild(buildHelperData.CurrentBranch.buildData
-                            .CurrentPlatformBuildData().buildPath);
+                        BuildHelperData.RunLastBuildChecks();
+
+                        if (CheckLastBuiltBranch())
+                        {
+                            BuildHelperBuilder.ReloadExistingBuild(buildHelperData.CurrentBranch.buildData
+                                .CurrentPlatformBuildData().buildPath);
+                        }
+                        else
+                        {
+                            EditorUtility.DisplayDialog("BuildHelper", "Couldn't find the last build for this branch. Try building again.", "OK");
+                        }
                     }
                 }
 
@@ -1996,6 +2017,8 @@ namespace BocuD.BuildHelper.Editor
 
                 if (GUILayout.Button(lastBuildButton, buttonStyle))
                 {
+                    BuildHelperData.RunLastBuildChecks();
+                    
                     if (CheckLastBuiltBranch())
                     {
                         Branch targetBranch = buildHelperData.CurrentBranch;
@@ -2025,6 +2048,10 @@ namespace BocuD.BuildHelper.Editor
                             }
                             else BuildHelperBuilder.PublishLastBuild();
                         }
+                    }
+                    else
+                    {
+                        EditorUtility.DisplayDialog("BuildHelper", "Couldn't find the last build for this branch. Try building again.", "OK");
                     }
                 }
             }
