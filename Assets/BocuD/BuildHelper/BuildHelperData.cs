@@ -281,6 +281,12 @@ namespace BocuD.BuildHelper
     [Serializable]
     public class Branch
     {
+        //Editor only information
+        [NonSerialized] public ApiWorld apiWorld = null;
+        [NonSerialized] public bool apiWorldLoaded = false;
+        [NonSerialized] public bool isNewWorld = false;
+        [NonSerialized] public bool loadError = false;
+        
         //basic branch information
         public string name = "";
         public string blueprintID = "";
@@ -334,6 +340,42 @@ namespace BocuD.BuildHelper
         {
             overrideContainer = new OverrideContainer();
             branchID = BuildHelperData.GetUniqueID();
+        }
+
+        public ApiWorld FetchWorldData()
+        {
+            if (blueprintID != "")
+            {
+                if (!blueprintCache.TryGetValue(blueprintID, out ApiModel model))
+                {
+                    if (!invalidBlueprints.Contains(blueprintID))
+                        FetchApiWorld(blueprintID);
+                    else isNewWorld = true;
+                }
+                else
+                {
+                    apiWorld = (ApiWorld)model;
+                    apiWorldLoaded = true;
+                }
+
+                if (invalidBlueprints.Contains(blueprintID))
+                {
+                    loadError = true;
+                }
+                else if (!isNewWorld && model == null && !Application.isPlaying)
+                {
+                    apiWorldLoaded = false;
+                }
+            }
+            else
+            {
+                isNewWorld = true;
+            }
+
+            if (isNewWorld) remoteExists = false;
+            else if (apiWorldLoaded) remoteExists = true;
+
+            return apiWorld;
         }
     }
 

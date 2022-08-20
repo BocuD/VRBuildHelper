@@ -47,6 +47,7 @@ namespace BocuD.BuildHelper.Editor
     {
         private GUIStyle styleHelpBox;
         private GUIStyle styleBox;
+        private GUIStyle modifiedImageBackground;
 
         private GUIContent activeWindowsTarget;
         private GUIContent activeAndroidTarget;
@@ -72,9 +73,14 @@ namespace BocuD.BuildHelper.Editor
         private GUIContent windowsTargetButton;
         private GUIContent androidTargetButton;
 
+        private GUIContent deleteWorldButton;
+        private GUIContent editButton;
+        private GUIContent saveButton;
+        private GUIContent cancelButton;
         private GUIContent replaceImageButton;
         private GUIContent setImageButton;
         private GUIContent cameraButton;
+        private GUIContent revertImageButton;
 
         private GUIContent currentPlatformPublish;
         private GUIContent crossPlatformPublish;
@@ -1000,7 +1006,7 @@ namespace BocuD.BuildHelper.Editor
                 if (buildHelperBehaviour.linkedBehaviourGameObject != null)
                 {
                     buildHelperBehaviour.linkedBehaviour = buildHelperBehaviour.linkedBehaviourGameObject
-                        .GetUdonSharpComponent<BuildHelperUdon>();
+                        .GetComponent<BuildHelperUdon>();
                 }
 
                 EditorGUILayout.BeginHorizontal();
@@ -1062,6 +1068,14 @@ namespace BocuD.BuildHelper.Editor
 
         private void DrawVRCWorldEditor(Branch branch)
         {
+            ApiWorld apiWorld = branch.FetchWorldData();
+
+            //set up button style
+            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button)
+            {
+                stretchWidth = false, fixedHeight = EditorGUIUtility.singleLineHeight, richText = true
+            };
+            
             GUILayout.BeginVertical("Helpbox");
 
             GUILayout.BeginHorizontal();
@@ -1071,73 +1085,69 @@ namespace BocuD.BuildHelper.Editor
             {
                 VRChatApiToolsEditor.RefreshData();
             }
+            
+            if (branch.loadError)
+            {
+                EditorGUILayout.HelpBox(
+                    "Couldn't load world information. This can happen if the blueprint ID is invalid, or if the world was deleted.",
+                    MessageType.Error);
 
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("Change blueprint ID"))
+                {
+                    ChangeBranchBlueprintID(branch);
+                }
+
+                if (GUILayout.Button("Remove blueprint ID"))
+                {
+                    branch.blueprintID = "";
+                    SwitchBranch(buildHelperBehaviour, Array.IndexOf(buildHelperData.branches, branch));
+                }
+
+                EditorGUILayout.EndHorizontal();
+            }
+            else if (!branch.isNewWorld && branch.apiWorldLoaded == false && !Application.isPlaying)
+            {
+                EditorGUILayout.LabelField("Loading world information...");
+            }
+            
+            if (!branch.isNewWorld && branch.apiWorldLoaded && branch.HasVRCDataChanges())
+            {
+                bool authorMismatch = apiWorld.authorId != APIUser.CurrentUser.id;
+
+                using (new EditorGUI.DisabledScope(applying || authorMismatch))
+                {
+                    GUIContent applyChangesButton = new GUIContent(
+                        applying ? "Applying changes..." : "<color=yellow>Apply Changes to World</color>",
+                        applying ? null : EditorGUIUtility.IconContent("Warning").image,
+                        applying
+                            ? ""
+                            : (authorMismatch
+                                ? "Can't apply changes to this blueprint ID because the logged in user doesn't own it"
+                                : "Apply changes to this blueprint ID"));
+
+                    if (GUILayout.Button(applyChangesButton, buttonStyle))
+                    {
+                        if (EditorUtility.DisplayDialog("Applying Changes to VRChat World",
+                                "Applying changes will immediately apply any changes you made here without reuploading the world. Are you sure you want to continue?",
+                                "Yes", "No"))
+                        {
+                            ApplyBranchChanges(branch, apiWorld);
+                        }
+                    }
+                }
+            }
             EditorGUI.EndDisabledGroup();
             GUILayout.EndHorizontal();
-
-            ApiWorld apiWorld = null;
-
-            bool apiWorldLoaded = false;
-            bool isNewWorld = false;
-            bool loadError = false;
-
-            if (branch.blueprintID != "")
-            {
-                if (!blueprintCache.TryGetValue(branch.blueprintID, out ApiModel model))
-                {
-                    if (!invalidBlueprints.Contains(branch.blueprintID))
-                        FetchApiWorld(branch.blueprintID);
-                    else isNewWorld = true;
-                }
-                else
-                {
-                    apiWorld = (ApiWorld)model;
-                    apiWorldLoaded = true;
-                }
-
-                if (invalidBlueprints.Contains(branch.blueprintID))
-                {
-                    loadError = true;
-                    EditorGUILayout.HelpBox(
-                        "Couldn't load world information. This can happen if the blueprint ID is invalid, or if the world was deleted.",
-                        MessageType.Error);
-                    apiWorldLoaded = false;
-                    EditorGUILayout.BeginHorizontal();
-                    if (GUILayout.Button("Change blueprint ID"))
-                    {
-                        ChangeBranchBlueprintID(branch);
-                    }
-
-                    if (GUILayout.Button("Remove blueprint ID"))
-                    {
-                        branch.blueprintID = "";
-                        SwitchBranch(buildHelperBehaviour, Array.IndexOf(buildHelperData.branches, branch));
-                    }
-
-                    EditorGUILayout.EndHorizontal();
-                }
-                else if (!isNewWorld && model == null && !Application.isPlaying)
-                {
-                    EditorGUILayout.LabelField("Loading world information...");
-                    apiWorldLoaded = false;
-                }
-            }
-            else
-            {
-                isNewWorld = true;
-            }
-
-            if (isNewWorld) branch.remoteExists = false;
-            else if (apiWorldLoaded) branch.remoteExists = true;
 
             GUIStyle styleRichTextLabelBig = new GUIStyle(GUI.skin.label)
                 { richText = true, fontSize = 20, wordWrap = true };
 
-            if (loadError)
+            if (branch.loadError)
             {
-                GUILayout.Label("Unknown VRChat World", styleRichTextLabelBig);
+                GUILayout.Label("Error loading world information", styleRichTextLabelBig);
             }
-            else if (isNewWorld)
+            else if (branch.isNewWorld)
             {
                 GUILayout.Label("Unpublished VRChat World", styleRichTextLabelBig);
             }
@@ -1145,7 +1155,7 @@ namespace BocuD.BuildHelper.Editor
             {
                 string headerText = branch.cachedName;
 
-                if (apiWorldLoaded)
+                if (branch.apiWorldLoaded)
                 {
                     CacheWorldInfo(branch, apiWorld);
                     headerText = $"<b>{apiWorld.name}</b> by {apiWorld.authorName}";
@@ -1173,7 +1183,7 @@ namespace BocuD.BuildHelper.Editor
             //draw world editor
             if (!editMode)
             {
-                if (isNewWorld)
+                if (branch.isNewWorld)
                 {
                     displayName = $"<color=gray>{branch.editedName}</color>";
                     displayDesc = $"<color=gray>{branch.editedDescription}</color>";
@@ -1247,13 +1257,13 @@ namespace BocuD.BuildHelper.Editor
                 if (EditorGUI.EndChangeCheck()) editModeChanges = true;
 
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField(apiWorldLoaded
+                EditorGUILayout.LabelField(branch.apiWorldLoaded
                     ? "Release: " + apiWorld.releaseStatus + (apiWorld.IsCommunityLabsWorld ? " (Community labs)" : "")
                     : "Release: " + branch.cachedRelease, GUILayout.Width(100));
 
                 GUILayout.FlexibleSpace();
-                
-                if (apiWorldLoaded)
+
+                if (branch.apiWorldLoaded)
                 {
                     if (apiWorld.releaseStatus == "private")
                     {
@@ -1269,10 +1279,10 @@ namespace BocuD.BuildHelper.Editor
                             CommunityLabsPublisher.UnpublishWorld(apiWorld);
                         }
                     }
-                    
+
                     Color temp = GUI.backgroundColor;
                     GUI.backgroundColor = Color.red;
-                    if (GUILayout.Button("Delete world", GUILayout.Width(100)))
+                    if (GUILayout.Button(deleteWorldButton, GUILayout.Width(100)))
                     {
                         if (EditorUtility.DisplayDialog("Confirm deletion",
                                 $"Are you sure you want to delete the world '{apiWorld.name}'? This will remove the world from VRChat permanently, and this is not reversible.",
@@ -1311,7 +1321,9 @@ namespace BocuD.BuildHelper.Editor
 
             GUILayout.EndVertical();
 
-            //draw image
+            //draw image editor
+            GUILayout.BeginVertical();
+
             if (branch.vrcImageHasChanges)
             {
                 if (!modifiedWorldImages.ContainsKey(branch.branchID))
@@ -1323,36 +1335,29 @@ namespace BocuD.BuildHelper.Editor
 
                 if (modifiedWorldImages.ContainsKey(branch.branchID))
                 {
-                    GUILayout.BeginVertical();
-                    GUILayout.Box(modifiedWorldImages[branch.branchID], GUILayout.Width(imgWidth),
-                        GUILayout.Height(imgWidth / 4 * 3));
-                    GUILayout.Space(8);
-
-                    GUILayout.EndVertical();
+                    GUILayout.Box(modifiedWorldImages[branch.branchID], modifiedImageBackground, GUILayout.Width(imgWidth), GUILayout.Height(imgWidth / 4 * 3));
                 }
             }
             else
             {
-                if (apiWorldLoaded && !loadError)
+                if (branch.apiWorldLoaded && !branch.loadError)
                 {
                     if (ImageCache.ContainsKey(apiWorld.id))
                     {
-                        GUILayout.BeginVertical();
                         GUILayout.Box(ImageCache[apiWorld.id], GUILayout.Width(imgWidth),
                             GUILayout.Height(imgWidth / 4 * 3));
-                        GUILayout.Space(8);
-                        GUILayout.EndVertical();
                     }
                 }
                 else
                 {
-                    GUILayout.BeginVertical();
-                    GUILayout.Box(apiWorldLoaded ? "Couldn't load image" : "No image set", GUILayout.Width(imgWidth),
+                    GUILayout.Box(branch.apiWorldLoaded ? "Couldn't load image" : "No image set",
+                        GUILayout.Width(imgWidth),
                         GUILayout.Height(imgWidth / 4 * 3));
-                    GUILayout.Space(8);
-                    GUILayout.EndVertical();
                 }
             }
+
+            GUILayout.Space(8);
+            GUILayout.EndVertical();
 
             GUILayout.EndHorizontal();
 
@@ -1370,19 +1375,128 @@ namespace BocuD.BuildHelper.Editor
                     "<color=yellow>Your changes will be applied automatically with the next upload. You can also apply changes directly by clicking [Apply Changes to World].</color>";
                 EditorGUILayout.LabelField(changesWarning, infoStyle);
             }
-
-            //draw buttons
+            
+            //draw button row
             EditorGUILayout.BeginHorizontal();
-            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button) { stretchWidth = false, fixedHeight = EditorGUIUtility.singleLineHeight, richText = true };
 
-            if (!editMode)
+            if (editMode)
             {
-                if (GUILayout.Button("Edit", buttonStyle))
+                if (GUILayout.Button(editModeChanges ? saveButton : cancelButton, buttonStyle))
+                {
+                    editMode = false;
+
+                    if (editModeChanges)
+                    {
+                        branch.editedName = tempName;
+                        branch.editedDescription = tempDesc;
+                        branch.editedCap = tempCap;
+                        branch.editedTags = tempTags.ToList();
+
+                        if (branch.isNewWorld)
+                        {
+                            branch.nameChanged = branch.editedName != "New VRChat World";
+                            branch.descriptionChanged = branch.editedDescription != "Fancy description for your world";
+                            branch.capacityChanged = branch.editedCap != 16;
+                            branch.tagsChanged = !branch.editedTags.SequenceEqual(new List<string>());
+                        }
+                        else
+                        {
+                            branch.nameChanged = branch.editedName != apiWorld.name;
+                            branch.descriptionChanged = branch.editedDescription != apiWorld.description;
+                            branch.capacityChanged = branch.editedCap != apiWorld.capacity;
+                            branch.tagsChanged = !branch.editedTags.SequenceEqual(apiWorld.publicTags);
+                        }
+
+                        TrySave();
+                    }
+                }
+
+                using (new EditorGUI.DisabledScope(!editModeChanges && branch.isNewWorld))
+                {
+                    if ((editModeChanges || branch.HasVRCDataChanges()) && GUILayout.Button(editModeChanges //if have been changes in edit mode, give an option to revert only those changes
+                                ? new GUIContent("Revert", "Will undo any changes made since you started editing")
+                                : new GUIContent("Revert All", EditorGUIUtility.IconContent("Warning").image,
+                                    branch.isNewWorld ? "There is nothing to revert to on new worlds." : "Revert all world metadata back to what is currently stored on VRChat."), buttonStyle))
+                    {
+                        if (!editModeChanges)
+                        {
+                            if (EditorUtility.DisplayDialog("Reverting all changes",
+                                    "You don't seem to have made any text changes while in edit mode. Clicking revert will reset all previously edited text to what is currently stored on VRChat's servers. Do you want to proceed?",
+                                    "Proceed", "Cancel"))
+                            {
+                                branch.editedName = branch.cachedName;
+                                branch.editedDescription = branch.cachedDescription;
+                                branch.editedCap = branch.cachedCap;
+                                branch.editedTags = branch.cachedTags.ToList();
+
+                                branch.nameChanged = false;
+                                branch.descriptionChanged = false;
+                                branch.capacityChanged = false;
+                                branch.tagsChanged = false;
+
+                                editMode = false;
+
+                                TrySave();
+                            }
+                        }
+                        else
+                        {
+                            editMode = false;
+
+                            tempName = branch.editedName;
+                            tempDesc = branch.editedDescription;
+                            tempCap = branch.editedCap;
+                            tempTags = branch.editedTags.ToList();
+
+                            TrySave();
+                        }
+                    }
+                }
+
+                //draw image buttons
+                if (GUILayout.Button(branch.apiWorldLoaded ? replaceImageButton : setImageButton, buttonStyle))
+                {
+                    string[] allowedFileTypes = { "png" };
+                    imageBranch = branch;
+                    NativeFilePicker.PickFile(OnImageSelected, allowedFileTypes);
+                }
+
+                if (GUILayout.Button(cameraButton, buttonStyle))
+                {
+                    imageBranch = branch;
+                    EditorCameraGUI.SetupCapture(UpdateBranchImage);
+                }
+
+                if (branch.vrcImageHasChanges)
+                {
+                    if (GUILayout.Button(revertImageButton, buttonStyle))
+                    {
+                        branch.vrcImageHasChanges = false;
+                        branch.vrcImageWarning = "";
+
+                        modifiedWorldImages.Remove(branch.branchID);
+
+                        string oldImagePath =
+                            ImageTools.GetImageAssetPath(buildHelperBehaviour.sceneID, branch.branchID);
+
+                        Texture2D oldImage =
+                            AssetDatabase.LoadAssetAtPath(oldImagePath, typeof(Texture2D)) as Texture2D;
+
+                        if (oldImage != null)
+                        {
+                            AssetDatabase.DeleteAsset(oldImagePath);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                if (GUILayout.Button(editButton, buttonStyle))
                 {
                     editMode = true;
                     editModeChanges = false;
 
-                    if (!isNewWorld)
+                    if (!branch.isNewWorld)
                     {
                         tempName = branch.nameChanged ? branch.editedName : apiWorld.name;
                         tempDesc = branch.descriptionChanged ? branch.editedDescription : apiWorld.description;
@@ -1403,142 +1517,6 @@ namespace BocuD.BuildHelper.Editor
                 if (GUILayout.Button(openWebsite, buttonStyle))
                 {
                     Application.OpenURL($"https://vrchat.com/home/world/{branch.blueprintID}");
-                }
-
-                if (!isNewWorld && apiWorldLoaded && branch.HasVRCDataChanges())
-                {
-                    bool authorMismatch = apiWorld.authorId != APIUser.CurrentUser.id;
-
-                    using (new EditorGUI.DisabledScope(applying || authorMismatch))
-                    {
-                        GUIContent applyChangesButton = new GUIContent(
-                            applying ? "Applying changes..." : "<color=yellow>Apply Changes to World</color>",
-                            applying ? null : EditorGUIUtility.IconContent("Warning").image,
-                            applying
-                                ? ""
-                                : (authorMismatch
-                                    ? "Can't apply changes to this blueprint ID because the logged in user doesn't own it"
-                                    : "Apply changes to this blueprint ID"));
-
-                        if (GUILayout.Button(
-                                applyChangesButton,
-                                buttonStyle))
-                        {
-                            if (EditorUtility.DisplayDialog("Applying Changes to VRChat World",
-                                    "Applying changes will immediately apply any changes you made here without reuploading the world. Are you sure you want to continue?",
-                                    "Yes", "No"))
-                            {
-                                ApplyBranchChanges(branch, apiWorld);
-                            }
-                        }
-                    }
-                }
-            }
-            else
-            {
-                if (GUILayout.Button(editModeChanges ? "Save" : "Cancel", buttonStyle))
-                {
-                    editMode = false;
-
-                    if (editModeChanges)
-                    {
-                        branch.editedName = tempName;
-                        branch.editedDescription = tempDesc;
-                        branch.editedCap = tempCap;
-                        branch.editedTags = tempTags.ToList();
-
-                        if (isNewWorld)
-                        {
-                            branch.nameChanged = branch.editedName != "New VRChat World";
-                            branch.descriptionChanged = branch.editedDescription != "Fancy description for your world";
-                            branch.capacityChanged = branch.editedCap != 16;
-                            branch.tagsChanged = !branch.editedTags.SequenceEqual(new List<string>());
-                        }
-                        else
-                        {
-                            branch.nameChanged = branch.editedName != apiWorld.name;
-                            branch.descriptionChanged = branch.editedDescription != apiWorld.description;
-                            branch.capacityChanged = branch.editedCap != apiWorld.capacity;
-                            branch.tagsChanged = !branch.editedTags.SequenceEqual(apiWorld.publicTags);
-                        }
-
-                        TrySave();
-                    }
-                }
-
-                EditorGUI.BeginDisabledGroup(!editModeChanges && isNewWorld);
-                if (GUILayout.Button(
-                        editModeChanges
-                            ? new GUIContent("Revert")
-                            : new GUIContent("Revert All",
-                                isNewWorld ? "There is nothing to revert to on new worlds." : ""), buttonStyle))
-                {
-                    if (!editModeChanges)
-                    {
-                        if (EditorUtility.DisplayDialog("Reverting all changes",
-                                "You don't seem to have made any text changes while in edit mode. Clicking revert will reset all previously edited text to what is currently stored on VRChat's servers. Do you want to proceed?",
-                                "Proceed", "Cancel"))
-                        {
-                            branch.editedName = branch.cachedName;
-                            branch.editedDescription = branch.cachedDescription;
-                            branch.editedCap = branch.cachedCap;
-                            branch.editedTags = branch.cachedTags.ToList();
-
-                            branch.nameChanged = false;
-                            branch.descriptionChanged = false;
-                            branch.capacityChanged = false;
-                            branch.tagsChanged = false;
-
-                            editMode = false;
-
-                            TrySave();
-                        }
-                    }
-                    else
-                    {
-                        editMode = false;
-
-                        TrySave();
-                    }
-                }
-
-                EditorGUI.EndDisabledGroup();
-
-                buttonStyle.fixedWidth = 120;
-
-                if (GUILayout.Button(apiWorldLoaded ? replaceImageButton : setImageButton, buttonStyle))
-                {
-                    string[] allowedFileTypes = { "png" };
-                    imageBranch = branch;
-                    NativeFilePicker.PickFile(OnImageSelected, allowedFileTypes);
-                }
-
-                if (GUILayout.Button(cameraButton, buttonStyle))
-                {
-                    imageBranch = branch;
-                    EditorCameraGUI.SetupCapture(UpdateBranchImage);
-                }
-
-                if (branch.vrcImageHasChanges)
-                {
-                    if (GUILayout.Button("Revert image", buttonStyle))
-                    {
-                        branch.vrcImageHasChanges = false;
-                        branch.vrcImageWarning = "";
-
-                        modifiedWorldImages.Remove(branch.branchID);
-
-                        string oldImagePath =
-                            ImageTools.GetImageAssetPath(buildHelperBehaviour.sceneID, branch.branchID);
-
-                        Texture2D oldImage =
-                            AssetDatabase.LoadAssetAtPath(oldImagePath, typeof(Texture2D)) as Texture2D;
-
-                        if (oldImage != null)
-                        {
-                            AssetDatabase.DeleteAsset(oldImagePath);
-                        }
-                    }
                 }
             }
 
@@ -2448,6 +2426,14 @@ namespace BocuD.BuildHelper.Editor
             // EditorGUI
             styleHelpBox = new GUIStyle(EditorStyles.helpBox);
             styleHelpBox.padding = new RectOffset(0, 0, styleHelpBox.padding.top, styleHelpBox.padding.bottom + 3);
+            
+            modifiedImageBackground = new GUIStyle(GUI.skin.box)
+            {
+                normal =
+                {
+                    background = ImageTools.BackgroundTexture(32, 32, new Color(1f, 1f, 0, 0.75f))
+                }
+            };
 
             // GUI
             styleBox = new GUIStyle(GUI.skin.box)
@@ -2556,7 +2542,8 @@ namespace BocuD.BuildHelper.Editor
             currentPlatformPublish = new GUIContent
             {
                 text = "Current Platform",
-                image = EditorGUIUtility.IconContent("d_winbtn_win_max_h@2x").image
+                image = EditorGUIUtility.IconContent("d_winbtn_win_max_h@2x").image,
+                tooltip = $"Autonomously build and publish a new build for {CurrentPlatform()}. Only available if Async Publisher is enabled."
                 //image = CurrentPlatform() == Platform.Windows ? 
                 // EditorGUIUtility.IconContent("d_BuildSettings.Metro.Small").image : 
                 // EditorGUIUtility.IconContent("d_BuildSettings.Android.Small").image
@@ -2565,10 +2552,34 @@ namespace BocuD.BuildHelper.Editor
             crossPlatformPublish = new GUIContent
             {
                 text = "All Platforms",
-                image = EditorGUIUtility.IconContent("d_winbtn_win_restore_h@2x").image
+                image = EditorGUIUtility.IconContent("d_winbtn_win_restore_h@2x").image,
+                tooltip = $"Autonomously build and publish a new build for both platforms. Only available if Async Publisher is enabled."
                 //image = CurrentPlatform() == Platform.Windows ? 
                 // EditorGUIUtility.IconContent("d_BuildSettings.Metro.Small").image : 
                 // EditorGUIUtility.IconContent("d_BuildSettings.Android.Small").image
+            };
+
+            deleteWorldButton = new GUIContent
+            {
+                text = " Delete World",
+                image = EditorGUIUtility.IconContent("d_TreeEditor.Trash").image,
+            }; 
+            
+            editButton = new GUIContent
+            {
+                text = " Edit",
+                image = EditorGUIUtility.IconContent("d_editicon.sml").image,
+            }; 
+            
+            saveButton = new GUIContent
+            {
+                text = " Save",
+                image = EditorGUIUtility.IconContent("d_SaveAs").image,
+            };
+            
+            cancelButton = new GUIContent
+            {
+                text = " Cancel "
             };
 
             replaceImageButton = new GUIContent
@@ -2587,9 +2598,16 @@ namespace BocuD.BuildHelper.Editor
             
             cameraButton = new GUIContent
             {
-                text = " Take picture",
+                text = " Take Picture",
                 image = EditorGUIUtility.IconContent("d_SceneViewCamera").image,
                 tooltip = "Add a thumbnail image by taking a picture"
+            };
+            
+            revertImageButton = new GUIContent
+            {
+                text = " Revert Image",
+                image = EditorGUIUtility.IconContent("d_RotateTool").image,
+                tooltip = "Restore the image to the last uploaded version"
             };
         }
 
