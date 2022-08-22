@@ -1464,7 +1464,7 @@ namespace BocuD.BuildHelper.Editor
                 if (GUILayout.Button(cameraButton, buttonStyle))
                 {
                     imageBranch = branch;
-                    EditorCameraGUI.SetupCapture(UpdateBranchImage);
+                    EditorCameraGUIHelper.SetupCapture(UpdateBranchImage);
                 }
 
                 if (branch.vrcImageHasChanges)
