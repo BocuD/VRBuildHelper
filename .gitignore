@@ -9,5 +9,6 @@
 Assets/*
 !Assets/Deployments/**
 !Assets/BocuD/BuildHelper/**
+!Assets/BocuD/Resources/**
 !Assets/Plugins
 !Assets/Plugins/**
