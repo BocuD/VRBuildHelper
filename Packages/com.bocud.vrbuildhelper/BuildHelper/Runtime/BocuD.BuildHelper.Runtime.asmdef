@@ -1,0 +1,27 @@
+{
+    "name": "BocuD.BuildHelper.Runtime",
+    "references": [
+        "UdonSharp.Runtime",
+        "VRC.Udon.Serialization.OdinSerializer",
+        "VRC.Udon",
+        "Unity.TextMeshPro",
+        "Unity.Postprocessing.Runtime",
+        "BocuD.VRChatApiTools.Runtime",
+        "UdonSharp.Editor",
+        "VRC.SDKBase",
+        "NativeFilePicker.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [
+        "VRCSDKBase.dll",
+        "VRCSDK3.dll",
+        "VRC.Udon.Common.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
