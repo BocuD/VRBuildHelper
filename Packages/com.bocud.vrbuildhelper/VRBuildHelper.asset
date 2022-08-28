@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5b9200ff32d5b6b4a8662912ce248828, type: 3}
+  m_Name: VRBuildHelper
+  m_EditorClassIdentifier: 
+  Configurations:
+  - Name: VRBuildHelper
+    ExportDirectory: C:/Users/BocuD/Downloads
+    FileNameTemplate: '{n}_v{v}'
+    PackageManifest: {fileID: 8385607101436470782, guid: c57183096c6ddcd4784e2e5c1f4962a0,
+      type: 3}
+    VersionFile: {fileID: 4900000, guid: 799086687632dab498f661e26d453ba5, type: 3}
+    AssetInclusions: []
+    FolderInclusions:
+    - Folder: {fileID: 102900000, guid: 00603c1e8d3bc0746ab673c4bab34adb, type: 3}
+      IncludeSubfolders: 1
+      DependencyOptions: 0
+      Expanded: 1
+    - Folder: {fileID: 102900000, guid: b405d05cc69bd2d44a335c494923533b, type: 3}
+      IncludeSubfolders: 1
+      DependencyOptions: 0
+      Expanded: 1
+    AssetExclusions: []
+    FolderExclusions: []
+    ShowPackageInFileBrowserAfterExport: 1
+    ExpandInInspector: 1
+    ParentStorage: {fileID: 11400000}

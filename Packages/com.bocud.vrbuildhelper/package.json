@@ -2,6 +2,10 @@
   "name": "com.bocud.vrbuildhelper",
   "version": "1.0.1",
   "displayName": "VRBuildHelper",
+  "author": {
+    "name": "BocuD",
+    "url": "https://github.com/BocuD"
+  },
   "description": "An integrated editor toolset that adds a number of quality of life features to assist VRChat world creators in managing their projects.",
   "type": "tool",
   "unity": "2019.4",
