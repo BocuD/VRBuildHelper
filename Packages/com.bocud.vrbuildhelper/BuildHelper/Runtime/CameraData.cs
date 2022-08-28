@@ -22,7 +22,7 @@ namespace BocuD.BuildHelper
         public AntiAliasingMode antiAliasingMode = AntiAliasingMode.x4;
     }
 
-    #if UNITY_EDITOR
+    #if UNITY_EDITOR && !COMPILER_UDONSHARP
     [CustomEditor(typeof(CameraData))]
     public class CameraDataEditor : Editor
     {
