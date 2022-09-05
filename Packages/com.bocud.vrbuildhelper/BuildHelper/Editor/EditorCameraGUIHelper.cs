@@ -22,6 +22,8 @@ namespace BocuD.BuildHelper.Editor
         {
             CameraData cam = UnityEngine.Object.FindObjectOfType<CameraData>();
 
+            if (cam == null) return;
+
             if (cam.transform.parent == null)
             {
                 BuildHelperData buildHelperData = BuildHelperData.GetDataBehaviour();

@@ -1990,154 +1990,177 @@ namespace BocuD.BuildHelper.Editor
             GUILayout.FlexibleSpace();
             EditorGUILayout.LabelField(
                 $"<i>{(APIUser.IsLoggedIn ? "Currently logged in as " + APIUser.CurrentUser.displayName : "")}</i>",
-                styleRichTextLabel);
+                styleRichTextLabel, GUILayout.ExpandWidth(false));
+
+            bool publishBlocked = !CheckAccount(buildHelperData.CurrentBranch);
+
+            if (!publishBlocked)
+            {
+                if (GUILayout.Button(" Switch ", GUILayout.ExpandWidth(false)))
+                {
+                    VRCSettings.ActiveWindowPanel = 0;
+                    GetWindow<VRCSdkControlPanel>();
+                }
+            }
+
             EditorGUILayout.EndHorizontal();
 
-            if (!CheckAccount(buildHelperData.CurrentBranch, false))
+            if (publishBlocked)
             {
                 EditorGUILayout.HelpBox("The currently logged in user doesn't have permission to publish to this blueprint ID.", MessageType.Error);
-            }
-            
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("Publish to VRChat");
 
-            bool lastBuildBlocked = !CheckLastBuiltBranch();
-            string lastBuildBlockedTooltip =
-                $"Your last build for the current platform couldn't be found, its hash doesn't match the last {CurrentPlatform()} build for this branch, or was built for a different blueprint ID.";
-
-            using (new EditorGUI.DisabledScope(lastBuildBlocked))
-            {
-                lastBuildButton.tooltip = lastBuildBlocked
-                    ? lastBuildBlockedTooltip
-                    : "Equivalent to (Last build) Build & Publish in the VRChat SDK";
-
-                if (GUILayout.Button(lastBuildButton, buttonStyle))
+                if (GUILayout.Button("Open VRChat SDK Control Panel to switch accounts"))
                 {
-                    BuildHelperData.RunLastBuildChecks();
-                    
-                    if (CheckLastBuiltBranch())
+                    VRCSettings.ActiveWindowPanel = 0;
+                    GetWindow<VRCSdkControlPanel>();
+                }
+            }
+
+            using (new EditorGUI.DisabledScope(publishBlocked))
+            {
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("Publish to VRChat");
+
+                bool lastBuildBlocked = !CheckLastBuiltBranch();
+                string lastBuildBlockedTooltip =
+                    $"Your last build for the current platform couldn't be found, its hash doesn't match the last {CurrentPlatform()} build for this branch, or was built for a different blueprint ID.";
+
+                using (new EditorGUI.DisabledScope(lastBuildBlocked))
+                {
+                    lastBuildButton.tooltip = lastBuildBlocked
+                        ? lastBuildBlockedTooltip
+                        : "Equivalent to (Last build) Build & Publish in the VRChat SDK";
+
+                    if (GUILayout.Button(lastBuildButton, buttonStyle))
+                    {
+                        BuildHelperData.RunLastBuildChecks();
+
+                        if (CheckLastBuiltBranch())
+                        {
+                            Branch targetBranch = buildHelperData.CurrentBranch;
+
+                            bool canPublish = true;
+                            if (!targetBranch.remoteExists && !targetBranch.HasVRCDataChanges() &&
+                                BuildHelperEditorPrefs.UseAsyncPublish)
+                            {
+                                canPublish = EditorUtility.DisplayDialog("Build Helper",
+                                    $"You are about to publish a new world, but you haven't edited any world details. The async publisher doesn't enter playmode to let you edit world details, so your world will be uploaded as '{targetBranch.editedName}'. Do you want to continue?",
+                                    "Continue", "Cancel");
+                            }
+
+                            if (canPublish)
+                            {
+                                if (BuildHelperEditorPrefs.UseAsyncPublish)
+                                {
+                                    Branch b = buildHelperData.CurrentBranch;
+                                    BuildHelperBuilder.PublishWorldAsync(
+                                        b.buildData.CurrentPlatformBuildData().buildPath,
+                                        "", b.ToWorldInfo(), info =>
+                                        {
+                                            Task verify =
+                                                buildHelperBehaviour.OnSuccesfulPublish(buildHelperData.CurrentBranch,
+                                                    info.blueprintID,
+                                                    DateTime.Now);
+                                        });
+                                }
+                                else BuildHelperBuilder.PublishLastBuild();
+                            }
+                        }
+                        else
+                        {
+                            EditorUtility.DisplayDialog("BuildHelper",
+                                "Couldn't find the last build for this branch. Try building again.", "OK");
+                        }
+                    }
+                }
+
+                newBuildButton.tooltip = "Equivalent to Build & Publish in the VRChat SDK";
+
+                if (GUILayout.Button(newBuildButton, buttonStyle))
+                {
+                    Branch targetBranch = buildHelperData.CurrentBranch;
+
+                    bool canPublish = true;
+                    if (!targetBranch.remoteExists && !targetBranch.HasVRCDataChanges() &&
+                        BuildHelperEditorPrefs.UseAsyncPublish)
+                    {
+                        canPublish = EditorUtility.DisplayDialog("Build Helper",
+                            $"You are about to publish a new world, but you haven't edited any world details. The async publisher doesn't enter playmode to let you edit world details, so your world will be uploaded as '{targetBranch.editedName}'. Do you want to continue?",
+                            "Continue", "Cancel");
+                    }
+
+                    if (canPublish)
+                    {
+                        if (BuildHelperEditorPrefs.UseAsyncPublish)
+                        {
+                            BuildHelperBuilder.PublishNewBuildAsync(buildHelperData.CurrentBranch.ToWorldInfo(), info =>
+                            {
+                                Task verify = buildHelperBehaviour.OnSuccesfulPublish(buildHelperData.CurrentBranch,
+                                    info.blueprintID, DateTime.Now);
+                            });
+                        }
+                        else BuildHelperBuilder.PublishNewBuild();
+                    }
+
+                    return;
+                }
+
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("Autonomous Builder");
+
+                using (new EditorGUI.DisabledScope(!BuildHelperEditorPrefs.UseAsyncPublish))
+                {
+                    GUIContent autonomousBuilderButtonSingle = new GUIContent("Current platform",
+                        BuildHelperEditorPrefs.UseAsyncPublish
+                            ? "Publish your world autonomously"
+                            : "To use the autonomous builder, please enable Async Publishing in settings");
+
+                    if (GUILayout.Button(currentPlatformPublish, buttonStyle))
                     {
                         Branch targetBranch = buildHelperData.CurrentBranch;
 
                         bool canPublish = true;
-                        if (!targetBranch.remoteExists && !targetBranch.HasVRCDataChanges() &&
-                            BuildHelperEditorPrefs.UseAsyncPublish)
+                        if (!targetBranch.remoteExists && !targetBranch.HasVRCDataChanges())
                         {
                             canPublish = EditorUtility.DisplayDialog("Build Helper",
-                                $"You are about to publish a new world, but you haven't edited any world details. The async publisher doesn't enter playmode to let you edit world details, so your world will be uploaded as '{targetBranch.editedName}'. Do you want to continue?",
+                                $"You are about to publish a new world using the autonomous builder, but you haven't edited any world details. The autonomous builder doesn't enter playmode to let you edit world details, so your world will be uploaded as '{targetBranch.editedName}'. Do you want to continue?",
                                 "Continue", "Cancel");
                         }
 
-                        if (canPublish && CheckAccount(targetBranch))
+                        if (canPublish)
                         {
-                            if (BuildHelperEditorPrefs.UseAsyncPublish)
-                            {
-                                Branch b = buildHelperData.CurrentBranch;
-                                BuildHelperBuilder.PublishWorldAsync(b.buildData.CurrentPlatformBuildData().buildPath,
-                                    "", b.ToWorldInfo(), info =>
-                                    {
-                                        Task verify =
-                                            buildHelperBehaviour.OnSuccesfulPublish(buildHelperData.CurrentBranch,
-                                                info.blueprintID,
-                                                DateTime.Now);
-                                    });
-                            }
-                            else BuildHelperBuilder.PublishLastBuild();
+                            InitAutonomousBuild(true);
                         }
                     }
-                    else
+
+                    GUIContent autonomousBuilderButton = new GUIContent("All platforms",
+                        BuildHelperEditorPrefs.UseAsyncPublish
+                            ? "Publish your world for both platforms simultaneously"
+                            : "To use the autonomous builder, please enable Async Publishing in settings");
+
+                    if (GUILayout.Button(crossPlatformPublish, buttonStyle))
                     {
-                        EditorUtility.DisplayDialog("BuildHelper", "Couldn't find the last build for this branch. Try building again.", "OK");
-                    }
-                }
-            }
+                        Branch targetBranch = buildHelperData.CurrentBranch;
 
-            newBuildButton.tooltip = "Equivalent to Build & Publish in the VRChat SDK";
-
-            if (GUILayout.Button(newBuildButton, buttonStyle))
-            {
-                Branch targetBranch = buildHelperData.CurrentBranch;
-
-                bool canPublish = true;
-                if (!targetBranch.remoteExists && !targetBranch.HasVRCDataChanges() &&
-                    BuildHelperEditorPrefs.UseAsyncPublish)
-                {
-                    canPublish = EditorUtility.DisplayDialog("Build Helper",
-                        $"You are about to publish a new world, but you haven't edited any world details. The async publisher doesn't enter playmode to let you edit world details, so your world will be uploaded as '{targetBranch.editedName}'. Do you want to continue?",
-                        "Continue", "Cancel");
-                }
-
-                if (canPublish && CheckAccount(targetBranch))
-                {
-                    if (BuildHelperEditorPrefs.UseAsyncPublish)
-                    {
-                        BuildHelperBuilder.PublishNewBuildAsync(buildHelperData.CurrentBranch.ToWorldInfo(), info =>
+                        bool canPublish = true;
+                        if (!targetBranch.remoteExists && !targetBranch.HasVRCDataChanges())
                         {
-                            Task verify = buildHelperBehaviour.OnSuccesfulPublish(buildHelperData.CurrentBranch,
-                                info.blueprintID, DateTime.Now);
-                        });
+                            canPublish = EditorUtility.DisplayDialog("Build Helper",
+                                $"You are about to publish a new world using the autonomous builder, but you haven't edited any world details. The autonomous builder doesn't enter playmode to let you edit world details, so your world will be uploaded as '{targetBranch.editedName}'. Do you want to continue?",
+                                "Continue", "Cancel");
+                        }
+
+                        if (canPublish)
+                        {
+                            InitAutonomousBuild();
+                        }
                     }
-                    else BuildHelperBuilder.PublishNewBuild();
                 }
 
-                return;
+                EditorGUILayout.EndHorizontal();
             }
-
-            EditorGUILayout.EndHorizontal();
-
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("Autonomous Builder");
-
-            using (new EditorGUI.DisabledScope(!BuildHelperEditorPrefs.UseAsyncPublish))
-            {
-                GUIContent autonomousBuilderButtonSingle = new GUIContent("Current platform",
-                    BuildHelperEditorPrefs.UseAsyncPublish
-                        ? "Publish your world autonomously"
-                        : "To use the autonomous builder, please enable Async Publishing in settings");
-
-                if (GUILayout.Button(currentPlatformPublish, buttonStyle))
-                {
-                    Branch targetBranch = buildHelperData.CurrentBranch;
-
-                    bool canPublish = true;
-                    if (!targetBranch.remoteExists && !targetBranch.HasVRCDataChanges())
-                    {
-                        canPublish = EditorUtility.DisplayDialog("Build Helper",
-                            $"You are about to publish a new world using the autonomous builder, but you haven't edited any world details. The autonomous builder doesn't enter playmode to let you edit world details, so your world will be uploaded as '{targetBranch.editedName}'. Do you want to continue?",
-                            "Continue", "Cancel");
-                    }
-
-                    if (canPublish && CheckAccount(targetBranch))
-                    {
-                        InitAutonomousBuild(true);
-                    }
-                }
-
-                GUIContent autonomousBuilderButton = new GUIContent("All platforms",
-                    BuildHelperEditorPrefs.UseAsyncPublish
-                        ? "Publish your world for both platforms simultaneously"
-                        : "To use the autonomous builder, please enable Async Publishing in settings");
-
-                if (GUILayout.Button(crossPlatformPublish, buttonStyle))
-                {
-                    Branch targetBranch = buildHelperData.CurrentBranch;
-
-                    bool canPublish = true;
-                    if (!targetBranch.remoteExists && !targetBranch.HasVRCDataChanges())
-                    {
-                        canPublish = EditorUtility.DisplayDialog("Build Helper",
-                            $"You are about to publish a new world using the autonomous builder, but you haven't edited any world details. The autonomous builder doesn't enter playmode to let you edit world details, so your world will be uploaded as '{targetBranch.editedName}'. Do you want to continue?",
-                            "Continue", "Cancel");
-                    }
-
-                    if (canPublish && CheckAccount(targetBranch))
-                    {
-                        InitAutonomousBuild();
-                    }
-                }
-            }
-
-            EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.EndVertical();
         }
@@ -2149,7 +2172,7 @@ namespace BocuD.BuildHelper.Editor
                 currentBranch.buildData.CurrentPlatformBuildData().blueprintID;
         }
 
-        private static bool CheckAccount(Branch target, bool showDialog = true)
+        private static bool CheckAccount(Branch target)
         {
             if (target.blueprintID == "")
             {
@@ -2160,29 +2183,12 @@ namespace BocuD.BuildHelper.Editor
             {
                 if (APIUser.CurrentUser.id != ((ApiWorld)model).authorId)
                 {
-                    if (showDialog && EditorUtility.DisplayDialog("Build Helper",
-                            "The world author for the selected branch doesn't match the currently logged in user. Publishing will result in an error. Do you still want to continue?",
-                            "Yes", "No"))
-                    {
-                        return true;
-                    }
-
                     return false;
                 }
 
                 return true;
             }
-
-            if (showDialog)
-            {
-                if (EditorUtility.DisplayDialog("Build Helper",
-                        "Couldn't verify the world author for the selected branch. Do you want to try publishing anyways?",
-                        "Yes", "No"))
-                {
-                    return true;
-                }
-            }
-
+            
             return false;
         }
 
