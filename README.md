@@ -1,4 +1,3 @@
-Download: https://github.com/BocuD/VRBuildHelper/releases
 # VR Build Helper
 An integrated editor toolset that adds a number of quality of life features to assist VRChat world creators in managing their projects.
 ## Features
@@ -10,19 +9,29 @@ An integrated editor toolset that adds a number of quality of life features to a
  - Automatically upload your world with a single button press - and even upload for two platforms in one go autonomously
  - Upload custom images for your world
  - Edit your world name, description, tags, image etc from the editor
+ - Export .vrcw files for worlds
+ - Editor mode persistent camera
  - Save camera position before uploading
  - much more, read the documentation!
 
 ![Main window](https://i.imgur.com/lt40krp.png)
 
+# Installation
+## Installation via Unity Package Manager (git, recommended):
+1. In the Unity toolbar, select `Window` > `Package Manager` > `[+]` > `Add package from git URL...` 
+2. Paste the following link: `https://github.com/BocuD/VRBuildHelper.git?path=/Packages/com.bocud.vrbuildhelper`
+
+## Installation through a UnityPackage
+1. Download latest unitypackage release from [here](https://github.com/BocuD/VRBuildHelper/releases/latest)
+2. Install the downloaded unitypackage
 
 Special Thanks: 
 @Haï~ for initial deployment manager implementation
 @Nestorboy for letting me steal some of his inspector code :)
 
 ## Requirements
-- VRCSDK3 WORLD 2021.10.22.18.33 or later (earlier versions are untested but may work)
-- UdonSharp v0.20.3 or later or UdonSharp v1.0 beta 11 or later (earlier versions are untested but may work)
-- VRChatApiTools v0.1 or later https://github.com/BocuD/VRChatApiTools/releases
+- Latest version of Package Manager version of VRChat SDK (installed by [VRChat Creator Companion](https://vcc.docs.vrchat.com/))
+- UdonSharp v1.0.0 or later
+- VRChatApiTools v0.2.1 or later https://github.com/BocuD/VRChatApiTools/
 
 ### For complete documentation, please visit [the wiki](https://github.com/BocuD/VRBuildHelper/wiki).
