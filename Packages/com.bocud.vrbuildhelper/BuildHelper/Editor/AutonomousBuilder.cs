@@ -23,6 +23,7 @@
 using System;
 using System.Threading.Tasks;
 using BocuD.VRChatApiTools;
+using BuildHelper.Runtime;
 using UnityEditor;
 using UnityEditor.Build;
 using static BocuD.VRChatApiTools.VRChatApiTools;
@@ -139,6 +140,13 @@ namespace BocuD.BuildHelper
             {
                 status.currentState = AutonomousBuildState.finished;
                 status.buildInfo.activeBuild = false;
+                
+                BuildHelperData data = BuildHelperData.GetDataBehaviour();
+                if (data != null)
+                {
+                    data.dataObject.CurrentBranch.buildData.justUploadedPlatforms = status.buildInfo.initialTarget.ToString();
+                    DiscordWebhookPublish.SendPublishedMessage(data.dataObject.CurrentBranch);
+                }
                 return;
             }
 
@@ -153,6 +161,14 @@ namespace BocuD.BuildHelper
             if (status.buildInfo.Stop) { status.Aborted(); return; }
             
             status.buildInfo.progress = Progress.PostSecondaryBuild;
+            
+            BuildHelperData data = BuildHelperData.GetDataBehaviour();
+            if (data != null)
+            {
+                data.dataObject.CurrentBranch.buildData.justUploadedPlatforms =
+                    status.buildInfo.initialTarget + " and " + status.buildInfo.secondaryTarget;
+                DiscordWebhookPublish.SendPublishedMessage(data.dataObject.CurrentBranch);
+            }
             
             SwitchPlatform(status.buildInfo.initialTarget);
         }
@@ -208,7 +224,7 @@ namespace BocuD.BuildHelper
                 BuildHelperData data = BuildHelperData.GetDataBehaviour();
                 if (data != null)
                 {
-                    await data.OnSuccesfulPublish(data.dataObject.CurrentBranch, blueprintID, DateTime.Now);
+                    await data.OnSuccesfulPublish(data.dataObject.CurrentBranch, blueprintID, DateTime.Now, -1, true);
                     DeploymentManager.TrySaveBuild(data.dataObject.CurrentBranch, buildPath, true);
                 }
 
@@ -229,7 +245,7 @@ namespace BocuD.BuildHelper
                     BuildHelperData data = BuildHelperData.GetDataBehaviour();
                     if (data != null)
                     {
-                        await data.OnSuccesfulPublish(data.dataObject.CurrentBranch, data.dataObject.CurrentBranch.blueprintID, DateTime.Now);
+                        await data.OnSuccesfulPublish(data.dataObject.CurrentBranch, data.dataObject.CurrentBranch.blueprintID, DateTime.Now, -1, true);
                     }
 
                     status.uploading = false;

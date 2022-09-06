@@ -200,7 +200,7 @@ namespace BocuD.BuildHelper
             return id;
         }
         
-        public async Task OnSuccesfulPublish(Branch b, string blueprintID, DateTime uploadTime, int uploadVersion = -1)
+        public async Task OnSuccesfulPublish(Branch b, string blueprintID, DateTime uploadTime, int uploadVersion = -1, bool autonomousBuilder = false)
         {
             Branch target = dataObject.branches.First(br => br.branchID == b.branchID);
             
@@ -222,6 +222,7 @@ namespace BocuD.BuildHelper
             target.buildData.CurrentPlatformBuildData().UploadTime = uploadTime;
             target.buildData.CurrentPlatformBuildData().uploadVersion = uploadVersion == -1 ? target.buildData.CurrentPlatformBuildData().buildVersion : uploadVersion;
             target.buildData.justUploaded = true;
+            target.buildData.justUploadedPlatforms = CurrentPlatform().ToString();
 
             if (target.blueprintID == null || target.blueprintID != blueprintID)
                 target.blueprintID = blueprintID;
@@ -233,9 +234,9 @@ namespace BocuD.BuildHelper
                 target.vrcImageWarning = "";
             }
 
-            if (target.hasDiscordWebhook && target.discordWebhookOnPublish)
+            if (!autonomousBuilder && target.hasDiscordWebhook && target.discordWebhookOnPublish)
             {
-                DiscordWebhookTools.SendPublishedMessage(target);
+                DiscordWebhookPublish.SendPublishedMessage(target);
             }
             
             ClearCaches();
@@ -339,7 +340,7 @@ namespace BocuD.BuildHelper
         //discord webhook
         public bool hasDiscordWebhook;
         public bool discordWebhookOnPublish;
-        public DiscordWebhookTools.DiscordWebhookData webhookSettings;
+        public DiscordWebhookPublish.DiscordWebhookData webhookSettings;
 
         public OverrideContainer overrideContainer;
         
@@ -408,6 +409,7 @@ namespace BocuD.BuildHelper
     public class BuildData
     {
         public bool justUploaded;
+        public string justUploadedPlatforms;
         public PlatformBuildInfo pcData;
         public PlatformBuildInfo androidData;
         
