@@ -2368,6 +2368,10 @@ namespace BocuD.BuildHelper.Editor
                     list.index = 0;
                     TrySave();
                 },
+                onReorderCallback = list =>
+                {
+                    branchStorageObject.currentBranch = list.index;
+                },
 
                 index = branchStorageObject.currentBranch
             };
