@@ -29,6 +29,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using BocuD.VRChatApiTools;
+using BuildHelper.Runtime;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -231,6 +232,11 @@ namespace BocuD.BuildHelper
                 target.vrcImageHasChanges = false;
                 target.vrcImageWarning = "";
             }
+
+            if (target.hasDiscordWebhook && target.discordWebhookOnPublish)
+            {
+                DiscordWebhookTools.SendPublishedMessage(target);
+            }
             
             ClearCaches();
         }
@@ -327,8 +333,14 @@ namespace BocuD.BuildHelper
         public bool hasDeploymentData;
         public DeploymentData deploymentData;
 
+        //udon link
         public bool hasUdonLink;
         
+        //discord webhook
+        public bool hasDiscordWebhook;
+        public bool discordWebhookOnPublish;
+        public DiscordWebhookTools.DiscordWebhookData webhookSettings;
+
         public OverrideContainer overrideContainer;
         
         public bool HasVRCDataChanges()

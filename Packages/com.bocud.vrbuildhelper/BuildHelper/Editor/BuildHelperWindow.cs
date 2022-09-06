@@ -738,6 +738,7 @@ namespace BocuD.BuildHelper.Editor
             DrawGameObjectEditor(selectedBranch);
             DrawDeploymentEditorPreview(selectedBranch);
             DrawUdonLinkEditor(selectedBranch);
+            DrawDiscordLinkEditor(selectedBranch);
 
             GUILayout.FlexibleSpace();
 
@@ -1057,6 +1058,32 @@ namespace BocuD.BuildHelper.Editor
                 TrySave();
             }
         }
+        
+        //discord editor
+        bool discordEditorFoldout = false;
+        private void DrawDiscordLinkEditor(Branch selectedBranch)
+        {
+            EditorGUI.BeginChangeCheck();
+            GUILayout.BeginVertical("Helpbox");
+
+            EditorGUILayout.BeginHorizontal();
+            selectedBranch.hasDiscordWebhook = EditorGUILayout.Toggle("Discord Webhooks", selectedBranch.hasDiscordWebhook);
+            EditorGUILayout.EndHorizontal();
+
+            if (selectedBranch.hasDiscordWebhook)
+            {
+                EditorGUILayout.BeginHorizontal();
+                discordEditorFoldout = EditorGUILayout.Foldout(discordEditorFoldout, "");
+                EditorGUILayout.EndHorizontal();
+                
+                if (discordEditorFoldout)
+                {
+                    selectedBranch.discordWebhookOnPublish = EditorGUILayout.Toggle("Send message on publish", selectedBranch.discordWebhookOnPublish);
+                }
+            }
+
+            GUILayout.EndVertical();
+        }
 
         private bool editMode;
         private bool editModeChanges;
@@ -1126,7 +1153,7 @@ namespace BocuD.BuildHelper.Editor
                     if (GUILayout.Button(applyChangesButton, buttonStyle))
                     {
                         if (EditorUtility.DisplayDialog("Applying Changes to VRChat World",
-                                "Applying changes will immediately apply any changes you made here without reuploading the world. Are you sure you want to continue?",
+                                "Applying changes will immediately apply any changes you made here without reding the world. Are you sure you want to continue?",
                                 "Yes", "No"))
                         {
                             ApplyBranchChanges(branch, apiWorld);
