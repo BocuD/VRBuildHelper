@@ -2022,7 +2022,7 @@ namespace BocuD.BuildHelper.Editor
                 $"<i>{(APIUser.IsLoggedIn ? "Currently logged in as " + APIUser.CurrentUser.displayName : "")}</i>",
                 styleRichTextLabel, GUILayout.ExpandWidth(false));
 
-            bool publishBlocked = !CheckAccount(branchStorageObject.CurrentBranch);
+            bool publishBlocked = branchStorageObject.CurrentBranch.apiWorldLoaded && !CheckAccount(branchStorageObject.CurrentBranch);
 
             if (!publishBlocked)
             {
@@ -2046,7 +2046,7 @@ namespace BocuD.BuildHelper.Editor
                 }
             }
 
-            using (new EditorGUI.DisabledScope(publishBlocked))
+            using (new EditorGUI.DisabledScope(publishBlocked || !branchStorageObject.CurrentBranch.apiWorldLoaded))
             {
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField("Publish to VRChat");
