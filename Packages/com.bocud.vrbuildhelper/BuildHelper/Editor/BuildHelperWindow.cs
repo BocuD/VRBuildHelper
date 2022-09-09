@@ -22,6 +22,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -85,6 +86,9 @@ namespace BocuD.BuildHelper.Editor
 
         private GUIContent currentPlatformPublish;
         private GUIContent crossPlatformPublish;
+        
+        private GUIContent buildFolder;
+        private GUIContent exportBuild;
 
         private Texture2D _iconGitHub;
         private Texture2D _iconVRChat;
@@ -1726,8 +1730,26 @@ namespace BocuD.BuildHelper.Editor
             BuildData buildData = branch.buildData;
             GUIStyle styleRichTextLabel = new GUIStyle(GUI.skin.label) { richText = true };
 
+            EditorGUILayout.BeginHorizontal();
             GUILayout.Label("<b>Build Information</b>", styleRichTextLabel);
+            if (GUILayout.Button(buildFolder, GUILayout.Width(150), GUILayout.Height(EditorGUIUtility.singleLineHeight)))
+            {
+                string path = branch.buildData.GetLatestBuild().buildPath;
+                if (path != null)
+                {
+                    if (File.Exists(path))
+                    {
+                        path = Path.GetDirectoryName(path);
+                    }
 
+                    if (Directory.Exists(path))
+                    {
+                        Process.Start("explorer.exe", "/select," + path);
+                    }
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+            
             PlatformBuildInfo pcBuild = buildData.pcData;
             PlatformBuildInfo androidBuild = buildData.androidData;
 
@@ -1780,15 +1802,35 @@ namespace BocuD.BuildHelper.Editor
                       ? $"Uploaded at {time}" + (isOutdated
                           ? "\nThis build doesn't match the newest uploaded build, you should consider reuploading for this platform."
                           : "")
-                      : $"Built at {time}\nBuild path: {info.buildPath}\nBuild hash: {info.buildHash}\nBlueprint ID: {info.blueprintID}\n{(info.buildValid ? "Verified build" : $"Couldn't verify build : {info.buildInvalidReason}")}")
+                      : $"Built at {time}\nBuild path: {info.buildPath}\nBuild hash: {info.buildHash}\nBlueprint ID: {info.blueprintID}\nBuild size: {info.buildSize.ToReadableBytes()}\n{(info.buildValid ? "Verified build" : $"Couldn't verify build : {info.buildInvalidReason}")}")
                 : $"Couldn't find a last {(isUpload ? "upload" : "build")} for this platform";
+            
             GUIContent content = new GUIContent(
                 (isOutdated ? "<color=yellow>" : "") +
                 $"Last {platform} {(isUpload ? "upload" : "build")}: {(hasTime ? $"build {ver} ({time})" : "Unknown")}" +
                 (isOutdated ? "</color>" : ""),
                 tooltip);
 
+            EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField(content, buildStatusStyle);
+            
+            if(!isUpload)
+            {
+                EditorGUI.BeginDisabledGroup(!info.buildValid);
+                if (GUILayout.Button(exportBuild, GUILayout.ExpandWidth(false)))
+                {
+                    //save dialog
+                    string path = EditorUtility.SaveFilePanel("Export build", "", $"{platform} build {ver}", "vrcw");
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        //copy build to path
+                        File.Copy(info.buildPath, path, true);
+                    }
+                }
+                EditorGUI.EndDisabledGroup();
+            }
+            
+            EditorGUILayout.EndHorizontal();
         }
 
         private void DisplayBuildButtons()
@@ -2674,6 +2716,18 @@ namespace BocuD.BuildHelper.Editor
                 text = " Revert Image",
                 image = EditorGUIUtility.IconContent("d_RotateTool").image,
                 tooltip = "Restore the image to the last uploaded version"
+            };
+            
+            buildFolder = new GUIContent
+            {
+                text = " Open build folder",
+                image = EditorGUIUtility.IconContent("d_FolderOpened Icon").image
+            };
+            
+            exportBuild = new GUIContent
+            {
+                text = " Export build",
+                image = EditorGUIUtility.IconContent("d_SaveAs").image
             };
         }
 

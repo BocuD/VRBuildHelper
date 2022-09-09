@@ -31,11 +31,12 @@ namespace BuildHelper.Runtime
             }
             
             //embed fields
-            public bool supportedPlatformsField = true;
+            public bool supportedPlatformsField = false;
             public bool updatedPlatformsField = true;
             public bool branchField = true;
             public bool versionField = false;
             public bool buildNumberField = true;
+            public bool sizeField = true;
         }
         
         public static async void SendPublishedMessage(Branch branch, string content = "")
@@ -82,7 +83,7 @@ namespace BuildHelper.Runtime
                     {
                         fields.Add(new DiscordMessage.Embed.Field
                         {
-                            name = "Updated for platforms",
+                            name = "Updated platforms",
                             value = branch.buildData.justUploadedPlatforms,
                             inline = true
                         });
@@ -111,6 +112,15 @@ namespace BuildHelper.Runtime
                         {
                             name = "Build Number",
                             value = branch.buildData.GetLatestUpload().buildVersion.ToString(),
+                            inline = true
+                        });
+                    }
+                    if (data.sizeField)
+                    {
+                        fields.Add(new DiscordMessage.Embed.Field
+                        {
+                            name = "Size",
+                            value = branch.buildData.GetLatestUpload().buildSize.ToReadableBytes(),
                             inline = true
                         });
                     }

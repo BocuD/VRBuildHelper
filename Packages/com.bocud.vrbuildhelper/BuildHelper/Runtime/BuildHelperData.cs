@@ -458,6 +458,7 @@ namespace BocuD.BuildHelper
         public string buildHash;
         public string buildTime;
         public int buildVersion;
+        public long buildSize;
         
         public bool buildValid;
         public string buildInvalidReason;
