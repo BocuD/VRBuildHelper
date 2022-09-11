@@ -207,7 +207,7 @@ namespace BocuD.BuildHelper
             ApiWorld world = await FetchApiWorldAsync(blueprintID);
             
             target.editedName = world.name;
-            target.editedDescription = world.name;
+            target.editedDescription = world.description;
             target.editedCap = world.capacity;
             target.editedTags = world.publicTags.ToList();
 
