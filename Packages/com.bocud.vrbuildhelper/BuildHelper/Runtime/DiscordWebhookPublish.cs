@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using BocuD.BuildHelper;
 using BocuD.VRChatApiTools;
 using UnityEngine;
@@ -39,7 +40,7 @@ namespace BuildHelper.Runtime
             public bool sizeField = true;
         }
         
-        public static async void SendPublishedMessage(Branch branch, string content = "")
+        public static async Task SendPublishedMessage(Branch branch, string content = "")
         {
             DiscordWebhookData data = branch.webhookSettings;
             ApiWorld worldData = await VRChatApiTools.FetchApiWorldAsync(branch.blueprintID);

@@ -236,7 +236,7 @@ namespace BocuD.BuildHelper
 
             if (!autonomousBuilder && target.hasDiscordWebhook && target.discordWebhookOnPublish)
             {
-                DiscordWebhookPublish.SendPublishedMessage(target);
+                await DiscordWebhookPublish.SendPublishedMessage(target);
             }
             
             ClearCaches();

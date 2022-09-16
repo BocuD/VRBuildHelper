@@ -145,7 +145,7 @@ namespace BocuD.BuildHelper
                 if (data != null)
                 {
                     data.dataObject.CurrentBranch.buildData.justUploadedPlatforms = status.buildInfo.initialTarget.ToString();
-                    DiscordWebhookPublish.SendPublishedMessage(data.dataObject.CurrentBranch);
+                    await DiscordWebhookPublish.SendPublishedMessage(data.dataObject.CurrentBranch);
                 }
                 return;
             }
@@ -167,7 +167,7 @@ namespace BocuD.BuildHelper
             {
                 data.dataObject.CurrentBranch.buildData.justUploadedPlatforms =
                     status.buildInfo.initialTarget + " and " + status.buildInfo.secondaryTarget;
-                DiscordWebhookPublish.SendPublishedMessage(data.dataObject.CurrentBranch);
+                await DiscordWebhookPublish.SendPublishedMessage(data.dataObject.CurrentBranch);
             }
             
             SwitchPlatform(status.buildInfo.initialTarget);
