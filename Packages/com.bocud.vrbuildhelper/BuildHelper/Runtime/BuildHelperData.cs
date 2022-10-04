@@ -359,18 +359,22 @@ namespace BocuD.BuildHelper
         {
             if (blueprintID != "")
             {
-                if (!blueprintCache.TryGetValue(blueprintID, out ApiModel model))
+                if (blueprintCache.TryGetValue(blueprintID, out ApiModel model))
                 {
-                    if (!invalidBlueprints.Contains(blueprintID))
-                        FetchApiWorld(blueprintID);
-                    else isNewWorld = true;
+                    apiWorld = (ApiWorld)model;
+                    
+                    apiWorldLoaded = true;
+                    isNewWorld = false;
+                    loadError = false;
                 }
                 else
                 {
-                    apiWorld = (ApiWorld)model;
-                    apiWorldLoaded = true;
+                    if (invalidBlueprints.Contains(blueprintID))
+                        isNewWorld = true;
+                    else
+                        FetchApiWorld(blueprintID);
                 }
-
+                
                 if (invalidBlueprints.Contains(blueprintID))
                 {
                     loadError = true;
@@ -383,6 +387,8 @@ namespace BocuD.BuildHelper
             else
             {
                 isNewWorld = true;
+                loadError = false;
+                apiWorldLoaded = false;
             }
 
             if (isNewWorld) remoteExists = false;
