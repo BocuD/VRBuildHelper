@@ -1063,9 +1063,6 @@ namespace BocuD.BuildHelper.Editor
                 TrySave();
             }
         }
-        
-        //discord editor
-        bool discordEditorFoldout = false;
 
         private void DrawDiscordLinkEditor(Branch selectedBranch)
         {
