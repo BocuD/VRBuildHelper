@@ -42,6 +42,8 @@ namespace BuildHelper.Runtime
         
         public static async Task SendPublishedMessage(Branch branch, string content = "")
         {
+            if (!branch.hasDiscordWebhook || !branch.discordWebhookOnPublish) return;
+            
             DiscordWebhookData data = branch.webhookSettings;
             ApiWorld worldData = await VRChatApiTools.FetchApiWorldAsync(branch.blueprintID);
 
@@ -118,10 +120,21 @@ namespace BuildHelper.Runtime
                     }
                     if (data.sizeField)
                     {
+                        string buildSize = branch.buildData.GetLatestUpload().buildSize.ToReadableBytes();
+                        
+                        //todo: this is somewhat dirty but it works perfectly so i'm not gonna change it for now
+                        if (branch.buildData.justUploadedPlatforms.Contains("and"))
+                        {
+                            string pcSize = branch.buildData.pcData.buildSize.ToReadableBytes();
+                            string androidSize = branch.buildData.androidData.buildSize.ToReadableBytes();
+                            
+                            buildSize = $"PC: {pcSize}, Android: {androidSize}";
+                        }
+                        
                         fields.Add(new DiscordMessage.Embed.Field
                         {
                             name = "Size",
-                            value = branch.buildData.GetLatestUpload().buildSize.ToReadableBytes(),
+                            value = buildSize,
                             inline = true
                         });
                     }

@@ -234,7 +234,7 @@ namespace BocuD.BuildHelper
                 target.vrcImageWarning = "";
             }
 
-            if (!autonomousBuilder && target.hasDiscordWebhook && target.discordWebhookOnPublish)
+            if (!autonomousBuilder)
             {
                 await DiscordWebhookPublish.SendPublishedMessage(target);
             }
