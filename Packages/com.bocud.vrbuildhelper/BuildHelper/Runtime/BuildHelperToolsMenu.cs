@@ -23,6 +23,7 @@
 #if UNITY_EDITOR && !COMPILER_UDONSHARP
 
 using System.IO;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -75,8 +76,7 @@ namespace BocuD.BuildHelper
 
         public void ChangeImage()
         {
-            string[] allowedFileTypes = {"png"};
-            NativeFilePicker.PickFile(OnFileSelected, allowedFileTypes);
+            OnFileSelected(EditorUtility.OpenFilePanel("Select Image", "", "png"));
         }
 
         public void OnFileSelected(string filePath)

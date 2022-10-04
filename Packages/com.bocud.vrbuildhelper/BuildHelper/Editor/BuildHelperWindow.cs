@@ -1492,9 +1492,8 @@ namespace BocuD.BuildHelper.Editor
                 //draw image buttons
                 if (GUILayout.Button(branch.apiWorldLoaded ? replaceImageButton : setImageButton, buttonStyle))
                 {
-                    string[] allowedFileTypes = { "png" };
                     imageBranch = branch;
-                    NativeFilePicker.PickFile(OnImageSelected, allowedFileTypes);
+                    OnImageSelected(EditorUtility.OpenFilePanel("Select Image", "", "png"));
                 }
 
                 if (GUILayout.Button(cameraButton, buttonStyle))
