@@ -1121,27 +1121,6 @@ namespace BocuD.BuildHelper.Editor
                 VRChatApiToolsEditor.RefreshData();
             }
             
-            if (branch.loadError)
-            {
-                EditorGUILayout.HelpBox(
-                    "Couldn't load world information. This can happen if the blueprint ID is invalid, or if the world was deleted.",
-                    MessageType.Error);
-
-                EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button("Change blueprint ID"))
-                {
-                    ChangeBranchBlueprintID(branch);
-                }
-
-                if (GUILayout.Button("Remove blueprint ID"))
-                {
-                    branch.blueprintID = "";
-                    SwitchBranch(buildHelperData, Array.IndexOf(branchStorageObject.branches, branch));
-                }
-
-                EditorGUILayout.EndHorizontal();
-            }
-
             if (!branch.isNewWorld && branch.apiWorldLoaded && branch.HasVRCDataChanges())
             {
                 bool authorMismatch = apiWorld.authorId != APIUser.CurrentUser.id;
@@ -1170,6 +1149,27 @@ namespace BocuD.BuildHelper.Editor
             }
             EditorGUI.EndDisabledGroup();
             GUILayout.EndHorizontal();
+            
+            if (branch.loadError)
+            {
+                EditorGUILayout.HelpBox(
+                    "Couldn't load world information. This can happen if the blueprint ID is invalid, or if the world was deleted.",
+                    MessageType.Error);
+
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("Change blueprint ID"))
+                {
+                    ChangeBranchBlueprintID(branch);
+                }
+
+                if (GUILayout.Button("Remove blueprint ID"))
+                {
+                    branch.blueprintID = "";
+                    SwitchBranch(buildHelperData, Array.IndexOf(branchStorageObject.branches, branch));
+                }
+
+                EditorGUILayout.EndHorizontal();
+            }
             
             if (!branch.loadError && !branch.isNewWorld && branch.apiWorldLoaded == false && !Application.isPlaying)
             {
