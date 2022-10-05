@@ -702,7 +702,7 @@ namespace BocuD.BuildHelper.Editor
                     {
                         if (c.Code == 404)
                         {
-                            Logger.LogError($"The selected blueprint id ({pipelineManager.blueprintId} does not exist");
+                            Logger.LogError($"The selected blueprint id ({pipelineManager.blueprintId}) does not exist");
                             ApiCache.Invalidate<ApiWorld>(pipelineManager.blueprintId);
                         }
                         else
