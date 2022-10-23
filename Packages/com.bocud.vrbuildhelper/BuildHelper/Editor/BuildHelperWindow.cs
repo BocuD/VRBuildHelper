@@ -2060,7 +2060,7 @@ namespace BocuD.BuildHelper.Editor
                 $"<i>{(APIUser.IsLoggedIn ? "Currently logged in as " + APIUser.CurrentUser.displayName : "")}</i>",
                 styleRichTextLabel, GUILayout.ExpandWidth(false));
 
-            bool publishBlocked = branchStorageObject.CurrentBranch.apiWorldLoaded && !CheckAccount(branchStorageObject.CurrentBranch);
+            bool publishBlocked = (branchStorageObject.CurrentBranch.apiWorldLoaded || branchStorageObject.CurrentBranch.isNewWorld) && !CheckAccount(branchStorageObject.CurrentBranch);
 
             if (!publishBlocked)
             {
