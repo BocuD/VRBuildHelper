@@ -212,12 +212,14 @@ namespace BocuD.BuildHelper
 
                 status.currentState = AutonomousBuildState.uploading;
 
-                VRChatApiUploaderAsync uploader = new VRChatApiUploaderAsync();
-                uploader.OnStatus = status.UploadStatus;
-                uploader.OnUploadProgress = status.UploadProgress;
-                uploader.OnError = status.OnError;
-                uploader.Log = contents => status.AddLog($"<b>{contents}</b>");
-                uploader.cancelQuery = () => status.abort;
+                VRChatApiUploaderAsync uploader = new VRChatApiUploaderAsync
+                {
+                    OnStatus = status.UploadStatus,
+                    OnUploadProgress = status.UploadProgress,
+                    OnError = status.OnError,
+                    Log = contents => status.AddLog($"<b>{contents}</b>"),
+                    cancelQuery = () => status.abort
+                };
 
                 string blueprintID = await uploader.UploadWorld(buildPath, "", status.buildInfo.worldInfo);
 

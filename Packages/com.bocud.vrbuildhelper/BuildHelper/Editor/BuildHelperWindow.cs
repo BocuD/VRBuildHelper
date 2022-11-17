@@ -2084,7 +2084,7 @@ namespace BocuD.BuildHelper.Editor
                 }
             }
 
-            using (new EditorGUI.DisabledScope(publishBlocked || !branchStorageObject.CurrentBranch.apiWorldLoaded))
+            using (new EditorGUI.DisabledScope(publishBlocked || !branchStorageObject.CurrentBranch.isNewWorld && !branchStorageObject.CurrentBranch.apiWorldLoaded))
             {
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField("Publish to VRChat");

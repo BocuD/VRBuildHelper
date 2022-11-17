@@ -65,7 +65,7 @@ namespace BocuD.BuildHelper
                     EditorPrefs.SetString("currentBuildingAssetBundlePath", output);
                     EditorPrefs.SetString("lastVRCPath", output);
                 }
-                
+
                 //save last build information
                 PlatformBuildInfo data = BuildHelperData.GetDataObject()?.CurrentBranch?.buildData?.CurrentPlatformBuildData();
                 if (data != null)

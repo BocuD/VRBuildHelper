@@ -37,6 +37,8 @@ namespace BocuD.BuildHelper.Editor
                 {
                     Selection.activeObject = null;
                 }
+                
+                cam.GetComponent<Camera>().enabled = false;
             }
         }
     }
@@ -108,6 +110,8 @@ namespace BocuD.BuildHelper.Editor
                 newCam.AddComponent<Camera>();
                 newCam.AddComponent<PostProcessLayer>();
 
+                newCam.tag = "EditorOnly";
+
                 _camData = newCam.AddComponent<CameraData>();
             }
 
@@ -124,6 +128,8 @@ namespace BocuD.BuildHelper.Editor
             camTransformSO = new SerializedObject(cam.transform);
             position = camTransformSO.FindProperty("m_LocalPosition");
             rotation = camTransformSO.FindProperty("m_LocalRotation");
+            
+            cam.GetComponent<Camera>().enabled = true;
             
             Selection.activeObject = cam;
 
