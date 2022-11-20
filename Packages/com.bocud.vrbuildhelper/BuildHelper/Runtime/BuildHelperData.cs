@@ -339,7 +339,6 @@ namespace BocuD.BuildHelper
         
         //discord webhook
         public bool hasDiscordWebhook;
-        public bool discordWebhookOnPublish;
         public DiscordWebhookPublish.DiscordWebhookData webhookSettings;
 
         public OverrideContainer overrideContainer;

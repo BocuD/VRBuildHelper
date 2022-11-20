@@ -42,7 +42,7 @@ namespace BuildHelper.Runtime
         
         public static async Task SendPublishedMessage(Branch branch, string content = "")
         {
-            if (!branch.hasDiscordWebhook || !branch.discordWebhookOnPublish) return;
+            if (!branch.hasDiscordWebhook) return;
             
             DiscordWebhookData data = branch.webhookSettings;
             ApiWorld worldData = await VRChatApiTools.FetchApiWorldAsync(branch.blueprintID);
