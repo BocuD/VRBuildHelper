@@ -6,7 +6,7 @@
     "name": "BocuD",
     "url": "https://github.com/BocuD"
   },
-  "dependencies": {
+  "vpmDependencies": {
     "com.vrchat.base": "3.2.0",
     "com.vrchat.worlds": "3.2.0",
     "com.bocud.vrcapitools": "0.2.1"
