@@ -191,7 +191,7 @@ namespace BocuD.BuildHelper.Editor
             branchList.DoLayoutList();
             buildHelperDataSO.ApplyModifiedProperties();
 
-            if (branchStorageObject.branches.Length == 0)
+            if (branchStorageObject != null && branchStorageObject.branches.Length == 0)
             {
                 GUIStyle welcomeLabel = new GUIStyle(EditorStyles.label) { fontStyle = FontStyle.Bold, fontSize = 20 };
                 GUIStyle textArea = new GUIStyle(EditorStyles.label) { wordWrap = true, richText = true };
