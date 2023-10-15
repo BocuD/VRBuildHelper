@@ -28,7 +28,7 @@ namespace BocuD.BuildHelper
                 _useAsyncPublish = value;
                 EditorPrefs.SetBool(asyncPublishPath, value);
             }
-            get => _useAsyncPublish;
+            get => true;
         }
         
         private static int _buildNumberMode;
