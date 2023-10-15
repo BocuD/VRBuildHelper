@@ -7,8 +7,8 @@
     "url": "https://github.com/BocuD"
   },
   "vpmDependencies": {
-    "com.vrchat.base": "^3.2.x",
-    "com.vrchat.worlds": "^3.2.x",
+    "com.vrchat.base": "^3.4.x",
+    "com.vrchat.worlds": "^3.4.x",
     "com.bocud.vrcapitools": "0.3.x"
   },
   "description": "An integrated editor toolset that adds a number of quality of life features to assist VRChat world creators in managing their projects.",
