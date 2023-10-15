@@ -17,9 +17,8 @@ An integrated editor toolset that adds a number of quality of life features to a
 ![Main window](https://i.imgur.com/lt40krp.png)
 
 # Installation
-## Installation via Unity Package Manager (git, recommended):
-1. In the Unity toolbar, select `Window` > `Package Manager` > `[+]` > `Add package from git URL...` 
-2. Paste the following link: `https://github.com/BocuD/VRBuildHelper.git?path=/Packages/com.bocud.vrbuildhelper`
+## Installation via VRChat Creator Companion (recommended):
+Add [this](https://bocud.github.io/BocuDPackages/) repository to your CreatorCompanion sources. From there VRChatApiTools should show up within the list of available packages.
 
 ## Installation through a UnityPackage
 1. Download latest unitypackage release from [here](https://github.com/BocuD/VRBuildHelper/releases/latest)
@@ -32,6 +31,6 @@ Special Thanks:
 ## Requirements
 - Latest version of Package Manager version of VRChat SDK (installed by [VRChat Creator Companion](https://vcc.docs.vrchat.com/))
 - UdonSharp v1.0.0 or later
-- VRChatApiTools v0.2.1 or later https://github.com/BocuD/VRChatApiTools/
+- VRChatApiTools v0.4.0 or later https://github.com/BocuD/VRChatApiTools/
 
 ### For complete documentation, please visit [the wiki](https://github.com/BocuD/VRBuildHelper/wiki).
