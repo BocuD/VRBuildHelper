@@ -68,12 +68,12 @@ namespace BocuD.BuildHelper.Editor
             {
                 switch(autonomousBuild.progress)
                 {
-                    case AutonomousBuildData.Progress.PreInitialBuild:
+                    case AutonomousBuildData.BuilderProgress.PreInitialBuild:
                         buildData.SaveBuildTime();
                         buildData.CurrentPlatformBuildData().buildVersion = buildData.GetLatestBuild().buildVersion + 1;
                         break;
                     
-                    case AutonomousBuildData.Progress.PreSecondaryBuild:
+                    case AutonomousBuildData.BuilderProgress.PreSecondaryBuild:
                         buildData.SaveBuildTime();
                         buildData.CurrentPlatformBuildData().buildVersion = buildData.GetLatestBuild().buildVersion;
                         break;

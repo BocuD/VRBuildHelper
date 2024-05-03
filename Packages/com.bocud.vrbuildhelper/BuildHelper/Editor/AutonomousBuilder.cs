@@ -39,7 +39,7 @@ namespace BocuD.BuildHelper
             public bool activeBuild;
             public Platform initialTarget;
             public Platform secondaryTarget;
-            public Progress progress;
+            public BuilderProgress progress;
             public WorldInfo worldInfo;
 
             public bool Stop
@@ -56,7 +56,7 @@ namespace BocuD.BuildHelper
                 worldInfo = new WorldInfo();
             }
 
-            public enum Progress
+            public enum BuilderProgress
             {
                 PreInitialBuild,
                 PostInitialBuild,
@@ -109,12 +109,12 @@ namespace BocuD.BuildHelper
             
             switch (status.buildInfo.progress)
             {
-                case Progress.PostInitialBuild when status.buildInfo.secondaryTarget == CurrentPlatform():
-                    status.buildInfo.progress = Progress.PreSecondaryBuild;
+                case BuilderProgress.PostInitialBuild when status.buildInfo.secondaryTarget == CurrentPlatform():
+                    status.buildInfo.progress = BuilderProgress.PreSecondaryBuild;
                     ContinueAutonomousPublish();
                     break;
                 
-                case Progress.PostSecondaryBuild when status.buildInfo.initialTarget == CurrentPlatform():
+                case BuilderProgress.PostSecondaryBuild when status.buildInfo.initialTarget == CurrentPlatform():
                     FinishAutonomousPublish();
                     break;
             }
@@ -134,7 +134,7 @@ namespace BocuD.BuildHelper
                 return;
             }
 
-            status.buildInfo.progress = Progress.PostInitialBuild;
+            status.buildInfo.progress = BuilderProgress.PostInitialBuild;
 
             if (buildInfo.singleTarget)
             {
@@ -160,7 +160,7 @@ namespace BocuD.BuildHelper
 
             if (status.buildInfo.Stop) { status.Aborted(); return; }
             
-            status.buildInfo.progress = Progress.PostSecondaryBuild;
+            status.buildInfo.progress = BuilderProgress.PostSecondaryBuild;
             
             BuildHelperData data = BuildHelperData.GetDataBehaviour();
             if (data != null)

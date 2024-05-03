@@ -2288,7 +2288,7 @@ namespace BocuD.BuildHelper.Editor
             {
                 initialTarget = CurrentPlatform(),
                 secondaryTarget = CurrentPlatform() == Platform.Windows ? Platform.Android : Platform.Windows,
-                progress = AutonomousBuilder.AutonomousBuildData.Progress.PreInitialBuild,
+                progress = AutonomousBuilder.AutonomousBuildData.BuilderProgress.PreInitialBuild,
                 worldInfo = branchStorageObject.CurrentBranch.ToWorldInfo(),
                 singleTarget = singlePlatform
             };
