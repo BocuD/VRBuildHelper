@@ -266,7 +266,7 @@ namespace BocuD.BuildHelper
     {
         public int currentBranch;
 
-        public Branch[] branches;
+        public Branch[] branches = new Branch[0];
         
         public Branch GetBranchByID(string id)
         {
