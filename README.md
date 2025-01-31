@@ -1,3 +1,5 @@
+# Note: Due to recent changes in the VRChat SDK this project is currently no longer considered "supported". It will most likely continue to function, but until a rewrite is done I would recommend against using it. A new version is in the works which will support the current version of the SDK in a better way.
+
 # VR Build Helper
 An integrated editor toolset that adds a number of quality of life features to assist VRChat world creators in managing their projects.
 ## Features
